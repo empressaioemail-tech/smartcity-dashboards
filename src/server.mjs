@@ -6,6 +6,7 @@ import { listLenses, getLens } from "./lenses.mjs";
 import { listCityPacks, getCityPack, getPacksStore, ensureCityPacksTable } from "./city-pack.mjs";
 import { readMounts, smartsiteEmbedUrl, assertNoSupplierDsn, assertNoSupplierMounts } from "./mounts.mjs";
 import { composeCityManager } from "./compose.mjs";
+import { listAdapterKinds } from "./adapters.mjs";
 import { loadDotenv } from "./load-env.mjs";
 import { pingDb } from "./db.mjs";
 import { MCP_TOOL_NAMES } from "./catalog.mjs";
@@ -76,6 +77,11 @@ async function handle(req, res) {
 
   if (req.method === "GET" && url.pathname === "/api/lenses") {
     json(res, 200, { lenses: listLenses() });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/adapter-kinds") {
+    json(res, 200, { kinds: listAdapterKinds() });
     return;
   }
 

@@ -28,6 +28,8 @@ describe("product shape", () => {
     assert.deepEqual(MCP_TOOL_NAMES, [
       "dashboards_list_lenses",
       "dashboards_get_city_pack",
+      "dashboards_compose_city_manager",
+      "dashboards_list_adapter_kinds",
     ]);
     const server = fs.readFileSync(path.join(root, "src", "server.mjs"), "utf8");
     assert.equal(server.includes("createMcp"), false);

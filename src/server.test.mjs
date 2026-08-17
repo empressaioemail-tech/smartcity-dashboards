@@ -67,6 +67,16 @@ describe("HTTP surface", () => {
 
     const packs = await (await fetch(`${base}/api/city-packs`)).json();
     assert.equal(packs.cityPacks[0].cityKey, "template-city");
+    assert.equal(packs.cityPacks[0].grantedAdapterCount, 0);
+
+    const kinds = await (await fetch(`${base}/api/adapter-kinds`)).json();
+    assert.deepEqual(
+      kinds.kinds.map((k) => k.id),
+      ["mygov", "samsara", "opengov", "esri", "municode", "firstdue", "verkada"],
+    );
+    const samsara = kinds.kinds.find((k) => k.id === "samsara");
+    assert.equal(samsara.writesTo, "files");
+    assert.equal(samsara.defaultAccessPolicy, "tenant-private");
 
     const mounts = await (await fetch(`${base}/api/mounts`)).json();
     assert.equal(mounts.mounts.smartsite.contract, "embed");
@@ -113,6 +123,8 @@ describe("HTTP surface", () => {
       assert.equal(health.status, 200);
       const lenses = await fetch(`${base}/api/lenses`);
       assert.equal(lenses.status, 200);
+      const kinds = await fetch(`${base}/api/adapter-kinds`);
+      assert.equal(kinds.status, 200);
     } finally {
       delete process.env.DASHBOARDS_API_KEY;
     }
@@ -140,5 +152,17 @@ describe("HTTP surface", () => {
     assert.equal(composed.filesRoom.contract, "service-http");
     assert.equal(composed.filesRoom.status, "unavailable");
     assert.equal(composed.filesRoom.basis, "SMART_FILES_BACKEND_URL unset");
+    assert.deepEqual(Object.keys(composed).sort(), [
+      "atoms",
+      "cityKey",
+      "filesRoom",
+      "lensId",
+      "parcelNodeId",
+      "smartsite",
+    ]);
+    assert.equal("mygov" in composed, false);
+    assert.equal("samsara" in composed, false);
+    assert.equal("permits" in composed, false);
+    assert.equal("fleet" in composed, false);
   });
 });
