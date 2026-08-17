@@ -3,8 +3,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { listLenses, getLens } from "./lenses.mjs";
-import { listCityPacks, getCityPack } from "./city-pack.mjs";
+import { listCityPacks, getCityPack, getPacksStore, ensureCityPacksTable } from "./city-pack.mjs";
 import { readMounts, smartsiteEmbedUrl, assertNoSupplierDsn, assertNoSupplierMounts } from "./mounts.mjs";
+import { composeCityManager } from "./compose.mjs";
 import { loadDotenv } from "./load-env.mjs";
 import { pingDb } from "./db.mjs";
 import { MCP_TOOL_NAMES } from "./catalog.mjs";
@@ -47,32 +48,43 @@ function sendFile(res, filePath, contentType) {
   });
 }
 
-export const server = http.createServer((req, res) => {
+async function handle(req, res) {
   const url = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
 
   if (req.method === "GET" && url.pathname === "/health") {
-    pingDb()
-      .then((db) => {
-        json(res, 200, {
-          ok: true,
-          product: "smartcity-dashboards",
-          cityPacks: "tenant-packs-not-repos",
-          ...db,
-        });
-      })
-      .catch((err) => {
-        json(res, 200, {
-          ok: false,
-          product: "smartcity-dashboards",
-          db: "error",
-          error: String(err.message || err),
-        });
+    const packsStore = getPacksStore();
+    try {
+      const db = await pingDb();
+      json(res, 200, {
+        ok: true,
+        product: "smartcity-dashboards",
+        cityPacks: "tenant-packs-not-repos",
+        packsStore,
+        ...db,
       });
+    } catch (err) {
+      json(res, 200, {
+        ok: false,
+        product: "smartcity-dashboards",
+        db: "error",
+        packsStore,
+        error: String(err.message || err),
+      });
+    }
     return;
   }
 
   if (req.method === "GET" && url.pathname === "/api/lenses") {
     json(res, 200, { lenses: listLenses() });
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/api/lenses/city-manager/compose") {
+    const composed = await composeCityManager({
+      parcelNodeId: url.searchParams.get("parcelNodeId") || "",
+      cityKey: url.searchParams.get("cityKey") || "",
+    });
+    json(res, 200, composed);
     return;
   }
 
@@ -92,7 +104,7 @@ export const server = http.createServer((req, res) => {
       json(res, 401, { error: "unauthorized" });
       return;
     }
-    json(res, 200, { cityPacks: listCityPacks() });
+    json(res, 200, { cityPacks: await listCityPacks() });
     return;
   }
 
@@ -102,7 +114,7 @@ export const server = http.createServer((req, res) => {
       return;
     }
     const key = decodeURIComponent(url.pathname.slice("/api/city-packs/".length));
-    const pack = getCityPack(key);
+    const pack = await getCityPack(key);
     if (!pack) {
       json(res, 404, { error: "unknown city pack" });
       return;
@@ -136,9 +148,18 @@ export const server = http.createServer((req, res) => {
   }
 
   json(res, 404, { error: "not found" });
+}
+
+export const server = http.createServer((req, res) => {
+  handle(req, res).catch((err) => {
+    json(res, 500, { error: String(err.message || err) });
+  });
 });
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMain) {
+  if (getPacksStore() === "neon") {
+    await ensureCityPacksTable();
+  }
   server.listen(PORT, () => {
     process.stdout.write(`smartcity-dashboards listening on ${PORT}\n`);
   });
