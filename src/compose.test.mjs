@@ -312,4 +312,27 @@ describe("city-manager compose", () => {
     assert.equal(composed.filesRoom.folderCount, 0);
     assert.deepEqual(composed.filesRoom.folders, []);
   });
+
+  it("is G-13 mounts only; not a vendor JSON lens", async () => {
+    const composed = await composeCityManager({
+      parcelNodeId: VALID,
+      env: envWithMounts(),
+      fetchImpl: mockFetch((url) => {
+        if (url.includes("/atom-chain")) return jsonResponse(200, { atoms: [] });
+        return jsonResponse(200, { folders: [] });
+      }),
+    });
+    assert.deepEqual(Object.keys(composed).sort(), [
+      "atoms",
+      "cityKey",
+      "filesRoom",
+      "lensId",
+      "parcelNodeId",
+      "smartsite",
+    ]);
+    assert.equal("mygov" in composed, false);
+    assert.equal("samsara" in composed, false);
+    assert.equal("permits" in composed, false);
+    assert.equal("fleet" in composed, false);
+  });
 });

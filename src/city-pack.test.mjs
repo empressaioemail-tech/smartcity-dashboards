@@ -18,6 +18,7 @@ describe("city packs", () => {
     assert.ok(pack);
     assert.equal("repo" in pack, false);
     assert.notEqual(pack.cityKey, "bastrop");
+    assert.deepEqual(pack.grantedAdapters, []);
     assertCityPackShape(pack);
   });
 
