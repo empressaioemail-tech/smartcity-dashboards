@@ -73,18 +73,19 @@
                     <div class="state">
                       <span class="st-k">No live operations</span>
                       <h5>No decisions are waiting on template-city.</h5>
-                      <p>This queue would list items that need a call across connected departments. The demo pack has no granted adapters, so there is nothing to resolve. This is not a live operations feed.</p>
-                      <span class="basis">Basis: grantedAdapters empty on cityKey template-city. Gold parcel 48021:34137 is a demo fixture, not a city onboarded.</span>
+                      <p>This queue would list items that need a call across connected departments. The municode calendar grant on template-city is not an operations feed, so there is nothing to resolve here.</p>
+                      <span class="basis">Basis: municode calendar grant on cityKey template-city writes public meetings to files, not this queue. Gold parcel 48021:34137 is a demo fixture, not a city onboarded.</span>
                     </div>
                   </div>
-                  <div class="panel">
-                    <div class="panel-head"><span class="t">Public meetings</span><span class="grow"></span><span class="prov"><b>City clerk calendar</b> <span class="sep">|</span> not connected</span></div>
-                    <div class="state">
+                  <div class="panel" id="overview-meetings">
+                    <div class="panel-head"><span class="t">Public meetings</span><span class="grow"></span><span class="prov"><b>City clerk calendar</b> <span class="sep">|</span> <span id="overview-meetings-conn">unread</span></span><span class="pill p-warn" id="overview-meetings-honesty">Partial</span></div>
+                    <div class="state" id="overview-meetings-state">
                       <span class="st-k">Calendar unread</span>
                       <h5>No meeting packet has been read.</h5>
-                      <p>Public meetings name the city clerk calendar as the source. Until that source reads, this panel stays empty rather than inventing a session list.</p>
-                      <span class="basis">Basis: clerk calendar not connected on template-city</span>
+                      <p>Public meetings list files records from the municode calendar grant. Until those records are read, this panel stays empty rather than inventing a session list.</p>
+                      <span class="basis" id="overview-meetings-basis">Basis: no meeting files read on template-city</span>
                     </div>
+                    <div class="panel-body flush" id="overview-meetings-list" hidden></div>
                   </div>
                   <div class="panel" id="overview-source-register">
                     <div class="panel-head"><span class="t">Across departments</span><span class="grow"></span><span class="t-caption">What each lens reads, and whether it read</span></div>
@@ -276,7 +277,7 @@
                 <div class="panel">
                   <div class="panel-head"><span class="t">Public meetings</span><span class="grow"></span><span class="prov"><b>City clerk calendar</b></span></div>
                   <div class="panel-body">
-                    <p>The clerk calendar is the source. It has not been connected on template-city, so no agenda list is shown.</p>
+                    <p>The clerk calendar is the source. Meeting records are listed on Overview when the municode grant has written them to files. This lens does not invent an agenda.</p>
                   </div>
                 </div>
               </div>

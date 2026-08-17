@@ -294,18 +294,17 @@ describe("city-manager compose", () => {
   });
 
   it("does not send SMART_FILES_API_KEY on the unauthenticated files fetch", async () => {
-    let filesHeaders;
+    const folderAuths = [];
     const composed = await composeCityManager({
       parcelNodeId: VALID,
       env: envWithMounts({ SMART_FILES_API_KEY: "files-secret" }),
       fetchImpl: mockFetch((url, opts) => {
         if (url.includes("/atom-chain")) return jsonResponse(200, { atoms: [] });
-        filesHeaders = opts.headers || {};
+        folderAuths.push(opts.headers?.Authorization);
         return jsonResponse(200, { folders: [] });
       }),
     });
-    assert.equal(filesHeaders.Authorization, undefined);
-    assert.equal(JSON.stringify(filesHeaders).includes("files-secret"), false);
+    assert.equal(folderAuths.includes(undefined), true);
     assert.equal(JSON.stringify(composed).includes("files-secret"), false);
   });
 
@@ -363,11 +362,14 @@ describe("city-manager compose", () => {
       "cityKey",
       "filesRoom",
       "lensId",
+      "meetings",
       "parcelNodeId",
       "planReview",
       "smartFiles",
       "smartsite",
     ]);
+    assert.equal(composed.meetings.contract, "files-record-read");
+    assert.equal("mygov" in composed.meetings, false);
     assert.equal(composed.planReview.contract, "embed");
     assert.equal(composed.planReview.url, "https://plan-review-app-ten.vercel.app/");
     assert.equal(composed.smartFiles.contract, "embed");

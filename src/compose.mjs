@@ -1,5 +1,6 @@
 import { smartsiteEmbedUrl, planReviewEmbedUrl, smartFilesEmbedUrl } from "./mounts.mjs";
 import { atomVisibleToCaller } from "./tenancy.mjs";
+import { meetingsFromPack } from "./municode-calendar.mjs";
 
 export const PARCEL_NODE_ID_RE = /^\d{5}:[A-Za-z0-9._-]+$/;
 export const COMPOSE_TIMEOUT_MS = 8000;
@@ -213,9 +214,10 @@ export async function composeCityManager({
         url: "",
         basis: id ? "invalid parcelNodeId" : "missing parcelNodeId",
       };
-  const [atoms, filesRoom] = await Promise.all([
+  const [atoms, filesRoom, meetings] = await Promise.all([
     readAtoms({ id, valid, env, fetchImpl, caller, cityKey: city }),
     readFiles({ cityKey: city, env, fetchImpl }),
+    meetingsFromPack({ cityKey: city, env, fetchImpl }),
   ]);
   return {
     lensId: "city-manager",
@@ -226,5 +228,6 @@ export async function composeCityManager({
     smartFiles: { contract: "embed", url: smartFilesEmbedUrl(env) },
     atoms,
     filesRoom,
+    meetings,
   };
 }

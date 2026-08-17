@@ -20,7 +20,11 @@ describe("city packs", () => {
     const fixture = await getCityPack("fixture-city", {});
     assert.equal(template.accessPolicy, "public-free");
     assert.equal(fixture.accessPolicy, "tenant-private");
-    assert.deepEqual(template.grantedAdapters, []);
+    assert.equal(template.grantedAdapters.length, 1);
+    assert.equal(template.grantedAdapters[0].kind, "municode");
+    assert.equal(template.grantedAdapters[0].purpose, "calendar");
+    assert.equal(template.grantedAdapters[0].writesTo, "files");
+    assert.equal(template.grantedAdapters[0].accessPolicy, "public-free");
     assert.deepEqual(fixture.grantedAdapters, []);
     assert.notEqual(template.cityKey, "bastrop");
     assert.notEqual(fixture.cityKey, "bastrop");
@@ -99,9 +103,12 @@ describe("city packs", () => {
     const listed = await listCityPacks(neonEnv, { query });
     assert.equal(listed.length, 2);
     const fixture = await getCityPack("fixture-city", neonEnv, { query });
+    const template = await getCityPack("template-city", neonEnv, { query });
     assert.equal(fixture.accessPolicy, "tenant-private");
     assert.deepEqual(fixture.grantedAdapters, []);
+    assert.equal(template.grantedAdapters[0].kind, "municode");
     assertCityPackShape(fixture);
+    assertCityPackShape(template);
   });
 
   it("refuses a supplier DSN before any pack read", async () => {

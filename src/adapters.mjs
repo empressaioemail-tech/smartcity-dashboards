@@ -90,3 +90,77 @@ export function listAdapterKinds() {
     };
   });
 }
+
+export const TEMPLATE_MUNICODE_CALENDAR_GRANT = {
+  kind: "municode",
+  purpose: "calendar",
+  writesTo: "files",
+  accessPolicy: "public-free",
+  writesToOverrideReason:
+    "L26 holds the atoms slot; catalog municode defaults to spine",
+  sourceUrl: "https://bastrop-tx.municodemeetings.com/",
+};
+
+export function adapterKindById(id) {
+  return ADAPTER_KINDS.find((kind) => kind.id === id) || null;
+}
+
+export function assertPublicFeedSourceUrl(sourceUrl) {
+  const raw = String(sourceUrl || "").trim();
+  if (!raw) throw new Error("grant requires sourceUrl");
+  let parsed;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    throw new Error("grant sourceUrl must be an absolute URL");
+  }
+  if (parsed.protocol !== "https:") {
+    throw new Error("grant sourceUrl must be https");
+  }
+  const host = parsed.hostname.toLowerCase();
+  const path = `${parsed.pathname}${parsed.search}`.toLowerCase();
+  if (host === "smartcityos.io" || host.endsWith(".smartcityos.io")) {
+    throw new Error("refusing smartcityos.io calendar host");
+  }
+  if (path.includes("/api/calendar/")) {
+    throw new Error("refusing city /api/calendar/ path");
+  }
+  return true;
+}
+
+export function assertGrantedAdapterShape(grant) {
+  if (!grant || typeof grant !== "object") {
+    throw new Error("grant requires an object");
+  }
+  if (FORBIDDEN_PRODUCT_STRINGS.includes(grant.kind)) {
+    throw new Error(`${grant.kind} is not a city feed`);
+  }
+  const kind = adapterKindById(grant.kind);
+  if (!kind) throw new Error("grant kind must be a catalogued adapter");
+  if (grant.purpose !== "calendar" && grant.kind === "municode" && grant.writesTo === "files") {
+    throw new Error("municode files grant on this card is calendar only");
+  }
+  if (typeof grant.purpose !== "string" || !grant.purpose.trim()) {
+    throw new Error("grant requires purpose");
+  }
+  if (!WRITE_TARGETS.has(grant.writesTo)) {
+    throw new Error("writesTo must be spine or files, not a local table");
+  }
+  if (!ACCESS_POLICIES.has(grant.accessPolicy)) {
+    throw new Error("grant requires a contract accessPolicy");
+  }
+  if (grant.writesTo !== kind.writesTo) {
+    if (typeof grant.writesToOverrideReason !== "string" || !grant.writesToOverrideReason.trim()) {
+      throw new Error("writesTo override requires a named reason");
+    }
+  }
+  assertPublicFeedSourceUrl(grant.sourceUrl);
+  return true;
+}
+
+export function calendarGrantFor(pack) {
+  const grants = Array.isArray(pack?.grantedAdapters) ? pack.grantedAdapters : [];
+  return (
+    grants.find((g) => g && g.kind === "municode" && g.purpose === "calendar") || null
+  );
+}

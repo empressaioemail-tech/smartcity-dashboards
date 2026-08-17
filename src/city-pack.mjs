@@ -1,6 +1,7 @@
 import { LEAD_LENSES } from "./lenses.mjs";
 import { getPool } from "./db.mjs";
 import { assertNoSupplierDsn } from "./mounts.mjs";
+import { TEMPLATE_MUNICODE_CALENDAR_GRANT, assertGrantedAdapterShape } from "./adapters.mjs";
 
 const memoryPacks = new Map();
 const ACCESS_POLICIES = new Set(["public-free", "tenant-private"]);
@@ -11,9 +12,9 @@ export const TEMPLATE_CITY = {
   displayName: "Template city",
   accessPolicy: "public-free",
   lenses: LEAD_LENSES.map((l) => l.id),
-  grantedAdapters: [],
+  grantedAdapters: [TEMPLATE_MUNICODE_CALENDAR_GRANT],
   notes:
-    "Public template pack. Real cities onboard as packs in this service. Bastrop is not this pack. Cutover is a later WDLL.",
+    "Public template pack. Municode calendar grant writes files, not spine, because L26 holds the atoms slot. Bastrop is not this pack. Cutover is a later WDLL.",
 };
 
 export const FIXTURE_CITY = {
@@ -166,6 +167,9 @@ export function assertCityPackShape(pack) {
   }
   if (!Array.isArray(pack.grantedAdapters)) {
     throw new Error("city pack requires grantedAdapters[]");
+  }
+  for (const grant of pack.grantedAdapters) {
+    assertGrantedAdapterShape(grant);
   }
   return true;
 }

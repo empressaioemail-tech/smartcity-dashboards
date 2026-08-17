@@ -22,6 +22,54 @@ function setText(id, value) {
   if (el) el.textContent = value || "";
 }
 
+function renderMeetings(meetings) {
+  const records = Array.isArray(meetings?.records) ? meetings.records : [];
+  const state = document.getElementById("overview-meetings-state");
+  const list = document.getElementById("overview-meetings-list");
+  const honesty = document.getElementById("overview-meetings-honesty");
+  const conn = document.getElementById("overview-meetings-conn");
+  if (conn) conn.textContent = records.length ? "municode files" : "unread";
+  if (honesty) {
+    honesty.hidden = meetings?.honesty !== "partial";
+    honesty.textContent = "Partial";
+  }
+  if (records.length === 0) {
+    if (state) state.hidden = false;
+    if (list) {
+      list.hidden = true;
+      list.replaceChildren();
+    }
+    setText(
+      "overview-meetings-basis",
+      meetings?.basis ? `Basis: ${meetings.basis}` : "Basis: no meeting files read on template-city",
+    );
+    return;
+  }
+  if (state) state.hidden = true;
+  if (!list) return;
+  list.hidden = false;
+  list.replaceChildren(
+    ...records.map((record) => {
+      const row = document.createElement("div");
+      row.className = "srcreg";
+      const name = document.createElement("span");
+      name.className = "nm";
+      const title = document.createElement("b");
+      title.textContent = record.title || "Untitled meeting";
+      const when = document.createElement("span");
+      when.textContent = record.when || "";
+      name.append(title, when);
+      const prov = document.createElement("span");
+      prov.className = "prov";
+      const source = document.createElement("b");
+      source.textContent = record.source || "municode";
+      prov.append(source);
+      row.append(name, prov);
+      return row;
+    }),
+  );
+}
+
 function applyLens(staffLens) {
   const { lens, tab, work } = staffLens;
   const filesOn = work === "files";
@@ -93,6 +141,7 @@ async function composeGoldMap(parcelNodeId, cityKey, staffLens) {
         ? `Atoms ${atoms.status}`
         : "",
   );
+  renderMeetings(data.meetings);
   if (staffLens.isDevelopmentServices && reviewUrl) {
     review.src = reviewUrl;
   }
