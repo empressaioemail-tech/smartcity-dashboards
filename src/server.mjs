@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { listLenses, getLens } from "./lenses.mjs";
 import { listCityPacks, getCityPack, getPacksStore, ensureCityPacksTable } from "./city-pack.mjs";
-import { readMounts, smartsiteEmbedUrl, planReviewEmbedUrl, assertNoSupplierDsn, assertNoSupplierMounts } from "./mounts.mjs";
+import { readMounts, smartsiteEmbedUrl, planReviewEmbedUrl, smartFilesEmbedUrl, assertNoSupplierDsn, assertNoSupplierMounts } from "./mounts.mjs";
 import { composeCityManager } from "./compose.mjs";
 import { listAdapterKinds } from "./adapters.mjs";
 import { loadDotenv } from "./load-env.mjs";
@@ -144,6 +144,7 @@ async function handle(req, res) {
       mounts,
       smartsiteExample: smartsiteEmbedUrl("parcel-example"),
       planReviewExample: planReviewEmbedUrl(),
+      smartFilesExample: smartFilesEmbedUrl(),
       mcp: {
         server: "existing-hauska-mcp",
         namedTools: MCP_TOOL_NAMES,

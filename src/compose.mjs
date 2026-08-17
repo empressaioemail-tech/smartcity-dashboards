@@ -1,4 +1,4 @@
-import { smartsiteEmbedUrl, planReviewEmbedUrl } from "./mounts.mjs";
+import { smartsiteEmbedUrl, planReviewEmbedUrl, smartFilesEmbedUrl } from "./mounts.mjs";
 import { atomVisibleToCaller } from "./tenancy.mjs";
 
 export const PARCEL_NODE_ID_RE = /^\d{5}:[A-Za-z0-9._-]+$/;
@@ -223,6 +223,7 @@ export async function composeCityManager({
     parcelNodeId: id,
     smartsite,
     planReview: { contract: "embed", url: planReviewEmbedUrl(env) },
+    smartFiles: { contract: "embed", url: smartFilesEmbedUrl(env) },
     atoms,
     filesRoom,
   };

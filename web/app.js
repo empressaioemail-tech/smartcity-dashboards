@@ -23,14 +23,23 @@ function setText(id, value) {
 }
 
 function applyLens(staffLens) {
-  const { lens, tab } = staffLens;
+  const { lens, tab, work } = staffLens;
+  const filesOn = work === "files";
   document.querySelectorAll(".lens").forEach((el) => {
-    el.classList.toggle("on", el.id === `lens-${lens}`);
+    if (el.id === "work-files") {
+      el.classList.toggle("on", filesOn);
+    } else {
+      el.classList.toggle("on", !filesOn && el.id === `lens-${lens}`);
+    }
   });
-  document.querySelectorAll(".navitem[data-lens]").forEach((el) => {
+  document.querySelectorAll(".navitem[data-lens], .navitem[data-work]").forEach((el) => {
+    if (filesOn) {
+      el.classList.toggle("on", el.dataset.work === "files");
+      return;
+    }
     const sameLens = el.dataset.lens === lens;
     const wantsTab = el.dataset.tab;
-    el.classList.toggle("on", sameLens && (!wantsTab || wantsTab === tab));
+    el.classList.toggle("on", Boolean(sameLens && (!wantsTab || wantsTab === tab)));
   });
   document.querySelectorAll(".tabs [data-tab]").forEach((el) => {
     const selected = el.dataset.tab === tab;
@@ -39,6 +48,13 @@ function applyLens(staffLens) {
   document.querySelectorAll(".ds-tab").forEach((el) => {
     el.classList.toggle("on", el.id === `tab-${tab}`);
   });
+  if (filesOn) {
+    setText("lens-switch-label", "Files");
+    setText("cp-source-scope", "Template · Files");
+    setText("cp-scope-lens", "Files");
+    document.documentElement.dataset.theme = "dark";
+    return;
+  }
   setText("lens-switch-label", LENS_LABELS[lens] || lens);
   setText("ds-crumb", TAB_LABELS[tab] || "Pipeline");
   const scope = `Template · ${LENS_LABELS[lens] || lens}`;
@@ -55,13 +71,17 @@ async function composeGoldMap(parcelNodeId, cityKey, staffLens) {
   const data = await res.json();
   const mapUrl = data.smartsite?.url || "";
   const reviewUrl = data.planReview?.url || "";
+  const filesUrl = data.smartFiles?.url || "";
   const overview = document.getElementById("overview-site");
   const place = document.getElementById("place-site");
   const review = document.getElementById("review-site");
+  const files = document.getElementById("files-site");
   if (overview) overview.src = mapUrl || "about:blank";
   if (place) place.src = mapUrl || "about:blank";
   if (review) review.src = reviewUrl || "about:blank";
+  if (files) files.src = filesUrl || "about:blank";
   setText("review-basis", reviewUrl || data.planReview?.basis || "");
+  setText("files-basis", filesUrl || data.smartFiles?.basis || "");
   const atoms = data.atoms || {};
   setText("atoms-basis", atoms.basis || data.smartsite?.basis || "");
   const types = Array.isArray(atoms.types) ? atoms.types.join(", ") : "";

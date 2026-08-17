@@ -5,11 +5,14 @@ const FORBIDDEN_DSN_HOSTS = [
   "cortex-prod",
 ];
 
+export const DEFAULT_SMART_FILES_EMBED_ORIGIN = "https://smart-files-app.vercel.app";
+
 export const MOUNT_URL_ENV_KEYS = [
   "HAUSKA_RETRIEVAL_URL",
   "SMART_FILES_BACKEND_URL",
   "SMARTSITE_EMBED_ORIGIN",
   "PLAN_REVIEW_EMBED_ORIGIN",
+  "SMART_FILES_EMBED_ORIGIN",
 ];
 
 export const FORBIDDEN_MOUNT_MARKERS = [
@@ -44,6 +47,10 @@ export function readMounts() {
       contract: "embed",
       origin: env("PLAN_REVIEW_EMBED_ORIGIN", "https://plan-review-app-ten.vercel.app"),
     },
+    smartFilesEmbed: {
+      contract: "embed",
+      origin: env("SMART_FILES_EMBED_ORIGIN", DEFAULT_SMART_FILES_EMBED_ORIGIN),
+    },
   };
 }
 
@@ -62,6 +69,27 @@ export function planReviewEmbedUrl(envMap = process.env) {
       : raw,
   ).replace(/\/$/, "");
   return `${origin}/`;
+}
+
+function withEmbedQuery(origin) {
+  try {
+    const url = new URL(origin);
+    if (!url.searchParams.has("embed")) url.searchParams.set("embed", "1");
+    return url.toString();
+  } catch {
+    const base = String(origin || DEFAULT_SMART_FILES_EMBED_ORIGIN).replace(/\/$/, "");
+    return `${base}/?embed=1`;
+  }
+}
+
+export function smartFilesEmbedUrl(envMap = process.env) {
+  const raw = envMap?.SMART_FILES_EMBED_ORIGIN;
+  const origin = String(
+    raw == null || String(raw).trim() === ""
+      ? DEFAULT_SMART_FILES_EMBED_ORIGIN
+      : raw,
+  ).trim();
+  return withEmbedQuery(origin);
 }
 
 export function assertNoSupplierDsn(envMap = process.env) {
