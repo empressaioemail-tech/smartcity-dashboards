@@ -1,143 +1,311 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>SmartCity Dashboards</title>
-    <style>
-      :root {
-        color-scheme: dark;
-        font-family: ui-sans-serif, system-ui, sans-serif;
-        background: #0f1419;
-        color: #e8eef4;
-      }
-      body {
-        margin: 0;
-        padding: 24px;
-      }
-      h1 {
-        font-size: 1.25rem;
-        font-weight: 600;
-      }
-      h2 {
-        font-size: 1.05rem;
-        font-weight: 600;
-        margin: 20px 0 8px;
-      }
-      .lenses {
-        display: grid;
-        gap: 12px;
-        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-        margin: 16px 0 24px;
-      }
-      article,
-      .panel {
-        border: 1px solid #2a3540;
-        border-radius: 8px;
-        padding: 12px 14px;
-        background: #151c23;
-      }
-      iframe {
-        width: 100%;
-        min-height: 420px;
-        border: 1px solid #2a3540;
-        border-radius: 8px;
-        background: #111;
-      }
-      .meta {
-        color: #9aa8b5;
-        font-size: 0.9rem;
-      }
-      .compose {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-        align-items: end;
-        margin: 12px 0 16px;
-      }
-      label {
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-        font-size: 0.85rem;
-        color: #9aa8b5;
-      }
-      input {
-        background: #0f1419;
-        color: #e8eef4;
-        border: 1px solid #2a3540;
-        border-radius: 6px;
-        padding: 8px 10px;
-        min-width: 220px;
-      }
-      button {
-        background: #2a6f97;
-        color: #fff;
-        border: 0;
-        border-radius: 6px;
-        padding: 9px 14px;
-        cursor: pointer;
-      }
-      .grid {
-        display: grid;
-        gap: 12px;
-        grid-template-columns: 1.4fr 1fr;
-      }
-      @media (max-width: 900px) {
-        .grid {
-          grid-template-columns: 1fr;
-        }
-      }
-      .status {
-        font-size: 0.8rem;
-        text-transform: uppercase;
-        letter-spacing: 0.04em;
-        color: #7ad0a5;
-      }
-      .status.empty,
-      .status.unavailable {
-        color: #e3b341;
-      }
-    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;650&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="/sc-kit.css" />
+    <link rel="stylesheet" href="/shell.css" />
   </head>
   <body>
-    <h1>City manager</h1>
-    <p class="meta">Proof lens over one parcel. SmartSite embed, atom-read from retrieval, files room over HTTP. Honest empty if nothing is there.</p>
-    <form id="compose-form" class="compose">
-      <label>
-        Parcel Node Id
-        <input id="parcel-node-id" name="parcelNodeId" placeholder="48021:34137" autocomplete="off" />
-      </label>
-      <label>
-        City key
-        <input id="city-key" name="cityKey" value="template-city" autocomplete="off" />
-      </label>
-      <button type="submit" id="compose-btn">Compose</button>
-    </form>
-    <div class="grid">
-      <section class="panel">
-        <h2 id="embed-heading">SmartSite</h2>
-        <p id="smartsite-basis" class="meta"></p>
-        <iframe id="site" title="SmartSite embed" src="about:blank"></iframe>
-      </section>
-      <div>
-        <section class="panel">
-          <h2>Atoms</h2>
-          <p id="atoms-status" class="status"></p>
-          <p id="atoms-basis" class="meta"></p>
-          <p id="atoms-summary" class="meta"></p>
-        </section>
-        <section class="panel" style="margin-top: 12px">
-          <h2>Files room</h2>
-          <p id="files-status" class="status"></p>
-          <p id="files-basis" class="meta"></p>
-          <ul id="files-folders" class="meta"></ul>
-        </section>
+    <div class="shell" id="app-shell">
+      <div class="cp-recede" id="cp-recede">
+        <header class="shell-top">
+          <button type="button" class="btn btn-ghost menu-btn" id="menu-btn" aria-label="Open menu">Menu</button>
+          <span class="seal">CT</span>
+          <span class="brandcity">City of Template <span>· TX</span></span>
+          <span class="env demo" id="env-badge">Demo</span>
+          <div class="grow searchwrap">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg>
+            <input class="inp" type="search" placeholder="Search records, parcels, cases" aria-label="Search" />
+          </div>
+          <button type="button" class="cp-source" id="cp-source" aria-expanded="false" aria-controls="cp-sheet">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M10.4 5.6L9 9 5.6 10.4 7 7z"/></svg>
+            <span class="cp-src-l"><b>Compass</b><em id="cp-source-scope">Template · Overview</em></span>
+          </button>
+        </header>
+
+        <div class="shell-body">
+          <nav class="shell-nav" id="shell-nav" aria-label="Primary">
+            <div class="lensswitch">
+              <span class="l">
+                <span class="k">Viewing as</span>
+                <span class="v" id="lens-switch-label">City manager</span>
+              </span>
+            </div>
+            <div class="navgroup">
+              <div class="gl">Lenses</div>
+              <a class="navitem on" data-lens="city-manager" href="/?lens=city-manager">Overview</a>
+              <a class="navitem" data-lens="development-services" href="/?lens=development-services">Development services</a>
+              <a class="navitem" data-lens="finance" href="/?lens=finance">Finance</a>
+              <a class="navitem" data-lens="citizen" href="/?lens=citizen">Citizen<span class="grow"></span><span class="badge">Preview</span></a>
+              <span class="navitem unbuilt">Public works<span class="grow"></span><span class="badge">Not built</span></span>
+              <span class="navitem unbuilt">Police<span class="grow"></span><span class="badge">Not built</span></span>
+              <span class="navitem unbuilt">Fire and EMS<span class="grow"></span><span class="badge">Not built</span></span>
+              <span class="navitem unbuilt">Fleet<span class="grow"></span><span class="badge">Not built</span></span>
+            </div>
+            <div class="navgroup">
+              <div class="gl">Work</div>
+              <a class="navitem" data-lens="development-services" data-tab="review" href="/?lens=development-services&amp;tab=review">Plan review<span class="grow"></span><span class="badge">Preview</span></a>
+              <span class="navitem unbuilt">Files<span class="grow"></span><span class="badge">Preview</span></span>
+            </div>
+            <div class="nav-foot">
+              <span class="prov"><b>0 of 4 sources read</b> <span class="sep">|</span> template-city</span>
+            </div>
+          </nav>
+
+          <main class="shell-main">
+            <section class="lens on" id="lens-city-manager" data-city-key="template-city">
+              <header class="pagehead">
+                <div class="crumb"><b>City of Template</b> <span>/</span> Overview</div>
+                <div class="titlerow">
+                  <h1>Overview</h1>
+                  <span class="pill p-restricted">Preview</span>
+                </div>
+              </header>
+              <div class="shell-regions">
+                <div class="colstack">
+                  <div class="panel">
+                    <div class="panel-head"><span class="t">What needs you today</span><span class="grow"></span><span class="t-caption">Decision queue</span></div>
+                    <div class="state">
+                      <span class="st-k">No live operations</span>
+                      <h5>No decisions are waiting on template-city.</h5>
+                      <p>This queue would list items that need a call across connected departments. The demo pack has no granted adapters, so there is nothing to resolve. This is not a live operations feed.</p>
+                      <span class="basis">Basis: grantedAdapters empty on cityKey template-city. Gold parcel 48021:34137 is a demo fixture, not a city onboarded.</span>
+                    </div>
+                  </div>
+                  <div class="panel">
+                    <div class="panel-head"><span class="t">Public meetings</span><span class="grow"></span><span class="prov"><b>City clerk calendar</b> <span class="sep">|</span> not connected</span></div>
+                    <div class="state">
+                      <span class="st-k">Calendar unread</span>
+                      <h5>No meeting packet has been read.</h5>
+                      <p>Public meetings name the city clerk calendar as the source. Until that source reads, this panel stays empty rather than inventing a session list.</p>
+                      <span class="basis">Basis: clerk calendar not connected on template-city</span>
+                    </div>
+                  </div>
+                  <div class="panel" id="overview-source-register">
+                    <div class="panel-head"><span class="t">Across departments</span><span class="grow"></span><span class="t-caption">What each lens reads, and whether it read</span></div>
+                    <div class="panel-body flush">
+                      <div class="srcreg"><i class="rail"></i><span class="nm"><b>Development services</b><span>Permits, inspections, licenses</span></span><span class="prov"><b>never read</b></span><span class="pill p-quiet">Not connected</span></div>
+                      <div class="srcreg"><i class="rail"></i><span class="nm"><b>Plan review</b><span>Submittals against the adopted code</span></span><span class="prov"><b>preview mount</b></span><span class="pill p-warn">Preview</span></div>
+                      <div class="srcreg"><i class="rail"></i><span class="nm"><b>Finance</b><span>Adopted budget and fund ledger</span></span><span class="prov"><b>never read</b></span><span class="pill p-quiet">Not connected</span></div>
+                      <div class="srcreg"><i class="rail"></i><span class="nm"><b>Public works</b><span>Lens on the roster, not yet built</span></span><span class="prov"><b>not built</b></span><span class="pill p-quiet">Not built</span></div>
+                    </div>
+                  </div>
+                </div>
+                <div class="colstack">
+                  <div class="region">
+                    <div class="region-bar"><span class="t">The city</span><span class="grow"></span><span class="t-caption">SmartSite</span></div>
+                    <div class="region-canvas">
+                      <iframe id="overview-site" title="SmartSite embed" src="about:blank"></iframe>
+                    </div>
+                    <div class="region-foot">
+                      <span class="t-data" id="overview-parcel">48021:34137</span>
+                      <span class="t-caption">Demo fixture</span>
+                      <span class="grow"></span>
+                      <span class="prov"><b>Public record</b></span>
+                    </div>
+                  </div>
+                  <div class="panel">
+                    <div class="panel-head"><span class="t">Sources</span><span class="grow"></span><span class="prov"><b>0 of 4 read</b></span></div>
+                    <div class="panel-body">
+                      <p class="t-caption" id="atoms-basis">County parcel record is the map subject. Atoms and files rooms stay honest if the mount is empty.</p>
+                      <p class="t-data" id="atoms-summary"></p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section class="lens" id="lens-development-services">
+              <header class="pagehead">
+                <div class="crumb"><b>City of Template</b> <span>/</span> <b>Development services</b> <span>/</span> <span id="ds-crumb">Pipeline</span></div>
+                <div class="titlerow">
+                  <h1>Development services</h1>
+                  <span class="pill p-restricted">Preview</span>
+                </div>
+              </header>
+              <div class="tabs" role="tablist" aria-label="Development services">
+                <a role="tab" aria-selected="true" data-tab="pipeline" href="/?lens=development-services&amp;tab=pipeline">Pipeline</a>
+                <a role="tab" aria-selected="false" data-tab="place" href="/?lens=development-services&amp;tab=place">Place</a>
+                <a role="tab" aria-selected="false" data-tab="review" href="/?lens=development-services&amp;tab=review">Review</a>
+                <a role="tab" aria-selected="false" data-tab="inspections" href="/?lens=development-services&amp;tab=inspections">Inspections</a>
+                <a role="tab" aria-selected="false" data-tab="code-enforcement" href="/?lens=development-services&amp;tab=code-enforcement">Code enforcement</a>
+                <a role="tab" aria-selected="false" data-tab="licenses" href="/?lens=development-services&amp;tab=licenses">Licenses</a>
+              </div>
+              <div class="ds-tab on" id="tab-pipeline">
+                <div class="shell-regions solo">
+                  <div class="panel">
+                    <div class="state">
+                      <span class="st-k">Pipeline unread</span>
+                      <h5>No cases are in flight on template-city.</h5>
+                      <p>The queue is first-class once a permit source is granted. Until then this tab stays empty. Stage names are not invented, and no internal routing is shown.</p>
+                      <span class="basis">Basis: no adapter granted on template-city</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="ds-tab" id="tab-place">
+                <div class="shell-regions">
+                  <div class="colstack">
+                    <div class="panel">
+                      <div class="state">
+                        <span class="st-k">Place</span>
+                        <h5>Parcel resolves from the map, not a typed form.</h5>
+                        <p>Click the map to select a place. The identifier appears in the region footer as a consequence. Gold 48021:34137 is the demo fixture.</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="colstack">
+                    <div class="region">
+                      <div class="region-bar"><span class="t">Place</span><span class="grow"></span><span class="t-caption">SmartSite</span></div>
+                      <div class="region-canvas">
+                        <iframe id="place-site" title="SmartSite place embed" src="about:blank"></iframe>
+                      </div>
+                      <div class="region-foot">
+                        <span class="t-data">48021:34137</span>
+                        <span class="t-caption">Demo fixture</span>
+                        <span class="grow"></span>
+                        <span class="prov"><b>Public record</b></span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="ds-tab" id="tab-review">
+                <div class="shell-regions solo">
+                  <div class="region">
+                    <div class="region-bar"><span class="t">Review</span><span class="grow"></span><span class="t-caption">Plan Review preview mount</span></div>
+                    <div class="region-canvas">
+                      <iframe id="review-site" title="Plan Review embed" src="about:blank"></iframe>
+                    </div>
+                    <div class="region-foot">
+                      <span class="t-caption" id="review-basis">Native compose is a later card. This tab may still mount the reviewer host.</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="ds-tab" id="tab-inspections">
+                <div class="shell-regions solo"><div class="panel"><div class="state"><span class="st-k">Inspections</span><h5>No inspection source is connected.</h5><p>This tab is chrome. It does not invent a board or a count.</p><span class="basis">Basis: no adapter granted</span></div></div></div>
+              </div>
+              <div class="ds-tab" id="tab-code-enforcement">
+                <div class="shell-regions solo"><div class="panel"><div class="state"><span class="st-k">Code enforcement</span><h5>No case source is connected.</h5><p>This tab is chrome. It does not invent a case list.</p><span class="basis">Basis: no adapter granted</span></div></div></div>
+              </div>
+              <div class="ds-tab" id="tab-licenses">
+                <div class="shell-regions solo"><div class="panel"><div class="state"><span class="st-k">Licenses</span><h5>No license source is connected.</h5><p>This tab is chrome. It does not invent active licenses.</p><span class="basis">Basis: no adapter granted</span></div></div></div>
+              </div>
+            </section>
+
+            <section class="lens" id="lens-finance">
+              <header class="pagehead">
+                <div class="crumb"><b>City of Template</b> <span>/</span> Finance</div>
+                <div class="titlerow">
+                  <h1>Finance</h1>
+                  <span class="pill p-quiet">No source connected</span>
+                </div>
+              </header>
+              <div class="shell-regions">
+                <div class="colstack">
+                  <div class="panel">
+                    <div class="state">
+                      <span class="st-k">No source connected</span>
+                      <h5>No finance records for this city yet.</h5>
+                      <p>This lens reads from the city's adopted budget, its fund ledger, permit fee revenue, and department spend. None of the four has been connected as a confirmed ledger, so there is nothing to report. That is not a zero balance.</p>
+                      <span class="basis">Basis: 0 of 4 required sources connected. Contact: city finance director. Payments unclaimed.</span>
+                    </div>
+                  </div>
+                  <div class="panel" id="finance-source-register">
+                    <div class="panel-head"><span class="t">What this lens reads</span><span class="grow"></span><span class="t-caption">Source register</span></div>
+                    <div class="panel-body flush">
+                      <div class="srcreg"><i class="rail"></i><span class="nm"><b>Adopted budget</b><span>Appropriations by fund and department for the current year</span></span><span class="pill p-quiet">Not connected</span></div>
+                      <div class="srcreg"><i class="rail"></i><span class="nm"><b>Fund ledger</b><span>Actuals against appropriation, posted by period</span></span><span class="pill p-quiet">Not connected</span></div>
+                      <div class="srcreg partial"><i class="rail"></i><span class="nm"><b>Permit fee revenue</b><span>Fees assessed and collected, joined to the permit record</span></span><span class="pill p-warn">Partial</span></div>
+                      <div class="srcreg"><i class="rail"></i><span class="nm"><b>Department spend</b><span>Purchase and payroll detail by department</span></span><span class="pill p-quiet">Not connected</span></div>
+                    </div>
+                  </div>
+                </div>
+                <div class="colstack">
+                  <div class="panel">
+                    <div class="panel-head"><span class="t">Once connected</span></div>
+                    <div class="panel-body">
+                      <p class="t-caption">This lens will show budget against actuals by fund and department, permit revenue joined to the cases that produced it, and department spend over time. Each figure will carry its source and the date it was read. No figures are shown until a source reads.</p>
+                    </div>
+                  </div>
+                  <div class="panel">
+                    <div class="panel-head"><span class="t">Permit fee revenue</span><span class="grow"></span><span class="pill p-warn">Partial</span></div>
+                    <div class="panel-body">
+                      <p class="t-caption">Fees are recorded on permit cases, so this one column exists. It is not a finance record until the ledger confirms collection, and it is labelled Partial rather than shown as revenue.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section class="lens" id="lens-citizen">
+              <div class="cz sc-light">
+                <div>
+                  <h1>Near you</h1>
+                  <p>See what is happening around an address in Template. Nothing here requires an account. This is a public lens, not a separate product.</p>
+                </div>
+                <div class="panel">
+                  <div class="panel-body citizen-lookup">
+                    <div class="searchwrap">
+                      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg>
+                      <input class="inp" id="citizen-address" type="search" placeholder="Enter an address" aria-label="Address" />
+                    </div>
+                    <button type="button" class="btn btn-primary" id="citizen-lookup">Look up</button>
+                  </div>
+                </div>
+                <p class="t-caption" id="citizen-lookup-basis" hidden>Address lookup is public vocabulary only. A parcel identifier is not required to open this lens.</p>
+                <div class="panel">
+                  <div class="panel-head"><span class="t">Your requests</span><span class="grow"></span><span class="pill p-quiet">None on file</span></div>
+                  <div class="panel-body">
+                    <p>When a case exists you will see it in public words such as Waiting on you or In review. Staff names and internal routing never appear here.</p>
+                  </div>
+                </div>
+                <div class="panel" id="citizen-payments">
+                  <div class="panel-head"><span class="t">Pay permit fees</span></div>
+                  <div class="panel-body">
+                    <p>Online payment is not available for this city yet. Fees are paid at the Development Services counter, 1311 Chestnut Street, weekdays 8am to 5pm.</p>
+                    <span class="basis">Basis: no payment processor connected for this city. Payments unclaimed.</span>
+                  </div>
+                </div>
+                <div class="panel">
+                  <div class="panel-head"><span class="t">Public meetings</span><span class="grow"></span><span class="prov"><b>City clerk calendar</b></span></div>
+                  <div class="panel-body">
+                    <p>The clerk calendar is the source. It has not been connected on template-city, so no agenda list is shown.</p>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </main>
+        </div>
       </div>
+
+      <div class="cp-scrim" id="cp-scrim" hidden></div>
+      <aside class="cp-sheet" id="cp-sheet" hidden aria-label="Compass">
+        <div class="cp-inner" id="cp-inner">
+          <div class="cp-head">
+            <span class="cp-grab" title="Drag to dismiss"></span>
+            <span class="t-label">Compass</span>
+            <span class="grow"></span>
+            <button type="button" class="btn btn-ghost btn-sm" id="cp-max">Maximize</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="cp-close">Close</button>
+          </div>
+          <div class="cp-scope">
+            <span class="prov"><b id="cp-scope-city">City of Template</b> <span class="sep">|</span> <span id="cp-scope-lens">Overview</span></span>
+            <span class="env demo">Demo</span>
+          </div>
+          <div class="cp-thread">
+            <p class="cp-turn">Compass follows the current city and lens. It is a source control, not a page and not a route.</p>
+            <p class="cp-note">Answers are not generated on this card. The sheet is chrome only.</p>
+          </div>
+        </div>
+      </aside>
     </div>
-    <h2>Lead lenses</h2>
-    <div id="lenses" class="lenses"></div>
     <script type="module" src="/app.js"></script>
   </body>
 </html>

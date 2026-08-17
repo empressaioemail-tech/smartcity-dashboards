@@ -168,6 +168,16 @@ async function handle(req, res) {
     return;
   }
 
+  if (req.method === "GET" && url.pathname === "/shell.css") {
+    sendFile(res, path.join(WEB, "shell.css"), "text/css");
+    return;
+  }
+
+  if (req.method === "GET" && (url.pathname === "/compass" || url.pathname === "/compass/")) {
+    json(res, 404, { error: "not found" });
+    return;
+  }
+
   if (req.method === "GET" && url.pathname === "/staff-map.mjs") {
     sendFile(res, path.join(__dirname, "staff-map.mjs"), "text/javascript; charset=utf-8");
     return;
