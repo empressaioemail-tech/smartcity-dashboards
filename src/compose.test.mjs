@@ -233,6 +233,39 @@ describe("city-manager compose", () => {
     assert.equal(dumped.includes("did:atom:"), false);
   });
 
+  it("includes tenant-private types only for the matching pack subject", async () => {
+    const chain = (url) => {
+      if (url.includes("/atom-chain")) {
+        return jsonResponse(200, {
+          atoms: [
+            { type: "zoning-fact", accessPolicy: "public-free" },
+            { type: "workspace", accessPolicy: "tenant-private", payload: { secret: "LEAK-TENANT" } },
+            { type: "owner-fact", accessPolicy: "public-paid", payload: { ownerName: "LEAK-OWNER" } },
+          ],
+        });
+      }
+      return jsonResponse(200, { folders: [] });
+    };
+    const matching = await composeCityManager({
+      parcelNodeId: VALID,
+      cityKey: "fixture-city",
+      caller: { kind: "tenant", tenant: "fixture-city" },
+      env: envWithMounts({ HAUSKA_ENGINE_API_KEY: "k" }),
+      fetchImpl: mockFetch(chain),
+    });
+    assert.deepEqual(matching.atoms.types, ["zoning-fact", "workspace"]);
+    assert.equal(matching.atoms.types.includes("owner-fact"), false);
+    assert.equal(JSON.stringify(matching).includes("LEAK-TENANT"), false);
+    const service = await composeCityManager({
+      parcelNodeId: VALID,
+      cityKey: "fixture-city",
+      caller: { kind: "service" },
+      env: envWithMounts({ HAUSKA_ENGINE_API_KEY: "k" }),
+      fetchImpl: mockFetch(chain),
+    });
+    assert.deepEqual(service.atoms.types, ["zoning-fact"]);
+  });
+
   it("treats missing or empty accessPolicy as public-free", async () => {
     const composed = await composeCityManager({
       parcelNodeId: VALID,

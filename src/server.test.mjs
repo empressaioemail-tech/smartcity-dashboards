@@ -27,6 +27,8 @@ describe("HTTP surface", () => {
           "SMART_FILES_BACKEND_URL",
           "HAUSKA_RETRIEVAL_API_KEY",
           "SMART_FILES_API_KEY",
+          "HAUSKA_TENANT_KEYS",
+          "HAUSKA_MCP_URL",
         ]);
         delete process.env.DASHBOARDS_API_KEY;
         delete process.env.DATABASE_URL;
@@ -47,6 +49,8 @@ describe("HTTP surface", () => {
           "SMART_FILES_BACKEND_URL",
           "HAUSKA_RETRIEVAL_API_KEY",
           "SMART_FILES_API_KEY",
+          "HAUSKA_TENANT_KEYS",
+          "HAUSKA_MCP_URL",
         ]);
         server.close((err) => (err ? reject(err) : resolve()));
       }),
@@ -66,8 +70,11 @@ describe("HTTP surface", () => {
     assert.equal(lenses.lenses[3].id, "citizen");
 
     const packs = await (await fetch(`${base}/api/city-packs`)).json();
+    assert.equal(packs.cityPacks.length, 1);
     assert.equal(packs.cityPacks[0].cityKey, "template-city");
     assert.equal(packs.cityPacks[0].grantedAdapterCount, 0);
+    const fixtureAnon = await fetch(`${base}/api/city-packs/fixture-city`);
+    assert.equal(fixtureAnon.status, 401);
 
     const kinds = await (await fetch(`${base}/api/adapter-kinds`)).json();
     assert.deepEqual(
@@ -119,6 +126,30 @@ describe("HTTP surface", () => {
         headers: { authorization: "Bearer scaffold-test-key" },
       });
       assert.equal(okOne.status, 200);
+      const listed = await okList.json();
+      assert.equal(listed.cityPacks.some((p) => p.cityKey === "fixture-city"), false);
+      const serviceFixture = await fetch(`${base}/api/city-packs/fixture-city`, {
+        headers: { authorization: "Bearer scaffold-test-key" },
+      });
+      assert.equal(serviceFixture.status, 403);
+      process.env.HAUSKA_TENANT_KEYS = JSON.stringify({ "hauska-fixture": "fixture-city" });
+      const identified = await fetch(`${base}/api/city-packs/fixture-city`, {
+        headers: { "x-hauska-key": "hauska-fixture" },
+      });
+      assert.equal(identified.status, 200);
+      const identifiedBody = await identified.json();
+      assert.equal(identifiedBody.cityPack.cityKey, "fixture-city");
+      assert.deepEqual(identifiedBody.cityPack.grantedAdapters, []);
+      assert.equal(identifiedBody.cityPack.accessPolicy, "tenant-private");
+      const wrongTenant = await fetch(`${base}/api/city-packs/fixture-city`, {
+        headers: { "x-hauska-key": "nope" },
+      });
+      assert.equal(wrongTenant.status, 401);
+      process.env.HAUSKA_TENANT_KEYS = JSON.stringify({ "hauska-other": "other-city" });
+      const cross = await fetch(`${base}/api/city-packs/fixture-city`, {
+        headers: { "x-hauska-key": "hauska-other" },
+      });
+      assert.equal(cross.status, 403);
       const health = await fetch(`${base}/health`);
       assert.equal(health.status, 200);
       const lenses = await fetch(`${base}/api/lenses`);
@@ -127,6 +158,7 @@ describe("HTTP surface", () => {
       assert.equal(kinds.status, 200);
     } finally {
       delete process.env.DASHBOARDS_API_KEY;
+      delete process.env.HAUSKA_TENANT_KEYS;
     }
   });
 
