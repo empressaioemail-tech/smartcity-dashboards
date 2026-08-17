@@ -7,6 +7,7 @@ import { listCityPacks, getCityPack, getPacksStore, ensureCityPacksTable } from 
 import { readMounts, smartsiteEmbedUrl, planReviewEmbedUrl, smartFilesEmbedUrl, assertNoSupplierDsn, assertNoSupplierMounts } from "./mounts.mjs";
 import { composeCityManager } from "./compose.mjs";
 import { listAdapterKinds } from "./adapters.mjs";
+import { runMunicodeCalendar } from "./municode-calendar.mjs";
 import { loadDotenv } from "./load-env.mjs";
 import { pingDb } from "./db.mjs";
 import { MCP_TOOL_NAMES } from "./catalog.mjs";
@@ -80,6 +81,33 @@ async function handle(req, res) {
 
   if (req.method === "GET" && url.pathname === "/api/adapter-kinds") {
     json(res, 200, { kinds: listAdapterKinds() });
+    return;
+  }
+
+  if (req.method === "POST" && url.pathname === "/api/adapters/municode/calendar/run") {
+    if (!cityPackAuthorized(req)) {
+      json(res, 401, { error: "unauthorized" });
+      return;
+    }
+    const cityKey = url.searchParams.get("cityKey") || "template-city";
+    if (cityKey !== "template-city") {
+      json(res, 403, { error: "municode calendar run is template-city only" });
+      return;
+    }
+    try {
+      const result = await runMunicodeCalendar({ cityKey });
+      json(res, result.status === "ok" ? 200 : 200, result);
+    } catch (err) {
+      json(res, 200, {
+        cityKey,
+        status: "unavailable",
+        honesty: "partial",
+        basis: err.basis || String(err.message || err),
+        fetched: 0,
+        written: 0,
+        records: [],
+      });
+    }
     return;
   }
 

@@ -71,6 +71,10 @@ describe("G-66 four-lens shell", () => {
     assert.equal(html.includes("25-000280"), false);
     assert.equal(html.includes("Christy Hunn"), false);
     assert.equal(html.includes("Locate Water"), false);
+    assert.match(html, /id="overview-meetings"/);
+    assert.match(html, /id="overview-meetings-honesty">Partial</);
+    assert.equal(html.includes("Public Library Board"), false);
+    assert.equal(html.includes("Regular City Council Meeting"), false);
   });
 
   it("presents Work Files as a link to /?work=files and mounts the Files host", () => {

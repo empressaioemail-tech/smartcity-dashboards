@@ -72,7 +72,15 @@ describe("HTTP surface", () => {
     const packs = await (await fetch(`${base}/api/city-packs`)).json();
     assert.equal(packs.cityPacks.length, 1);
     assert.equal(packs.cityPacks[0].cityKey, "template-city");
-    assert.equal(packs.cityPacks[0].grantedAdapterCount, 0);
+    assert.equal(packs.cityPacks[0].grantedAdapterCount, 1);
+    const template = await (await fetch(`${base}/api/city-packs/template-city`)).json();
+    assert.equal(template.cityPack.grantedAdapters[0].kind, "municode");
+    assert.equal(template.cityPack.grantedAdapters[0].purpose, "calendar");
+    assert.equal(template.cityPack.grantedAdapters[0].writesTo, "files");
+    assert.equal(template.cityPack.grantedAdapters[0].accessPolicy, "public-free");
+    assert.match(template.cityPack.grantedAdapters[0].writesToOverrideReason, /L26/);
+    assert.match(template.cityPack.grantedAdapters[0].sourceUrl, /municodemeetings\.com/);
+    assert.equal(template.cityPack.grantedAdapters[0].sourceUrl.includes("smartcityos.io"), false);
     const fixtureAnon = await fetch(`${base}/api/city-packs/fixture-city`);
     assert.equal(fixtureAnon.status, 401);
 
@@ -192,6 +200,15 @@ describe("HTTP surface", () => {
         headers: { authorization: "Bearer scaffold-test-key" },
       });
       assert.equal(okOne.status, 200);
+      const templatePack = await okOne.json();
+      assert.equal(templatePack.cityPack.grantedAdapters[0].kind, "municode");
+      assert.equal(templatePack.cityPack.grantedAdapters[0].writesTo, "files");
+      assert.equal(templatePack.cityPack.grantedAdapters[0].accessPolicy, "public-free");
+      const fixtureRun = await fetch(`${base}/api/adapters/municode/calendar/run?cityKey=fixture-city`, {
+        method: "POST",
+        headers: { authorization: "Bearer scaffold-test-key" },
+      });
+      assert.equal(fixtureRun.status, 403);
       const listed = await okList.json();
       assert.equal(listed.cityPacks.some((p) => p.cityKey === "fixture-city"), false);
       const serviceFixture = await fetch(`${base}/api/city-packs/fixture-city`, {
@@ -250,6 +267,11 @@ describe("HTTP surface", () => {
     assert.equal(composed.filesRoom.contract, "service-http");
     assert.equal(composed.filesRoom.status, "unavailable");
     assert.equal(composed.filesRoom.basis, "SMART_FILES_BACKEND_URL unset");
+    assert.equal(composed.meetings.contract, "files-record-read");
+    assert.equal(composed.meetings.status, "unavailable");
+    assert.equal(composed.meetings.honesty, "partial");
+    assert.equal(composed.meetings.basis, "SMART_FILES_BACKEND_URL unset");
+    assert.deepEqual(composed.meetings.records, []);
     assert.equal(composed.planReview.contract, "embed");
     assert.equal(composed.planReview.url, "https://plan-review-app-ten.vercel.app/");
     assert.equal(composed.smartFiles.contract, "embed");
@@ -259,6 +281,7 @@ describe("HTTP surface", () => {
       "cityKey",
       "filesRoom",
       "lensId",
+      "meetings",
       "parcelNodeId",
       "planReview",
       "smartFiles",

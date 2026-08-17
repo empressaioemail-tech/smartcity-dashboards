@@ -3,9 +3,11 @@ import assert from "node:assert/strict";
 import {
   ADAPTER_KINDS,
   assertAdapterKindShape,
+  assertGrantedAdapterShape,
   listAdapterKinds,
+  TEMPLATE_MUNICODE_CALENDAR_GRANT,
 } from "./adapters.mjs";
-import { TEMPLATE_CITY } from "./city-pack.mjs";
+import { FIXTURE_CITY, TEMPLATE_CITY } from "./city-pack.mjs";
 import { FORBIDDEN_PRODUCT_STRINGS } from "./catalog.mjs";
 
 describe("adapter kinds", () => {
@@ -49,8 +51,27 @@ describe("adapter kinds", () => {
     );
   });
 
-  it("does not treat a catalogued kind as a city grant", () => {
-    assert.deepEqual(TEMPLATE_CITY.grantedAdapters, []);
-    assert.equal(listAdapterKinds().length > 0, true);
+  it("grants municode calendar onto template-city files and keeps fixture-city empty", () => {
+    const municode = listAdapterKinds().find((k) => k.id === "municode");
+    assert.equal(municode.writesTo, "spine");
+    assertGrantedAdapterShape(TEMPLATE_MUNICODE_CALENDAR_GRANT);
+    assert.equal(TEMPLATE_CITY.grantedAdapters.length, 1);
+    assert.equal(TEMPLATE_CITY.grantedAdapters[0].kind, "municode");
+    assert.equal(TEMPLATE_CITY.grantedAdapters[0].purpose, "calendar");
+    assert.equal(TEMPLATE_CITY.grantedAdapters[0].writesTo, "files");
+    assert.equal(TEMPLATE_CITY.grantedAdapters[0].accessPolicy, "public-free");
+    assert.match(TEMPLATE_CITY.grantedAdapters[0].writesToOverrideReason, /L26/);
+    assert.deepEqual(FIXTURE_CITY.grantedAdapters, []);
+    assert.throws(
+      () =>
+        assertGrantedAdapterShape({
+          kind: "pipedrive",
+          purpose: "calendar",
+          writesTo: "files",
+          accessPolicy: "public-free",
+          sourceUrl: "https://bastrop-tx.municodemeetings.com/",
+        }),
+      /not a city feed/,
+    );
   });
 });
