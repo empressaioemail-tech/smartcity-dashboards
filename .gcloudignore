@@ -1,7 +1,10 @@
-node_modules
+.git
+.gitignore
+.gcloudignore
 .env
 .env.*
 !.env.example
 *.database_url
 *.service_token
 *.api_key
+node_modules
