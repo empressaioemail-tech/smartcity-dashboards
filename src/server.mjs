@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { listLenses, getLens } from "./lenses.mjs";
 import { listCityPacks, getCityPack, getPacksStore, ensureCityPacksTable } from "./city-pack.mjs";
-import { readMounts, smartsiteEmbedUrl, assertNoSupplierDsn, assertNoSupplierMounts } from "./mounts.mjs";
+import { readMounts, smartsiteEmbedUrl, planReviewEmbedUrl, assertNoSupplierDsn, assertNoSupplierMounts } from "./mounts.mjs";
 import { composeCityManager } from "./compose.mjs";
 import { listAdapterKinds } from "./adapters.mjs";
 import { loadDotenv } from "./load-env.mjs";
@@ -143,6 +143,7 @@ async function handle(req, res) {
     json(res, 200, {
       mounts,
       smartsiteExample: smartsiteEmbedUrl("parcel-example"),
+      planReviewExample: planReviewEmbedUrl(),
       mcp: {
         server: "existing-hauska-mcp",
         namedTools: MCP_TOOL_NAMES,
@@ -164,6 +165,11 @@ async function handle(req, res) {
 
   if (req.method === "GET" && url.pathname === "/staff-map.mjs") {
     sendFile(res, path.join(__dirname, "staff-map.mjs"), "text/javascript; charset=utf-8");
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/staff-review.mjs") {
+    sendFile(res, path.join(__dirname, "staff-review.mjs"), "text/javascript; charset=utf-8");
     return;
   }
 

@@ -1,17 +1,30 @@
 import {
   resolveStaffMapQuery,
 } from "/staff-map.mjs";
+import {
+  resolveStaffLensQuery,
+} from "/staff-review.mjs";
 
 function setText(id, value) {
   const el = document.getElementById(id);
   if (el) el.textContent = value || "";
 }
 
-function renderCompose(data) {
+function renderCompose(data, staffLens) {
   const site = document.getElementById("site");
-  const url = data.smartsite?.url || "";
-  site.src = url || "about:blank";
-  setText("smartsite-basis", url ? url : data.smartsite?.basis || "");
+  const reviewUrl = data.planReview?.url || "";
+  const mapUrl = data.smartsite?.url || "";
+  if (staffLens.isDevelopmentServices) {
+    site.src = reviewUrl || "about:blank";
+    site.title = "Plan Review embed";
+    setText("embed-heading", "Plan Review");
+    setText("smartsite-basis", reviewUrl);
+  } else {
+    site.src = mapUrl || "about:blank";
+    site.title = "SmartSite embed";
+    setText("embed-heading", "SmartSite");
+    setText("smartsite-basis", mapUrl ? mapUrl : data.smartsite?.basis || "");
+  }
 
   const atoms = data.atoms || {};
   const atomsStatus = document.getElementById("atoms-status");
@@ -40,13 +53,13 @@ function renderCompose(data) {
   }
 }
 
-async function compose(parcelNodeId, cityKey) {
+async function compose(parcelNodeId, cityKey, staffLens) {
   const params = new URLSearchParams();
   if (parcelNodeId) params.set("parcelNodeId", parcelNodeId);
   if (cityKey) params.set("cityKey", cityKey);
   const res = await fetch(`/api/lenses/city-manager/compose?${params}`);
   const data = await res.json();
-  renderCompose(data);
+  renderCompose(data, staffLens);
 }
 
 async function loadLenses() {
@@ -57,7 +70,14 @@ async function loadLenses() {
     ...lenses.map((lens) => {
       const el = document.createElement("article");
       const title = document.createElement("strong");
-      title.textContent = lens.id;
+      if (lens.id === "development-services") {
+        const link = document.createElement("a");
+        link.href = "/?lens=development-services";
+        link.textContent = lens.id;
+        title.append(link);
+      } else {
+        title.textContent = lens.id;
+      }
       const audience = document.createElement("div");
       audience.className = "meta";
       audience.textContent = lens.audience;
@@ -69,15 +89,17 @@ async function loadLenses() {
   );
 }
 
+const staffLens = resolveStaffLensQuery(window.location.search);
+const staffMap = resolveStaffMapQuery(window.location.search);
+
 document.getElementById("compose-form").addEventListener("submit", (ev) => {
   ev.preventDefault();
   const parcelNodeId = document.getElementById("parcel-node-id").value.trim();
   const cityKey = document.getElementById("city-key").value.trim();
-  compose(parcelNodeId, cityKey);
+  compose(parcelNodeId, cityKey, staffLens);
 });
 
-const staffMap = resolveStaffMapQuery(window.location.search);
 document.getElementById("parcel-node-id").value = staffMap.parcelNodeId;
 document.getElementById("city-key").value = staffMap.cityKey;
-compose(staffMap.parcelNodeId, staffMap.cityKey);
+compose(staffMap.parcelNodeId, staffMap.cityKey, staffLens);
 loadLenses();

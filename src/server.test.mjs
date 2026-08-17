@@ -87,8 +87,10 @@ describe("HTTP surface", () => {
 
     const mounts = await (await fetch(`${base}/api/mounts`)).json();
     assert.equal(mounts.mounts.smartsite.contract, "embed");
+    assert.equal(mounts.mounts.planReview.contract, "embed");
     assert.equal(mounts.mcp.serving, true);
     assert.ok(mounts.smartsiteExample.includes("parcelNodeId="));
+    assert.match(mounts.planReviewExample, /plan-review-app-ten\.vercel\.app/);
   });
 
   it("serves the staff-map module and auto-composes gold parcel on GET /", async () => {
@@ -103,6 +105,18 @@ describe("HTTP surface", () => {
     assert.match(app, /resolveStaffMapQuery/);
     assert.match(app, /compose\(staffMap\.parcelNodeId/);
     assert.equal(app.includes("leaflet"), false);
+  });
+
+  it("serves the staff-review module and switches development-services to plan-review-app", async () => {
+    const base = `http://127.0.0.1:${port}`;
+    const review = await (await fetch(`${base}/staff-review.mjs`)).text();
+    assert.match(review, /plan-review-app-ten\.vercel\.app/);
+    assert.equal(review.toLowerCase().includes("permitflow"), false);
+    const app = await (await fetch(`${base}/app.js`)).text();
+    assert.match(app, /resolveStaffLensQuery/);
+    assert.match(app, /isDevelopmentServices/);
+    assert.match(app, /planReview/);
+    assert.equal(app.toLowerCase().includes("permitflow"), false);
   });
 
   it("keeps city-packs open when DASHBOARDS_API_KEY is unset", async () => {
@@ -198,12 +212,15 @@ describe("HTTP surface", () => {
     assert.equal(composed.filesRoom.contract, "service-http");
     assert.equal(composed.filesRoom.status, "unavailable");
     assert.equal(composed.filesRoom.basis, "SMART_FILES_BACKEND_URL unset");
+    assert.equal(composed.planReview.contract, "embed");
+    assert.equal(composed.planReview.url, "https://plan-review-app-ten.vercel.app/");
     assert.deepEqual(Object.keys(composed).sort(), [
       "atoms",
       "cityKey",
       "filesRoom",
       "lensId",
       "parcelNodeId",
+      "planReview",
       "smartsite",
     ]);
     assert.equal("mygov" in composed, false);
