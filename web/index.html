@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SmartCity Dashboards</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: ui-sans-serif, system-ui, sans-serif;
+        background: #0f1419;
+        color: #e8eef4;
+      }
+      body {
+        margin: 0;
+        padding: 24px;
+      }
+      h1 {
+        font-size: 1.25rem;
+        font-weight: 600;
+      }
+      .lenses {
+        display: grid;
+        gap: 12px;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        margin: 16px 0 24px;
+      }
+      article {
+        border: 1px solid #2a3540;
+        border-radius: 8px;
+        padding: 12px 14px;
+        background: #151c23;
+      }
+      iframe {
+        width: 100%;
+        min-height: 420px;
+        border: 1px solid #2a3540;
+        border-radius: 8px;
+        background: #111;
+      }
+      .meta {
+        color: #9aa8b5;
+        font-size: 0.9rem;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>SmartCity Dashboards</h1>
+    <p class="meta">Four lead lenses. Citizen is a lens, not a SKU. Payments are not a product. Parcel view mounts SmartSite.</p>
+    <div id="lenses" class="lenses"></div>
+    <h2>SmartSite mount</h2>
+    <iframe id="site" title="SmartSite embed" src="about:blank"></iframe>
+    <script src="/app.js"></script>
+  </body>
+</html>
