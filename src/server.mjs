@@ -162,6 +162,11 @@ async function handle(req, res) {
     return;
   }
 
+  if (req.method === "GET" && url.pathname === "/staff-map.mjs") {
+    sendFile(res, path.join(__dirname, "staff-map.mjs"), "text/javascript; charset=utf-8");
+    return;
+  }
+
   json(res, 404, { error: "not found" });
 }
 
