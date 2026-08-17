@@ -163,6 +163,11 @@ async function handle(req, res) {
     return;
   }
 
+  if (req.method === "GET" && url.pathname === "/sc-kit.css") {
+    sendFile(res, path.join(WEB, "sc-kit.css"), "text/css");
+    return;
+  }
+
   if (req.method === "GET" && url.pathname === "/staff-map.mjs") {
     sendFile(res, path.join(__dirname, "staff-map.mjs"), "text/javascript; charset=utf-8");
     return;
