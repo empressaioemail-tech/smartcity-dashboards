@@ -47,6 +47,14 @@ async function timedFetch(fetchImpl, url, headers) {
   });
 }
 
+function isPublicFreeAccessPolicy(atom) {
+  const raw = atom.accessPolicy;
+  if (raw == null) return true;
+  const policy = String(raw).trim();
+  if (!policy) return true;
+  return policy === "public-free";
+}
+
 function extractAtomSummary(body) {
   if (!body || typeof body !== "object") return { atomCount: 0, types: [] };
   let list = [];
@@ -54,12 +62,15 @@ function extractAtomSummary(body) {
   else if (Array.isArray(body.chain)) list = body.chain;
   else if (Array.isArray(body.atomChain)) list = body.atomChain;
   const types = [];
+  let atomCount = 0;
   for (const atom of list) {
     if (!atom || typeof atom !== "object") continue;
+    if (!isPublicFreeAccessPolicy(atom)) continue;
+    atomCount += 1;
     const t = atom.entityType || atom.type || atom.atomType;
     if (typeof t === "string" && t && !types.includes(t)) types.push(t);
   }
-  return { atomCount: list.length, types };
+  return { atomCount, types };
 }
 
 function slimFolders(body) {
@@ -158,9 +169,8 @@ async function readFiles({ cityKey, env, fetchImpl }) {
   const base = trimEnv(env, "SMART_FILES_BACKEND_URL").replace(/\/$/, "");
   if (!base) return empty("unavailable", "SMART_FILES_BACKEND_URL unset");
   const url = `${base}/api/smart-files/folders?scopeType=${encodeURIComponent(scopeType)}&scopeId=${encodeURIComponent(scopeId)}`;
-  const key = trimEnv(env, "SMART_FILES_API_KEY");
   try {
-    const res = await timedFetch(fetchImpl, url, bearerHeaders(key));
+    const res = await timedFetch(fetchImpl, url, {});
     const body = await asJson(res);
     if (res.status === 401 || res.status === 403) {
       return empty("unavailable", "files auth refused");

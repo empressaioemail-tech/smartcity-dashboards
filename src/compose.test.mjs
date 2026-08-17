@@ -108,8 +108,8 @@ describe("city-manager compose", () => {
         SMART_FILES_API_KEY: "f",
       }),
       fetchImpl: mockFetch((url, opts) => {
-        assert.match(String(opts.headers.Authorization || ""), /Bearer /);
         if (url.includes("/atom-chain")) {
+          assert.match(String(opts.headers?.Authorization || ""), /Bearer /);
           assert.match(url, /property-nodes\/48021%3A34137\/atom-chain$/);
           return jsonResponse(200, {
             parcelNodeId: VALID,
@@ -119,6 +119,7 @@ describe("city-manager compose", () => {
             ],
           });
         }
+        assert.equal(opts.headers?.Authorization, undefined);
         assert.match(url, /scopeType=tenant/);
         assert.match(url, /scopeId=template-city/);
         return jsonResponse(200, {
@@ -167,5 +168,148 @@ describe("city-manager compose", () => {
     assert.equal(invalid.smartsite.url, "");
     assert.equal(invalid.atoms.status, "empty");
     assert.equal(invalid.atoms.basis, "invalid parcelNodeId");
+  });
+
+  it("summarizes only public-free types; retrieval Bearer authenticates the product", async () => {
+    const composed = await composeCityManager({
+      parcelNodeId: VALID,
+      env: envWithMounts({ HAUSKA_ENGINE_API_KEY: "engine-service" }),
+      fetchImpl: mockFetch((url, opts) => {
+        if (url.includes("/atom-chain")) {
+          assert.equal(opts.headers?.Authorization, "Bearer engine-service");
+          return jsonResponse(200, {
+            parcelNodeId: VALID,
+            atoms: [
+              {
+                did: "did:atom:zoning-fact:1",
+                type: "zoning-fact",
+                kind: "fact",
+                accessPolicy: "public-free",
+                payload: { district: "SF-1" },
+              },
+              {
+                did: "did:atom:owner-fact:1",
+                type: "owner-fact",
+                kind: "fact",
+                accessPolicy: "public-paid",
+                payload: { ownerName: "LEAK-OWNER" },
+              },
+              {
+                did: "did:atom:flood-hazard-fact:1",
+                type: "flood-hazard-fact",
+                kind: "fact",
+                accessPolicy: "platform-internal",
+                payload: { zone: "AE" },
+              },
+              {
+                did: "did:atom:workspace:1",
+                type: "workspace",
+                kind: "workspace",
+                accessPolicy: "tenant-private",
+                payload: { secret: "LEAK-TENANT" },
+              },
+              {
+                did: "did:atom:shared:1",
+                type: "workspace",
+                kind: "workspace",
+                accessPolicy: "tenant-shared",
+                payload: { secret: "LEAK-SHARED" },
+              },
+            ],
+          });
+        }
+        return jsonResponse(200, { folders: [] });
+      }),
+    });
+    assert.equal(composed.atoms.status, "ok");
+    assert.deepEqual(composed.atoms.types, ["zoning-fact"]);
+    assert.equal(composed.atoms.atomCount, 1);
+    assert.equal(composed.atoms.types.includes("owner-fact"), false);
+    const dumped = JSON.stringify(composed);
+    assert.equal(dumped.includes("LEAK-OWNER"), false);
+    assert.equal(dumped.includes("SF-1"), false);
+    assert.equal(dumped.includes("LEAK-TENANT"), false);
+    assert.equal(dumped.includes("LEAK-SHARED"), false);
+    assert.equal(dumped.includes("did:atom:"), false);
+  });
+
+  it("treats missing or empty accessPolicy as public-free", async () => {
+    const composed = await composeCityManager({
+      parcelNodeId: VALID,
+      env: envWithMounts({ HAUSKA_RETRIEVAL_API_KEY: "retrieval-service" }),
+      fetchImpl: mockFetch((url, opts) => {
+        if (url.includes("/atom-chain")) {
+          assert.equal(opts.headers?.Authorization, "Bearer retrieval-service");
+          return jsonResponse(200, {
+            atoms: [
+              { type: "setback-rule", kind: "fact", payload: { front: 25 } },
+              { type: "height-limit", kind: "fact", accessPolicy: "", payload: { maxFt: 35 } },
+              { type: "impervious-cover", kind: "fact", accessPolicy: "   ", payload: { pct: 50 } },
+            ],
+          });
+        }
+        return jsonResponse(200, { folders: [] });
+      }),
+    });
+    assert.equal(composed.atoms.status, "ok");
+    assert.equal(composed.atoms.atomCount, 3);
+    assert.deepEqual(composed.atoms.types, ["setback-rule", "height-limit", "impervious-cover"]);
+    assert.equal(JSON.stringify(composed).includes("maxFt"), false);
+  });
+
+  it("does not send SMART_FILES_API_KEY on the unauthenticated files fetch", async () => {
+    let filesHeaders;
+    const composed = await composeCityManager({
+      parcelNodeId: VALID,
+      env: envWithMounts({ SMART_FILES_API_KEY: "files-secret" }),
+      fetchImpl: mockFetch((url, opts) => {
+        if (url.includes("/atom-chain")) return jsonResponse(200, { atoms: [] });
+        filesHeaders = opts.headers || {};
+        return jsonResponse(200, { folders: [] });
+      }),
+    });
+    assert.equal(filesHeaders.Authorization, undefined);
+    assert.equal(JSON.stringify(filesHeaders).includes("files-secret"), false);
+    assert.equal(JSON.stringify(composed).includes("files-secret"), false);
+  });
+
+  it("does not denylist type names; public-free owner-fact stays visible", async () => {
+    const composed = await composeCityManager({
+      parcelNodeId: VALID,
+      env: envWithMounts({ HAUSKA_ENGINE_API_KEY: "k" }),
+      fetchImpl: mockFetch((url) => {
+        if (url.includes("/atom-chain")) {
+          return jsonResponse(200, {
+            atoms: [
+              {
+                type: "owner-fact",
+                accessPolicy: "public-free",
+                payload: { ownerName: "STILL-NO-BODY" },
+              },
+            ],
+          });
+        }
+        return jsonResponse(200, { folders: [] });
+      }),
+    });
+    assert.deepEqual(composed.atoms.types, ["owner-fact"]);
+    assert.equal(composed.atoms.atomCount, 1);
+    assert.equal(JSON.stringify(composed).includes("STILL-NO-BODY"), false);
+  });
+
+  it("names files 401 as unavailable with files auth refused", async () => {
+    const composed = await composeCityManager({
+      parcelNodeId: VALID,
+      env: envWithMounts({ SMART_FILES_API_KEY: "files-secret" }),
+      fetchImpl: mockFetch((url, opts) => {
+        if (url.includes("/atom-chain")) return jsonResponse(200, { atoms: [] });
+        assert.equal(opts.headers?.Authorization, undefined);
+        return jsonResponse(401, { error: "nope" });
+      }),
+    });
+    assert.equal(composed.filesRoom.status, "unavailable");
+    assert.equal(composed.filesRoom.basis, "files auth refused");
+    assert.equal(composed.filesRoom.folderCount, 0);
+    assert.deepEqual(composed.filesRoom.folders, []);
   });
 });
