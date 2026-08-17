@@ -5,12 +5,17 @@ import { fileURLToPath } from "node:url";
 import { listLenses, getLens } from "./lenses.mjs";
 import { listCityPacks, getCityPack } from "./city-pack.mjs";
 import { readMounts, smartsiteEmbedUrl, assertNoSupplierDsn, assertNoSupplierMounts } from "./mounts.mjs";
+import { loadDotenv } from "./load-env.mjs";
+import { pingDb } from "./db.mjs";
 import { MCP_TOOL_NAMES } from "./catalog.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WEB = path.join(__dirname, "..", "web");
 const PORT = Number(process.env.PORT || 8080);
+const isMain =
+  process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 
+if (isMain) loadDotenv();
 assertNoSupplierDsn();
 assertNoSupplierMounts();
 
@@ -46,11 +51,23 @@ export const server = http.createServer((req, res) => {
   const url = new URL(req.url || "/", `http://${req.headers.host || "localhost"}`);
 
   if (req.method === "GET" && url.pathname === "/health") {
-    json(res, 200, {
-      ok: true,
-      product: "smartcity-dashboards",
-      cityPacks: "tenant-packs-not-repos",
-    });
+    pingDb()
+      .then((db) => {
+        json(res, 200, {
+          ok: true,
+          product: "smartcity-dashboards",
+          cityPacks: "tenant-packs-not-repos",
+          ...db,
+        });
+      })
+      .catch((err) => {
+        json(res, 200, {
+          ok: false,
+          product: "smartcity-dashboards",
+          db: "error",
+          error: String(err.message || err),
+        });
+      });
     return;
   }
 

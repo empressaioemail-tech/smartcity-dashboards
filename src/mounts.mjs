@@ -58,8 +58,11 @@ export function assertNoSupplierDsn(envMap = process.env) {
       throw new Error(`refusing supplier or city DSN (${host})`);
     }
   }
+  const isPostgres = /^postgres(ql)?:\/\//.test(lower);
+  const isNeon = lower.includes("neon.tech");
+  if (isPostgres && isNeon) return true;
   throw new Error(
-    "Dashboards is a mount surface. DATABASE_URL is forbidden until a named tenant-registry Neon exists and is not smartcity-os-prod.",
+    "DATABASE_URL must be this product's Neon (neon.tech) and not smartcity-os-prod, cortex, or files.",
   );
 }
 

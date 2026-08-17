@@ -28,12 +28,30 @@ describe("G-13 mounts", () => {
         assertNoSupplierDsn({
           DATABASE_URL: "postgres://u:p@localhost/dashboards",
         }),
-      /forbidden until a named tenant-registry Neon/,
+      /must be this product's Neon/,
     );
   });
 
   it("allows empty DATABASE_URL", () => {
     assert.equal(assertNoSupplierDsn({}), true);
+  });
+
+  it("allows this product's Neon and still refuses supplier hosts", () => {
+    assert.equal(
+      assertNoSupplierDsn({
+        DATABASE_URL:
+          "postgres://u:p@ep-example-pooler.c-11.us-east-1.aws.neon.tech/neondb?sslmode=require",
+      }),
+      true,
+    );
+    assert.throws(
+      () =>
+        assertNoSupplierDsn({
+          DATABASE_URL:
+            "postgres://u:p@ep-x.tiny-art-63602898.aws.neon.tech/neondb?sslmode=require",
+        }),
+      /tiny-art-63602898/,
+    );
   });
 
   it("refuses supplier or city hosts on mount URLs", () => {

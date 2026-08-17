@@ -29,6 +29,7 @@ describe("HTTP surface", () => {
     const health = await (await fetch(`${base}/health`)).json();
     assert.equal(health.ok, true);
     assert.equal(health.product, "smartcity-dashboards");
+    assert.equal(health.db, "unset");
 
     const lenses = await (await fetch(`${base}/api/lenses`)).json();
     assert.equal(lenses.lenses.length, 4);

@@ -53,15 +53,15 @@ describe("product shape", () => {
     assert.equal(/deploy/i.test(ci), false);
   });
 
-  it("infra.md names a new GCP project later and forbids supplier projects, without a Neon", () => {
+  it("infra.md pins this product's GCP and Neon host, and forbids supplier projects", () => {
     const infra = fs.readFileSync(path.join(root, "infra.md"), "utf8");
-    assert.match(infra, /v0 has no Neon/i);
-    assert.match(infra, /NEW GCP project later/);
+    assert.match(infra, /ep-still-wave-avbwm4yc-pooler/);
+    assert.match(infra, /666199866241/);
     assert.match(infra, /smartcity-dashboards/);
     assert.match(infra, /smartcity-os-prod/);
     assert.match(infra, /hauska-prod-497015/);
     assert.match(infra, /legacy-design-tools-prod/);
-    assert.match(infra, /does not invent a GCP project number/);
     assert.match(infra, /DASHBOARDS_API_KEY/);
+    assert.equal(infra.includes("v0 has no Neon"), false);
   });
 });

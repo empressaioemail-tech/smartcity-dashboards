@@ -1,11 +1,10 @@
-# Infra (v0)
+# Infra
 
-v0 has no Neon. This service is a mount surface. A tenant-registry database, if one is needed later, is a new Neon project created by the operator. It is not the city DB, not cortex, not files, and not the atoms store.
+Tenant-registry Neon is this product's store, not a mount. It holds city packs later. It does not hold parcels, files, or atoms.
 
-The operator will create a NEW GCP project later. Recommended name: `smartcity-dashboards`.
+- Neon: pooled `ep-still-wave-avbwm4yc-pooler.c-11.us-east-1.aws.neon.tech`, database `neondb`. DSN is gitignored (`.env`, `local.database_url`). Not `tiny-art-63602898`, not `fancy-fire-06136146`, not the city DB.
+- GCP: project id `smartcity-dashboards`, project number `666199866241`, billing on. Created 2026-08-17. Not deployed.
 
 Never deploy this product into `smartcity-os-prod`, `hauska-prod-497015`, or `legacy-design-tools-prod`.
 
 Set `DASHBOARDS_API_KEY` before any public deploy. Unset keeps `/api/city-packs` open for local scaffold only.
-
-This file does not invent a GCP project number. The number exists only after the operator creates the project.
