@@ -103,8 +103,10 @@ describe("HTTP surface", () => {
     assert.equal(staff.includes("leaflet"), false);
     const app = await (await fetch(`${base}/app.js`)).text();
     assert.match(app, /resolveStaffMapQuery/);
-    assert.match(app, /compose\(staffMap\.parcelNodeId/);
+    assert.match(app, /composeGoldMap\(staffMap\.parcelNodeId/);
     assert.equal(app.includes("leaflet"), false);
+    assert.equal(html.includes("compose-form"), false);
+    assert.equal(html.includes("parcel-node-id"), false);
   });
 
   it("serves /sc-kit.css as text/css", async () => {
@@ -114,6 +116,9 @@ describe("HTTP surface", () => {
     assert.match(res.headers.get("content-type") || "", /text\/css/);
     const css = await res.text();
     assert.match(css, /--sc-atom:/);
+    const shell = await fetch(`${base}/shell.css`);
+    assert.equal(shell.status, 200);
+    assert.match(shell.headers.get("content-type") || "", /text\/css/);
   });
 
   it("serves the staff-review module and switches development-services to plan-review-app", async () => {
@@ -126,6 +131,8 @@ describe("HTTP surface", () => {
     assert.match(app, /isDevelopmentServices/);
     assert.match(app, /planReview/);
     assert.equal(app.toLowerCase().includes("permitflow"), false);
+    const compass = await fetch(`${base}/compass`);
+    assert.equal(compass.status, 404);
   });
 
   it("keeps city-packs open when DASHBOARDS_API_KEY is unset", async () => {
