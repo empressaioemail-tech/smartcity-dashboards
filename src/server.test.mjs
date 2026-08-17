@@ -107,6 +107,15 @@ describe("HTTP surface", () => {
     assert.equal(app.includes("leaflet"), false);
   });
 
+  it("serves /sc-kit.css as text/css", async () => {
+    const base = `http://127.0.0.1:${port}`;
+    const res = await fetch(`${base}/sc-kit.css`);
+    assert.equal(res.status, 200);
+    assert.match(res.headers.get("content-type") || "", /text\/css/);
+    const css = await res.text();
+    assert.match(css, /--sc-atom:/);
+  });
+
   it("serves the staff-review module and switches development-services to plan-review-app", async () => {
     const base = `http://127.0.0.1:${port}`;
     const review = await (await fetch(`${base}/staff-review.mjs`)).text();
