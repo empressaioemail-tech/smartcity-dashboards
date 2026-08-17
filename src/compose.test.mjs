@@ -46,6 +46,7 @@ describe("city-manager compose", () => {
     assert.equal(unset.atoms.atomCount, 0);
     assert.equal("atoms" in unset.atoms, false);
     assert.equal(unset.smartsite.url.includes("parcelNodeId=48021%3A34137"), true);
+    assert.equal(unset.planReview.url, "https://plan-review-app-ten.vercel.app/");
     assert.equal(unset.filesRoom.status, "unavailable");
     assert.equal(unset.filesRoom.basis, "SMART_FILES_BACKEND_URL unset");
 
@@ -361,8 +362,11 @@ describe("city-manager compose", () => {
       "filesRoom",
       "lensId",
       "parcelNodeId",
+      "planReview",
       "smartsite",
     ]);
+    assert.equal(composed.planReview.contract, "embed");
+    assert.equal(composed.planReview.url, "https://plan-review-app-ten.vercel.app/");
     assert.equal("mygov" in composed, false);
     assert.equal("samsara" in composed, false);
     assert.equal("permits" in composed, false);

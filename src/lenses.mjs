@@ -8,7 +8,7 @@ export const LEAD_LENSES = [
   {
     id: "development-services",
     audience: "development services",
-    needs: "permitting and development pipeline; connects to Plan Review as a later mount",
+    needs: "permitting and development pipeline; Plan Review is the staff reviewer",
     accessPolicy: "platform-internal",
   },
   {

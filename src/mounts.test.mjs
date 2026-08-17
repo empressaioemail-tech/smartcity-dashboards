@@ -5,6 +5,7 @@ import {
   assertNoSupplierMounts,
   FORBIDDEN_MOUNT_MARKERS,
   MOUNT_URL_ENV_KEYS,
+  planReviewEmbedUrl,
   smartsiteEmbedUrl,
 } from "./mounts.mjs";
 
@@ -13,6 +14,14 @@ describe("G-13 mounts", () => {
     const url = smartsiteEmbedUrl("node-1");
     assert.match(url, /parcelNodeId=node-1/);
     assert.equal(url.includes("leaflet"), false);
+  });
+
+  it("embeds Plan Review on plan-review-app, not a cloned reviewer", () => {
+    assert.equal(planReviewEmbedUrl({}), "https://plan-review-app-ten.vercel.app/");
+    assert.equal(
+      planReviewEmbedUrl({ PLAN_REVIEW_EMBED_ORIGIN: "https://plan-review-app-ten.vercel.app/" }),
+      "https://plan-review-app-ten.vercel.app/",
+    );
   });
 
   it("refuses a city or spine DSN", () => {
@@ -72,6 +81,7 @@ describe("G-13 mounts", () => {
         HAUSKA_RETRIEVAL_URL: "https://hauska-retrieval-api-h7gvu7rgcq-uc.a.run.app",
         SMARTSITE_EMBED_ORIGIN: "https://smartsite.cloud",
         SMART_FILES_BACKEND_URL: "https://smart-files-padrd77ava-ue.a.run.app",
+        PLAN_REVIEW_EMBED_ORIGIN: "https://plan-review-app-ten.vercel.app",
       }),
       true,
     );

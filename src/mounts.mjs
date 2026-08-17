@@ -9,6 +9,7 @@ export const MOUNT_URL_ENV_KEYS = [
   "HAUSKA_RETRIEVAL_URL",
   "SMART_FILES_BACKEND_URL",
   "SMARTSITE_EMBED_ORIGIN",
+  "PLAN_REVIEW_EMBED_ORIGIN",
 ];
 
 export const FORBIDDEN_MOUNT_MARKERS = [
@@ -39,6 +40,10 @@ export function readMounts() {
       contract: "service-http",
       url: env("SMART_FILES_BACKEND_URL"),
     },
+    planReview: {
+      contract: "embed",
+      origin: env("PLAN_REVIEW_EMBED_ORIGIN", "https://plan-review-app-ten.vercel.app"),
+    },
   };
 }
 
@@ -47,6 +52,16 @@ export function smartsiteEmbedUrl(parcelNodeId) {
   const origin = mounts.smartsite.origin.replace(/\/$/, "");
   const id = encodeURIComponent(parcelNodeId || "");
   return `${origin}${mounts.smartsite.parcelPath}${id}`;
+}
+
+export function planReviewEmbedUrl(envMap = process.env) {
+  const raw = envMap?.PLAN_REVIEW_EMBED_ORIGIN;
+  const origin = String(
+    raw == null || String(raw).trim() === ""
+      ? "https://plan-review-app-ten.vercel.app"
+      : raw,
+  ).replace(/\/$/, "");
+  return `${origin}/`;
 }
 
 export function assertNoSupplierDsn(envMap = process.env) {
