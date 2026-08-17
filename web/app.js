@@ -1,3 +1,7 @@
+import {
+  resolveStaffMapQuery,
+} from "/staff-map.mjs";
+
 function setText(id, value) {
   const el = document.getElementById(id);
   if (el) el.textContent = value || "";
@@ -72,4 +76,8 @@ document.getElementById("compose-form").addEventListener("submit", (ev) => {
   compose(parcelNodeId, cityKey);
 });
 
+const staffMap = resolveStaffMapQuery(window.location.search);
+document.getElementById("parcel-node-id").value = staffMap.parcelNodeId;
+document.getElementById("city-key").value = staffMap.cityKey;
+compose(staffMap.parcelNodeId, staffMap.cityKey);
 loadLenses();

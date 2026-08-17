@@ -91,6 +91,20 @@ describe("HTTP surface", () => {
     assert.ok(mounts.smartsiteExample.includes("parcelNodeId="));
   });
 
+  it("serves the staff-map module and auto-composes gold parcel on GET /", async () => {
+    const base = `http://127.0.0.1:${port}`;
+    const html = await (await fetch(`${base}/`)).text();
+    assert.match(html, /type="module"/);
+    assert.match(html, /src="\/app.js"/);
+    const staff = await (await fetch(`${base}/staff-map.mjs`)).text();
+    assert.match(staff, /48021:34137/);
+    assert.equal(staff.includes("leaflet"), false);
+    const app = await (await fetch(`${base}/app.js`)).text();
+    assert.match(app, /resolveStaffMapQuery/);
+    assert.match(app, /compose\(staffMap\.parcelNodeId/);
+    assert.equal(app.includes("leaflet"), false);
+  });
+
   it("keeps city-packs open when DASHBOARDS_API_KEY is unset", async () => {
     delete process.env.DASHBOARDS_API_KEY;
     assert.equal(cityPackAuthorized({ headers: {} }), true);
