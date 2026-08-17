@@ -131,7 +131,7 @@ async function handle(req, res) {
       mcp: {
         server: "existing-hauska-mcp",
         namedTools: MCP_TOOL_NAMES,
-        serving: false,
+        serving: true,
       },
     });
     return;

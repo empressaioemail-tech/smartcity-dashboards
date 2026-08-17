@@ -70,7 +70,7 @@ describe("HTTP surface", () => {
 
     const mounts = await (await fetch(`${base}/api/mounts`)).json();
     assert.equal(mounts.mounts.smartsite.contract, "embed");
-    assert.equal(mounts.mcp.serving, false);
+    assert.equal(mounts.mcp.serving, true);
     assert.ok(mounts.smartsiteExample.includes("parcelNodeId="));
   });
 
