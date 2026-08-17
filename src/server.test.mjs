@@ -3,11 +3,33 @@ import assert from "node:assert/strict";
 import { server, cityPackAuthorized } from "./server.mjs";
 
 let port;
+const saved = {};
+
+function stash(keys) {
+  for (const k of keys) saved[k] = process.env[k];
+}
+
+function restore(keys) {
+  for (const k of keys) {
+    if (saved[k] == null) delete process.env[k];
+    else process.env[k] = saved[k];
+  }
+}
 
 describe("HTTP surface", () => {
   before(
     () =>
       new Promise((resolve) => {
+        stash([
+          "DASHBOARDS_API_KEY",
+          "DATABASE_URL",
+          "HAUSKA_RETRIEVAL_URL",
+          "SMART_FILES_BACKEND_URL",
+          "HAUSKA_RETRIEVAL_API_KEY",
+          "SMART_FILES_API_KEY",
+        ]);
+        delete process.env.DASHBOARDS_API_KEY;
+        delete process.env.DATABASE_URL;
         server.listen(0, "127.0.0.1", () => {
           port = server.address().port;
           resolve();
@@ -18,7 +40,14 @@ describe("HTTP surface", () => {
   after(
     () =>
       new Promise((resolve, reject) => {
-        delete process.env.DASHBOARDS_API_KEY;
+        restore([
+          "DASHBOARDS_API_KEY",
+          "DATABASE_URL",
+          "HAUSKA_RETRIEVAL_URL",
+          "SMART_FILES_BACKEND_URL",
+          "HAUSKA_RETRIEVAL_API_KEY",
+          "SMART_FILES_API_KEY",
+        ]);
         server.close((err) => (err ? reject(err) : resolve()));
       }),
   );
@@ -30,6 +59,7 @@ describe("HTTP surface", () => {
     assert.equal(health.ok, true);
     assert.equal(health.product, "smartcity-dashboards");
     assert.equal(health.db, "unset");
+    assert.equal(health.packsStore, "memory");
 
     const lenses = await (await fetch(`${base}/api/lenses`)).json();
     assert.equal(lenses.lenses.length, 4);
@@ -40,7 +70,7 @@ describe("HTTP surface", () => {
 
     const mounts = await (await fetch(`${base}/api/mounts`)).json();
     assert.equal(mounts.mounts.smartsite.contract, "embed");
-    assert.equal(mounts.mcp.serving, false);
+    assert.equal(mounts.mcp.serving, true);
     assert.ok(mounts.smartsiteExample.includes("parcelNodeId="));
   });
 
@@ -86,5 +116,29 @@ describe("HTTP surface", () => {
     } finally {
       delete process.env.DASHBOARDS_API_KEY;
     }
+  });
+
+  it("registers city-manager compose before the generic lens handler and honest-empties without retrieval", async () => {
+    delete process.env.HAUSKA_RETRIEVAL_URL;
+    delete process.env.SMART_FILES_BACKEND_URL;
+    const base = `http://127.0.0.1:${port}`;
+    const lens = await fetch(`${base}/api/lenses/city-manager`);
+    assert.equal(lens.status, 200);
+    const composedRes = await fetch(
+      `${base}/api/lenses/city-manager/compose?parcelNodeId=48021:34137&cityKey=template-city`,
+    );
+    assert.equal(composedRes.status, 200);
+    const composed = await composedRes.json();
+    assert.equal(composed.lensId, "city-manager");
+    assert.equal(composed.cityKey, "template-city");
+    assert.equal(composed.parcelNodeId, "48021:34137");
+    assert.equal(composed.smartsite.contract, "embed");
+    assert.match(composed.smartsite.url, /parcelNodeId=48021%3A34137/);
+    assert.equal(composed.atoms.contract, "atom-read-http");
+    assert.equal(composed.atoms.status, "unavailable");
+    assert.equal(composed.atoms.basis, "HAUSKA_RETRIEVAL_URL unset");
+    assert.equal(composed.filesRoom.contract, "service-http");
+    assert.equal(composed.filesRoom.status, "unavailable");
+    assert.equal(composed.filesRoom.basis, "SMART_FILES_BACKEND_URL unset");
   });
 });
