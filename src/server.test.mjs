@@ -91,6 +91,9 @@ describe("HTTP surface", () => {
     assert.equal(mounts.mcp.serving, true);
     assert.ok(mounts.smartsiteExample.includes("parcelNodeId="));
     assert.match(mounts.planReviewExample, /plan-review-app-ten\.vercel\.app/);
+    assert.match(mounts.smartFilesExample, /smart-files-app\.vercel\.app/);
+    assert.match(mounts.smartFilesExample, /embed=1/);
+    assert.equal(mounts.mounts.smartFilesEmbed.contract, "embed");
   });
 
   it("serves the staff-map module and auto-composes gold parcel on GET /", async () => {
@@ -119,6 +122,25 @@ describe("HTTP surface", () => {
     const shell = await fetch(`${base}/shell.css`);
     assert.equal(shell.status, 200);
     assert.match(shell.headers.get("content-type") || "", /text\/css/);
+  });
+
+  it("serves Work Files as /?work=files and mounts smart-files-app", async () => {
+    const base = `http://127.0.0.1:${port}`;
+    const html = await (await fetch(`${base}/?work=files`)).text();
+    assert.match(html, /href="\/\?work=files"/);
+    assert.match(html, /id="work-files"/);
+    assert.match(html, /id="files-site"/);
+    assert.equal(html.includes("compose-form"), false);
+    assert.equal(html.includes("$0"), false);
+    const review = await (await fetch(`${base}/?lens=development-services&tab=review`)).text();
+    assert.match(review, /id="review-site"/);
+    assert.match(review, /id="overview-site"/);
+    const app = await (await fetch(`${base}/app.js`)).text();
+    assert.match(app, /smartFiles/);
+    assert.match(app, /files-site/);
+    const staff = await (await fetch(`${base}/staff-review.mjs`)).text();
+    assert.match(staff, /smart-files-app\.vercel\.app/);
+    assert.match(staff, /work=files|FILES_WORK/);
   });
 
   it("serves the staff-review module and switches development-services to plan-review-app", async () => {
@@ -230,6 +252,8 @@ describe("HTTP surface", () => {
     assert.equal(composed.filesRoom.basis, "SMART_FILES_BACKEND_URL unset");
     assert.equal(composed.planReview.contract, "embed");
     assert.equal(composed.planReview.url, "https://plan-review-app-ten.vercel.app/");
+    assert.equal(composed.smartFiles.contract, "embed");
+    assert.equal(composed.smartFiles.url, "https://smart-files-app.vercel.app/?embed=1");
     assert.deepEqual(Object.keys(composed).sort(), [
       "atoms",
       "cityKey",
@@ -237,6 +261,7 @@ describe("HTTP surface", () => {
       "lensId",
       "parcelNodeId",
       "planReview",
+      "smartFiles",
       "smartsite",
     ]);
     assert.equal("mygov" in composed, false);

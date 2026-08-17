@@ -6,6 +6,7 @@ import {
   FORBIDDEN_MOUNT_MARKERS,
   MOUNT_URL_ENV_KEYS,
   planReviewEmbedUrl,
+  smartFilesEmbedUrl,
   smartsiteEmbedUrl,
 } from "./mounts.mjs";
 
@@ -21,6 +22,18 @@ describe("G-13 mounts", () => {
     assert.equal(
       planReviewEmbedUrl({ PLAN_REVIEW_EMBED_ORIGIN: "https://plan-review-app-ten.vercel.app/" }),
       "https://plan-review-app-ten.vercel.app/",
+    );
+  });
+
+  it("embeds Smart Files on smart-files-app with embed=1, not a cloned browser", () => {
+    assert.equal(smartFilesEmbedUrl({}), "https://smart-files-app.vercel.app/?embed=1");
+    assert.equal(
+      smartFilesEmbedUrl({ SMART_FILES_EMBED_ORIGIN: "https://smart-files-app.vercel.app/" }),
+      "https://smart-files-app.vercel.app/?embed=1",
+    );
+    assert.equal(
+      smartFilesEmbedUrl({ SMART_FILES_EMBED_ORIGIN: "https://smart-files-app.vercel.app/?foo=1" }),
+      "https://smart-files-app.vercel.app/?foo=1&embed=1",
     );
   });
 
@@ -82,6 +95,7 @@ describe("G-13 mounts", () => {
         SMARTSITE_EMBED_ORIGIN: "https://smartsite.cloud",
         SMART_FILES_BACKEND_URL: "https://smart-files-padrd77ava-ue.a.run.app",
         PLAN_REVIEW_EMBED_ORIGIN: "https://plan-review-app-ten.vercel.app",
+        SMART_FILES_EMBED_ORIGIN: "https://smart-files-app.vercel.app",
       }),
       true,
     );

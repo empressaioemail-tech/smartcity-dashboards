@@ -50,7 +50,7 @@
             <div class="navgroup">
               <div class="gl">Work</div>
               <a class="navitem" data-lens="development-services" data-tab="review" href="/?lens=development-services&amp;tab=review">Plan review<span class="grow"></span><span class="badge">Preview</span></a>
-              <span class="navitem unbuilt">Files<span class="grow"></span><span class="badge">Preview</span></span>
+              <a class="navitem" data-work="files" href="/?work=files">Files<span class="grow"></span><span class="badge">Preview</span></a>
             </div>
             <div class="nav-foot">
               <span class="prov"><b>0 of 4 sources read</b> <span class="sep">|</span> template-city</span>
@@ -277,6 +277,27 @@
                   <div class="panel-head"><span class="t">Public meetings</span><span class="grow"></span><span class="prov"><b>City clerk calendar</b></span></div>
                   <div class="panel-body">
                     <p>The clerk calendar is the source. It has not been connected on template-city, so no agenda list is shown.</p>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section class="lens" id="work-files">
+              <header class="pagehead">
+                <div class="crumb"><b>City of Template</b> <span>/</span> Files</div>
+                <div class="titlerow">
+                  <h1>Files</h1>
+                  <span class="pill p-restricted">Preview</span>
+                </div>
+              </header>
+              <div class="shell-regions solo">
+                <div class="region">
+                  <div class="region-bar"><span class="t">Files</span><span class="grow"></span><span class="t-caption">Smart Files mount</span></div>
+                  <div class="region-canvas">
+                    <iframe id="files-site" title="Smart Files embed" src="about:blank"></iframe>
+                  </div>
+                  <div class="region-foot">
+                    <span class="t-caption" id="files-basis">This view mounts the serving Smart Files host. It does not copy the browser.</span>
                   </div>
                 </div>
               </div>

@@ -3,6 +3,9 @@ export const CITY_MANAGER_LENS = "city-manager";
 export const FINANCE_LENS = "finance";
 export const CITIZEN_LENS = "citizen";
 export const DEFAULT_PLAN_REVIEW_ORIGIN = "https://plan-review-app-ten.vercel.app";
+export const DEFAULT_SMART_FILES_ORIGIN = "https://smart-files-app.vercel.app";
+export const FILES_WORK = "files";
+export const WORK_IDS = [FILES_WORK];
 
 export const LEAD_LENS_IDS = [
   CITY_MANAGER_LENS,
@@ -34,14 +37,30 @@ export function resolveStaffLensQuery(search) {
         ? rawTab
         : "pipeline"
       : "";
+  const rawWork = String(params.get("work") || "").trim();
+  const work = WORK_IDS.includes(rawWork) ? rawWork : "";
   return {
     lens,
     isDevelopmentServices: lens === DEVELOPMENT_SERVICES_LENS,
+    isFilesWork: work === FILES_WORK,
     tab,
+    work,
   };
 }
 
 export function planReviewIframeSrc(origin) {
   const base = String(origin || DEFAULT_PLAN_REVIEW_ORIGIN).replace(/\/$/, "");
   return `${base}/`;
+}
+
+export function smartFilesIframeSrc(origin) {
+  const raw = String(origin || DEFAULT_SMART_FILES_ORIGIN).trim();
+  try {
+    const url = new URL(raw);
+    if (!url.searchParams.has("embed")) url.searchParams.set("embed", "1");
+    return url.toString();
+  } catch {
+    const base = raw.replace(/\/$/, "");
+    return `${base}/?embed=1`;
+  }
 }
