@@ -6,26 +6,55 @@ import {
   assertCityPackShape,
   getPacksStore,
   TEMPLATE_CITY,
+  FIXTURE_CITY,
 } from "./city-pack.mjs";
 
 describe("city packs", () => {
-  it("ships a template city pack, not Bastrop and not a repo", async () => {
+  it("ships template-city public-free and fixture-city tenant-private, not Bastrop", async () => {
     assert.equal(getPacksStore({}), "memory");
     const listed = await listCityPacks({});
-    assert.equal(listed.length, 1);
-    assert.equal(listed[0].cityKey, "template-city");
-    const pack = await getCityPack("template-city", {});
-    assert.ok(pack);
-    assert.equal("repo" in pack, false);
-    assert.notEqual(pack.cityKey, "bastrop");
-    assert.deepEqual(pack.grantedAdapters, []);
-    assertCityPackShape(pack);
+    assert.equal(listed.length, 2);
+    const keys = listed.map((p) => p.cityKey).sort();
+    assert.deepEqual(keys, ["fixture-city", "template-city"]);
+    const template = await getCityPack("template-city", {});
+    const fixture = await getCityPack("fixture-city", {});
+    assert.equal(template.accessPolicy, "public-free");
+    assert.equal(fixture.accessPolicy, "tenant-private");
+    assert.deepEqual(template.grantedAdapters, []);
+    assert.deepEqual(fixture.grantedAdapters, []);
+    assert.notEqual(template.cityKey, "bastrop");
+    assert.notEqual(fixture.cityKey, "bastrop");
+    assert.equal("repo" in template, false);
+    assertCityPackShape(template);
+    assertCityPackShape(fixture);
+    assert.equal(TEMPLATE_CITY.cityKey, "template-city");
+    assert.equal(FIXTURE_CITY.cityKey, "fixture-city");
   });
 
   it("rejects a pack that claims to be a repo", () => {
     assert.throws(
-      () => assertCityPackShape({ cityKey: "x", repo: "some-city", lenses: [], grantedAdapters: [] }),
+      () =>
+        assertCityPackShape({
+          cityKey: "x",
+          repo: "some-city",
+          accessPolicy: "public-free",
+          lenses: [],
+          grantedAdapters: [],
+        }),
       /not repos/,
+    );
+  });
+
+  it("rejects a Bastrop pack key", () => {
+    assert.throws(
+      () =>
+        assertCityPackShape({
+          cityKey: "bastrop",
+          accessPolicy: "tenant-private",
+          lenses: [],
+          grantedAdapters: [],
+        }),
+      /Bastrop is not a pack/,
     );
   });
 
@@ -41,15 +70,22 @@ describe("city packs", () => {
         assert.equal(/repo/i.test(sql), false);
         return { rows: [] };
       }
+      if (/ADD COLUMN IF NOT EXISTS access_policy/i.test(sql)) {
+        return { rows: [] };
+      }
       if (/INSERT INTO city_packs/i.test(sql)) {
-        rows.splice(0, rows.length, {
+        const row = {
           city_key: params[0],
           jurisdiction_fips: params[1],
           display_name: params[2],
-          lenses: JSON.parse(params[3]),
-          granted_adapters: JSON.parse(params[4]),
-          notes: params[5],
-        });
+          access_policy: params[3],
+          lenses: JSON.parse(params[4]),
+          granted_adapters: JSON.parse(params[5]),
+          notes: params[6],
+        };
+        const idx = rows.findIndex((r) => r.city_key === row.city_key);
+        if (idx >= 0) rows[idx] = row;
+        else rows.push(row);
         return { rows: [] };
       }
       if (/FROM city_packs/i.test(sql) && /city_key = \$1/.test(sql)) {
@@ -61,12 +97,11 @@ describe("city packs", () => {
       throw new Error(`unexpected sql ${sql}`);
     };
     const listed = await listCityPacks(neonEnv, { query });
-    assert.equal(listed.length, 1);
-    assert.equal(listed[0].cityKey, TEMPLATE_CITY.cityKey);
-    const pack = await getCityPack("template-city", neonEnv, { query });
-    assert.equal(pack.displayName, TEMPLATE_CITY.displayName);
-    assert.equal("repo" in pack, false);
-    assertCityPackShape(pack);
+    assert.equal(listed.length, 2);
+    const fixture = await getCityPack("fixture-city", neonEnv, { query });
+    assert.equal(fixture.accessPolicy, "tenant-private");
+    assert.deepEqual(fixture.grantedAdapters, []);
+    assertCityPackShape(fixture);
   });
 
   it("refuses a supplier DSN before any pack read", async () => {

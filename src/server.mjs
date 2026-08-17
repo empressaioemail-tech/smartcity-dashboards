@@ -10,6 +10,7 @@ import { listAdapterKinds } from "./adapters.mjs";
 import { loadDotenv } from "./load-env.mjs";
 import { pingDb } from "./db.mjs";
 import { MCP_TOOL_NAMES } from "./catalog.mjs";
+import { canReadPack, packReadStatus, resolveCaller, isServiceBearer } from "./tenancy.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WEB = path.join(__dirname, "..", "web");
@@ -22,10 +23,7 @@ assertNoSupplierDsn();
 assertNoSupplierMounts();
 
 export function cityPackAuthorized(req, envMap = process.env) {
-  const key = String(envMap.DASHBOARDS_API_KEY || "").trim();
-  if (!key) return true;
-  const header = String(req.headers?.authorization || "");
-  return header === `Bearer ${key}`;
+  return isServiceBearer(req, envMap) || !String(envMap.DASHBOARDS_API_KEY || "").trim();
 }
 
 function json(res, status, body) {
@@ -86,9 +84,11 @@ async function handle(req, res) {
   }
 
   if (req.method === "GET" && url.pathname === "/api/lenses/city-manager/compose") {
+    const caller = await resolveCaller(req);
     const composed = await composeCityManager({
       parcelNodeId: url.searchParams.get("parcelNodeId") || "",
       cityKey: url.searchParams.get("cityKey") || "",
+      caller,
     });
     json(res, 200, composed);
     return;
@@ -106,23 +106,32 @@ async function handle(req, res) {
   }
 
   if (req.method === "GET" && url.pathname === "/api/city-packs") {
-    if (!cityPackAuthorized(req)) {
+    const caller = await resolveCaller(req);
+    const listed = await listCityPacks();
+    const cityPacks = [];
+    for (const item of listed) {
+      const pack = await getCityPack(item.cityKey);
+      if (canReadPack(pack, caller)) cityPacks.push(item);
+    }
+    if (caller.kind === "anonymous" && String(process.env.DASHBOARDS_API_KEY || "").trim()) {
       json(res, 401, { error: "unauthorized" });
       return;
     }
-    json(res, 200, { cityPacks: await listCityPacks() });
+    json(res, 200, { cityPacks });
     return;
   }
 
   if (req.method === "GET" && url.pathname.startsWith("/api/city-packs/")) {
-    if (!cityPackAuthorized(req)) {
-      json(res, 401, { error: "unauthorized" });
-      return;
-    }
+    const caller = await resolveCaller(req);
     const key = decodeURIComponent(url.pathname.slice("/api/city-packs/".length));
     const pack = await getCityPack(key);
-    if (!pack) {
+    const status = packReadStatus(pack, caller);
+    if (status === 404) {
       json(res, 404, { error: "unknown city pack" });
+      return;
+    }
+    if (status !== 200) {
+      json(res, status, { error: status === 401 ? "unauthorized" : "forbidden" });
       return;
     }
     json(res, 200, { cityPack: pack });

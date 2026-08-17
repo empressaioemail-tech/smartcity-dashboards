@@ -1,4 +1,5 @@
 import { smartsiteEmbedUrl } from "./mounts.mjs";
+import { atomVisibleToCaller } from "./tenancy.mjs";
 
 export const PARCEL_NODE_ID_RE = /^\d{5}:[A-Za-z0-9._-]+$/;
 export const COMPOSE_TIMEOUT_MS = 8000;
@@ -47,15 +48,7 @@ async function timedFetch(fetchImpl, url, headers) {
   });
 }
 
-function isPublicFreeAccessPolicy(atom) {
-  const raw = atom.accessPolicy;
-  if (raw == null) return true;
-  const policy = String(raw).trim();
-  if (!policy) return true;
-  return policy === "public-free";
-}
-
-function extractAtomSummary(body) {
+function extractAtomSummary(body, caller, cityKey) {
   if (!body || typeof body !== "object") return { atomCount: 0, types: [] };
   let list = [];
   if (Array.isArray(body.atoms)) list = body.atoms;
@@ -65,7 +58,7 @@ function extractAtomSummary(body) {
   let atomCount = 0;
   for (const atom of list) {
     if (!atom || typeof atom !== "object") continue;
-    if (!isPublicFreeAccessPolicy(atom)) continue;
+    if (!atomVisibleToCaller(atom, caller, cityKey)) continue;
     atomCount += 1;
     const t = atom.entityType || atom.type || atom.atomType;
     if (typeof t === "string" && t && !types.includes(t)) types.push(t);
@@ -110,7 +103,7 @@ function unavailableAtoms(parcelNodeId, basis) {
   };
 }
 
-async function readAtoms({ id, valid, env, fetchImpl }) {
+async function readAtoms({ id, valid, env, fetchImpl, caller, cityKey }) {
   if (!valid) {
     return emptyAtoms(id, id ? "invalid parcelNodeId" : "missing parcelNodeId");
   }
@@ -133,7 +126,7 @@ async function readAtoms({ id, valid, env, fetchImpl }) {
     if (res.status !== 200) {
       return unavailableAtoms(id, basisFromBody(body, `retrieval HTTP ${res.status}`));
     }
-    const summary = extractAtomSummary(body);
+    const summary = extractAtomSummary(body, caller, cityKey);
     if (summary.atomCount === 0) {
       return emptyAtoms(id, basisFromBody(body, "atom-chain returned no atoms"));
     }
@@ -208,6 +201,7 @@ export async function composeCityManager({
   cityKey = DEFAULT_CITY_KEY,
   env = process.env,
   fetchImpl = globalThis.fetch,
+  caller = { kind: "anonymous" },
 } = {}) {
   const city = String(cityKey || DEFAULT_CITY_KEY).trim() || DEFAULT_CITY_KEY;
   const id = String(parcelNodeId || "").trim();
@@ -220,7 +214,7 @@ export async function composeCityManager({
         basis: id ? "invalid parcelNodeId" : "missing parcelNodeId",
       };
   const [atoms, filesRoom] = await Promise.all([
-    readAtoms({ id, valid, env, fetchImpl }),
+    readAtoms({ id, valid, env, fetchImpl, caller, cityKey: city }),
     readFiles({ cityKey: city, env, fetchImpl }),
   ]);
   return {
