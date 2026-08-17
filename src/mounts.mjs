@@ -5,6 +5,21 @@ const FORBIDDEN_DSN_HOSTS = [
   "cortex-prod",
 ];
 
+export const MOUNT_URL_ENV_KEYS = [
+  "HAUSKA_RETRIEVAL_URL",
+  "SMART_FILES_BACKEND_URL",
+  "SMARTSITE_EMBED_ORIGIN",
+];
+
+export const FORBIDDEN_MOUNT_MARKERS = [
+  "smartcity-os-prod",
+  "tiny-art-63602898",
+  "fancy-fire-06136146",
+  "cortex-api",
+  "postgres://",
+  "neon.tech",
+];
+
 function env(name, fallback = "") {
   return (process.env[name] || fallback).trim();
 }
@@ -46,4 +61,18 @@ export function assertNoSupplierDsn(envMap = process.env) {
   throw new Error(
     "Dashboards is a mount surface. DATABASE_URL is forbidden until a named tenant-registry Neon exists and is not smartcity-os-prod.",
   );
+}
+
+export function assertNoSupplierMounts(envMap = process.env) {
+  for (const name of MOUNT_URL_ENV_KEYS) {
+    const raw = String(envMap[name] || "");
+    if (!raw) continue;
+    const lower = raw.toLowerCase();
+    for (const marker of FORBIDDEN_MOUNT_MARKERS) {
+      if (lower.includes(marker.toLowerCase())) {
+        throw new Error(`refusing supplier or city host on ${name} (${marker})`);
+      }
+    }
+  }
+  return true;
 }

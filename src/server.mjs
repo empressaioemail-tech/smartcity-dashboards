@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { listLenses, getLens } from "./lenses.mjs";
 import { listCityPacks, getCityPack } from "./city-pack.mjs";
-import { readMounts, smartsiteEmbedUrl, assertNoSupplierDsn } from "./mounts.mjs";
+import { readMounts, smartsiteEmbedUrl, assertNoSupplierDsn, assertNoSupplierMounts } from "./mounts.mjs";
 import { MCP_TOOL_NAMES } from "./catalog.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -12,6 +12,14 @@ const WEB = path.join(__dirname, "..", "web");
 const PORT = Number(process.env.PORT || 8080);
 
 assertNoSupplierDsn();
+assertNoSupplierMounts();
+
+export function cityPackAuthorized(req, envMap = process.env) {
+  const key = String(envMap.DASHBOARDS_API_KEY || "").trim();
+  if (!key) return true;
+  const header = String(req.headers?.authorization || "");
+  return header === `Bearer ${key}`;
+}
 
 function json(res, status, body) {
   const data = JSON.stringify(body);
@@ -63,11 +71,19 @@ export const server = http.createServer((req, res) => {
   }
 
   if (req.method === "GET" && url.pathname === "/api/city-packs") {
+    if (!cityPackAuthorized(req)) {
+      json(res, 401, { error: "unauthorized" });
+      return;
+    }
     json(res, 200, { cityPacks: listCityPacks() });
     return;
   }
 
   if (req.method === "GET" && url.pathname.startsWith("/api/city-packs/")) {
+    if (!cityPackAuthorized(req)) {
+      json(res, 401, { error: "unauthorized" });
+      return;
+    }
     const key = decodeURIComponent(url.pathname.slice("/api/city-packs/".length));
     const pack = getCityPack(key);
     if (!pack) {

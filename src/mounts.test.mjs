@@ -1,6 +1,12 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { assertNoSupplierDsn, smartsiteEmbedUrl } from "./mounts.mjs";
+import {
+  assertNoSupplierDsn,
+  assertNoSupplierMounts,
+  FORBIDDEN_MOUNT_MARKERS,
+  MOUNT_URL_ENV_KEYS,
+  smartsiteEmbedUrl,
+} from "./mounts.mjs";
 
 describe("G-13 mounts", () => {
   it("embeds SmartSite by parcelNodeId, not Leaflet", () => {
@@ -28,5 +34,28 @@ describe("G-13 mounts", () => {
 
   it("allows empty DATABASE_URL", () => {
     assert.equal(assertNoSupplierDsn({}), true);
+  });
+
+  it("refuses supplier or city hosts on mount URLs", () => {
+    for (const name of MOUNT_URL_ENV_KEYS) {
+      for (const marker of FORBIDDEN_MOUNT_MARKERS) {
+        assert.throws(
+          () => assertNoSupplierMounts({ [name]: `https://example.invalid/${marker}` }),
+          /refusing supplier or city host/,
+        );
+      }
+    }
+  });
+
+  it("allows empty and honest mount URLs", () => {
+    assert.equal(assertNoSupplierMounts({}), true);
+    assert.equal(
+      assertNoSupplierMounts({
+        HAUSKA_RETRIEVAL_URL: "https://hauska-retrieval-api-h7gvu7rgcq-uc.a.run.app",
+        SMARTSITE_EMBED_ORIGIN: "https://smartsite.cloud",
+        SMART_FILES_BACKEND_URL: "https://smart-files-padrd77ava-ue.a.run.app",
+      }),
+      true,
+    );
   });
 });
