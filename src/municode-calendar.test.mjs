@@ -48,10 +48,14 @@ describe("municode calendar adapter", () => {
       /smartcityos\.io/,
     );
     assert.throws(
-      () => assertPublicFeedSourceUrl("https://bastrop-tx.municodemeetings.com/api/calendar/feed"),
+      () => assertPublicFeedSourceUrl("https://example.com/api/calendar/feed"),
       /api\/calendar/,
     );
     assert.equal(assertPublicFeedSourceUrl(DEFAULT_MUNICODE_SOURCE), true);
+    assert.throws(
+      () => assertPublicFeedSourceUrl("https://bastrop-tx.municodemeetings.com/"),
+      /Bastrop clerk host/,
+    );
   });
 
   it("fetch refuses the city host before any network call", async () => {
@@ -147,29 +151,25 @@ describe("municode calendar adapter", () => {
     assert.equal(read.records[0].source, DEFAULT_MUNICODE_SOURCE);
   });
 
-  it("runs the adapter for template-city and refuses fixture-city grants", async () => {
-    assert.equal(TEMPLATE_CITY.grantedAdapters[0].kind, "municode");
+  it("does not run a clerk fetch on template-city after the identity hold", async () => {
+    assert.deepEqual(TEMPLATE_CITY.grantedAdapters, []);
     assert.deepEqual(FIXTURE_CITY.grantedAdapters, []);
     const filesClient = {
       async listFolders() {
-        return { folders: [] };
-      },
-      async createFolder() {
-        return { folder: { folderId: "folder-meetings", label: "Public meetings" } };
-      },
-      async uploadFile() {
-        return { file: { entityId: "smartfile:tenant:template-city:one" } };
+        throw new Error("must not list folders");
       },
     };
     const ran = await runMunicodeCalendar({
       cityKey: "template-city",
       env: {},
-      fetchImpl: async () => new Response(SAMPLE_HTML, { status: 200 }),
+      fetchImpl: async () => {
+        throw new Error("template-city must not fetch municode");
+      },
       filesClient,
     });
-    assert.equal(ran.status, "ok");
-    assert.equal(ran.written, 1);
-    assert.equal(ran.records[0].title, "Public Library Board");
+    assert.equal(ran.status, "empty");
+    assert.match(ran.basis, /no municode calendar grant/);
+    assert.equal(ran.written, 0);
 
     const fixture = await runMunicodeCalendar({
       cityKey: "fixture-city",
@@ -187,12 +187,29 @@ describe("municode calendar adapter", () => {
   it("overview meetings is Partial with a basis when files are unread", async () => {
     const unread = await listMeetingsForOverview({
       cityKey: "template-city",
-      grant: TEMPLATE_MUNICODE_CALENDAR_GRANT,
+      grant: { ...TEMPLATE_MUNICODE_CALENDAR_GRANT, sourceUrl: DEFAULT_MUNICODE_SOURCE },
       env: {},
     });
     assert.equal(unread.status, "unavailable");
     assert.equal(unread.honesty, "partial");
     assert.match(unread.basis, /SMART_FILES_BACKEND_URL unset/);
     assert.deepEqual(unread.records, []);
+  });
+
+  it("drops Bastrop clerk meetings instead of rendering them on template-city", async () => {
+    const held = await listMeetingsForOverview({
+      cityKey: "template-city",
+      grant: TEMPLATE_MUNICODE_CALENDAR_GRANT,
+      env: { SMART_FILES_BACKEND_URL: "https://files.example" },
+      filesClient: {
+        async listFolders() {
+          throw new Error("must not read Bastrop meeting files");
+        },
+      },
+    });
+    assert.equal(held.status, "empty");
+    assert.equal(held.honesty, "partial");
+    assert.match(held.basis, /identity hold/);
+    assert.deepEqual(held.records, []);
   });
 });

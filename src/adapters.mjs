@@ -101,6 +101,16 @@ export const TEMPLATE_MUNICODE_CALENDAR_GRANT = {
   sourceUrl: "https://bastrop-tx.municodemeetings.com/",
 };
 
+export function isIdentityHeldClerkHost(sourceUrl) {
+  const raw = String(sourceUrl || "").trim();
+  try {
+    const host = new URL(raw).hostname.toLowerCase();
+    return host === "bastrop-tx.municodemeetings.com" || host.includes("bastrop");
+  } catch {
+    return /bastrop/i.test(raw);
+  }
+}
+
 export function adapterKindById(id) {
   return ADAPTER_KINDS.find((kind) => kind.id === id) || null;
 }
@@ -121,6 +131,9 @@ export function assertPublicFeedSourceUrl(sourceUrl) {
   const path = `${parsed.pathname}${parsed.search}`.toLowerCase();
   if (host === "smartcityos.io" || host.endsWith(".smartcityos.io")) {
     throw new Error("refusing smartcityos.io calendar host");
+  }
+  if (isIdentityHeldClerkHost(parsed.href)) {
+    throw new Error("refusing Bastrop clerk host on template-city");
   }
   if (path.includes("/api/calendar/")) {
     throw new Error("refusing city /api/calendar/ path");
