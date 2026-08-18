@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { FORBIDDEN_PRODUCT_STRINGS } from "./catalog.mjs";
 import { ROSTER_LENS_IDS } from "./staff-review.mjs";
+import { TEMPLATE_CITY, environmentBadgeLabel } from "./city-pack.mjs";
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const html = fs.readFileSync(path.join(root, "web", "index.html"), "utf8");
@@ -309,5 +310,136 @@ describe("G-75 shell, mounts and motion", () => {
     ]) {
       assert.ok(panel.includes(`<b>${label}</b>`), `Across departments is missing ${label}`);
     }
+  });
+});
+
+describe("G-77 fixture pack on Development services", () => {
+  /**
+   * The section this card owns. Lane B76 owns web/shell.css, the top bar and the
+   * left nav, so every assertion below reads the Development services lens, the
+   * app script, or the declared rule, never those blocks.
+   */
+  const ds = html.match(/id="lens-development-services"[\s\S]*?id="lens-finance"/)?.[0] || "";
+
+  it("renders the environment badge the pack's records dimension declares", () => {
+    // The divergence test for labelling gate item 1: the shipped chrome is
+    // measured against the rule in city-pack.mjs, not against itself.
+    const shipped = html.match(/id="env-badge"[^>]*>([^<]*)</)?.[1] || "";
+    assert.equal(TEMPLATE_CITY.generatesFixtures, true);
+    assert.equal(shipped, environmentBadgeLabel(TEMPLATE_CITY));
+    assert.equal(shipped, "Demo");
+  });
+
+  it("wires the four tiles and the queue to the generated records", () => {
+    for (const id of ["overdue", "in-review", "awaiting-applicant", "ready-to-issue"]) {
+      assert.match(ds, new RegExp(`data-metric="${id}"`), id);
+    }
+    assert.match(ds, /id="ds-pipeline-rows"/);
+    assert.match(ds, /<table class="dt">/);
+    assert.match(app, /loadPipeline\(staffMap\.cityKey\)/);
+    assert.match(app, /\/api\/lenses\/development-services\/pipeline\?cityKey=/);
+    assert.match(app, /function renderPipelineMetrics/);
+    // A metric with no records keeps saying Not read rather than showing a zero.
+    assert.match(app, /value\.textContent = "Not read"/);
+    assert.match(app, /of \$\{pipeline\.recordCount\} generated cases in flight/);
+  });
+
+  it("composes existing kit classes and declares no new one", () => {
+    const defined = new Set(
+      [...(shell + kit).matchAll(/\.([a-zA-Z][a-zA-Z0-9_-]*)/g)].map((m) => m[1]),
+    );
+    /**
+     * Exclusion set, stated where the output is read: roster-lens is a pre-G-77
+     * marker class in the nav that carries no style. Nothing else is excused.
+     */
+    const KNOWN_UNSTYLED = new Set(["roster-lens"]);
+    const used = new Set();
+    for (const m of html.matchAll(/class="([^"]+)"/g)) {
+      for (const c of m[1].split(/\s+/)) if (c) used.add(c);
+    }
+    // Classes the script applies at runtime count too.
+    for (const m of app.matchAll(/className = "([^"]+)"/g)) {
+      for (const c of m[1].split(/\s+/)) if (c) used.add(c);
+    }
+    for (const m of app.matchAll(/className = `([^`]+)`/g)) {
+      for (const c of m[1].replace(/\$\{[^}]*\}/g, " ").split(/\s+/)) if (c) used.add(c);
+    }
+    for (const m of app.matchAll(/classList\.(add|remove|toggle)\("([^"]+)"/g)) used.add(m[2]);
+    const undefinedClasses = [...used].filter((c) => !defined.has(c) && !KNOWN_UNSTYLED.has(c));
+    assert.deepEqual(undefinedClasses, []);
+    // The severity map turns a declared meaning into a kit pill and nothing else.
+    for (const cls of ["p-crit", "p-warn", "p-info", "p-ok", "p-quiet"]) {
+      assert.ok(defined.has(cls), cls);
+      assert.ok(app.includes(cls), cls);
+    }
+  });
+
+  it("marks the queue as generated in the chrome as well as in the payload", () => {
+    assert.match(ds, /id="ds-pipeline-mark"[^>]*>Demo records</);
+    assert.match(ds, /class="pill p-warn" id="ds-pipeline-mark"/);
+    assert.match(ds, /Generated fixture/);
+    assert.match(ds, /MyGov output contract/);
+    assert.match(app, /basis\.textContent = `Basis: \$\{pipeline\.basis\}`/);
+    // No invented freshness anywhere on this lens.
+    assert.equal(/last sync|last read|last updated/i.test(ds), false);
+    assert.equal(ds.includes("$"), false);
+  });
+
+  it("keeps the honest-empty screen reachable and states its basis", () => {
+    assert.match(ds, /id="ds-pipeline-empty"/);
+    assert.match(ds, /class="state" id="ds-pipeline-empty"/);
+    assert.match(ds, /id="ds-pipeline-empty-basis"/);
+    assert.match(app, /if \(records\.length === 0\) \{/);
+    assert.match(app, /show\(empty, true\)/);
+    assert.match(app, /show\(wrap, false\)/);
+    assert.match(app, /emptyBasis\.textContent = `Basis: \$\{pipeline\.basis\}`/);
+    // A failed read renders as a stated failure, not as a city with no cases.
+    assert.match(app, /the pipeline did not read for \$\{key\}/);
+  });
+
+  it("drives the nav badge and the page chip from one label", () => {
+    // Paired control: two renderings of one fact need a single source, not two
+    // careful edits (DEV_PROCESS 2.4).
+    assert.match(app, /function packStateLabel/);
+    const applyState = app.match(/function applyPackState[\s\S]*?\n\}/)?.[0] || "";
+    assert.match(applyState, /const label = packStateLabel\(pipeline\)/);
+    assert.equal((applyState.match(/= label/g) || []).length, 2);
+    assert.match(applyState, /id="ds-state-chip"|getElementById\("ds-state-chip"\)/);
+    assert.match(applyState, /navitem\[data-lens="development-services"\] \.badge/);
+    assert.match(ds, /id="ds-state-chip">Empty</);
+  });
+
+  it("hides through a mechanism that actually works on this kit", () => {
+    /**
+     * The hidden attribute is inert on any component the kit gives an explicit
+     * display. Two of them were already patched one at a time in shell.css; the
+     * rest were not, which is how an amber Partial pill shipped beside the words
+     * "no meeting packet has been read". Every toggle goes through show().
+     */
+    assert.match(app, /function show\(el, on\)/);
+    for (const cls of ["pill", "prov", "state"]) {
+      assert.match(shell, new RegExp(`\\.${cls} \\{[^}]*display:`), cls);
+      assert.equal(shell.includes(`.${cls}[hidden]`), false, cls);
+    }
+    assert.match(shell, /\.stage\[hidden\] \{ display: none; \}/);
+    for (const name of ["honesty", "state", "empty", "wrap", "mark", "prov", "list"]) {
+      assert.match(app, new RegExp(`show\\(${name}, `), name);
+      assert.equal(new RegExp(`\\b${name}\\.hidden = `).test(app), false, name);
+    }
+    // Before the script runs, the markup agrees with the attribute.
+    for (const id of ["ds-pipeline-mark", "ds-pipeline-prov", "overview-meetings-honesty"]) {
+      assert.match(html, new RegExp(`id="${id}" hidden style="display:none"`), id);
+    }
+  });
+
+  it("keeps G-24 at zero and grants nothing on any pack", () => {
+    assert.match(html, /No city-owned asset records for template-city/);
+    // Generation is server side. The browser renders records, never invents them.
+    assert.equal(/generatePipelineRecords|composePipeline/.test(app), false);
+    // The one asset row on this lens stays an honest Empty, on every pack.
+    assert.match(
+      ds,
+      /<b>Assets<\/b><span>City-owned records at this place<\/span><\/span><span class="pill p-quiet">Empty</,
+    );
   });
 });

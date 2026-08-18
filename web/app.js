@@ -36,6 +36,27 @@ function setText(id, value) {
   if (el) el.textContent = value || "";
 }
 
+/**
+ * Show or hide an element.
+ *
+ * The hidden attribute alone does not work on this kit. web/shell.css gives
+ * .pill, .prov and .state an explicit display, and an author display rule beats
+ * the user-agent [hidden] rule, so `el.hidden = true` on any of them is inert.
+ * The stage learned this already and patched it one component at a time
+ * (.stage[hidden] and .stage-esc[hidden] in shell.css); everything else stayed
+ * broken, which is why the Overview meetings panel shipped an amber Partial pill
+ * beside the words "no meeting packet has been read".
+ *
+ * The right fix is one [hidden] rule in the kit. That file belongs to another
+ * lane on this wave, so this keeps the attribute honest for anything reading the
+ * DOM and forces the display alongside it.
+ */
+function show(el, on) {
+  if (!el) return;
+  el.hidden = !on;
+  el.style.display = on ? "" : "none";
+}
+
 /* ------------------------------------------------------------------ motion */
 
 /**
@@ -381,11 +402,11 @@ function renderMeetings(meetings) {
    * state block below already says why, and a Partial chip beside "no meeting
    * packet has been read" claims data that is not there.
    */
-  if (honesty) honesty.hidden = !(records.length > 0 && meetings?.honesty === "partial");
+  show(honesty, records.length > 0 && meetings?.honesty === "partial");
   if (records.length === 0) {
-    if (state) state.hidden = false;
+    show(state, true);
     if (list) {
-      list.hidden = true;
+      show(list, false);
       list.replaceChildren();
     }
     setText(
@@ -394,9 +415,9 @@ function renderMeetings(meetings) {
     );
     return;
   }
-  if (state) state.hidden = true;
+  show(state, false);
   if (!list) return;
-  list.hidden = false;
+  show(list, true);
   list.replaceChildren(
     ...records.map((record) => {
       const row = document.createElement("div");
@@ -419,6 +440,185 @@ function renderMeetings(meetings) {
       return row;
     }),
   );
+}
+
+/* --------------------------------------------------------------- pipeline */
+
+/**
+ * Semantic meaning to kit carrier. The contract in src/adapters.mjs declares the
+ * meaning (crit, warn, info, ok) and this is the only place that turns a meaning
+ * into a class, so the record contract never names a stylesheet.
+ */
+const SEVERITY_PILL = {
+  crit: "p-crit",
+  warn: "p-warn",
+  info: "p-info",
+  ok: "p-ok",
+  quiet: "p-quiet",
+};
+
+const STAGE_LABELS = {
+  intake: "Intake",
+  routing: "Routing",
+  review: "Review",
+  revisions: "Revisions",
+  issuance: "Issuance",
+};
+
+/**
+ * The nav badge and the page-header chip are a paired control and a ui test
+ * asserts they agree. Both read this one function, so they cannot diverge at
+ * runtime the way two careful edits eventually would.
+ */
+function packStateLabel(pipeline) {
+  return pipeline && pipeline.generated ? "Demo records" : "Empty";
+}
+
+function applyPackState(pipeline) {
+  const label = packStateLabel(pipeline);
+  const chip = document.getElementById("ds-state-chip");
+  if (chip) chip.textContent = label;
+  const badge = document.querySelector('.navitem[data-lens="development-services"] .badge');
+  if (badge) badge.textContent = label;
+}
+
+function td(text, className) {
+  const cell = document.createElement("td");
+  if (className) cell.className = className;
+  cell.textContent = text;
+  return cell;
+}
+
+function statusCell(record, statusLabels) {
+  const cell = document.createElement("td");
+  const pill = document.createElement("span");
+  const meta = statusLabels[record.status] || { label: record.status, severity: "quiet" };
+  pill.className = `pill ${SEVERITY_PILL[meta.severity] || "p-quiet"}`;
+  pill.textContent = meta.label;
+  cell.append(pill);
+  return cell;
+}
+
+function dueCell(record) {
+  const cell = document.createElement("td");
+  const value = document.createElement("span");
+  value.className = "t-data";
+  value.textContent = record.dueLabel;
+  cell.append(value);
+  return cell;
+}
+
+function renderPipelineMetrics(pipeline) {
+  for (const metric of pipeline.metrics || []) {
+    const el = document.querySelector(`#ds-metrics .metric[data-metric="${metric.id}"]`);
+    if (!el) continue;
+    const value = el.querySelector(".v");
+    const note = el.querySelector(".n");
+    if (!pipeline.generated) {
+      el.classList.remove("has-value");
+      if (value) {
+        value.classList.add("word");
+        value.textContent = "Not read";
+      }
+      if (note) note.textContent = "No permit source";
+      continue;
+    }
+    el.classList.add("has-value");
+    if (value) {
+      value.classList.remove("word");
+      value.textContent = String(metric.count);
+    }
+    /** The counting rule travels with the number, next to the number. */
+    if (note) note.textContent = `of ${pipeline.recordCount} generated cases in flight`;
+  }
+}
+
+function renderPipeline(pipeline) {
+  const empty = document.getElementById("ds-pipeline-empty");
+  const wrap = document.getElementById("ds-pipeline-records");
+  const rows = document.getElementById("ds-pipeline-rows");
+  const mark = document.getElementById("ds-pipeline-mark");
+  const prov = document.getElementById("ds-pipeline-prov");
+  const caption = document.getElementById("ds-pipeline-caption");
+  const basis = document.getElementById("ds-pipeline-basis");
+  const emptyHead = document.getElementById("ds-pipeline-empty-head");
+  const emptyBasis = document.getElementById("ds-pipeline-empty-basis");
+  const crumbCity = document.getElementById("ds-crumb-city");
+
+  applyPackState(pipeline);
+  renderPipelineMetrics(pipeline);
+  if (crumbCity && pipeline.displayName) crumbCity.textContent = pipeline.displayName;
+
+  const records = Array.isArray(pipeline.records) ? pipeline.records : [];
+  const statusLabels = {};
+  for (const metric of pipeline.metrics || []) {
+    statusLabels[metric.id] = { label: metric.label, severity: metric.severity };
+  }
+
+  if (records.length === 0) {
+    show(empty, true);
+    show(wrap, false);
+    if (rows) rows.replaceChildren();
+    show(mark, false);
+    show(prov, false);
+    if (caption) caption.textContent = "Cases in flight";
+    if (emptyHead) {
+      emptyHead.textContent = `No cases are in flight on ${pipeline.cityKey || "this pack"}.`;
+    }
+    /** The absence carries the basis the pack itself stated. */
+    if (emptyBasis && pipeline.basis) emptyBasis.textContent = `Basis: ${pipeline.basis}`;
+    return;
+  }
+
+  show(empty, false);
+  show(wrap, true);
+  show(mark, true);
+  show(prov, true);
+  if (caption) caption.textContent = `${records.length} cases in flight`;
+  if (basis) basis.textContent = `Basis: ${pipeline.basis}`;
+  if (!rows) return;
+  rows.replaceChildren(
+    ...records.map((record) => {
+      const row = document.createElement("tr");
+      row.append(
+        td(record.recordId, "id"),
+        td(record.subject, "subj"),
+        td(STAGE_LABELS[record.stage] || record.stage),
+        td(record.place && record.place.label ? record.place.label : ""),
+        dueCell(record),
+        statusCell(record, statusLabels),
+      );
+      return row;
+    }),
+  );
+}
+
+async function loadPipeline(cityKey) {
+  const key = String(cityKey || "").trim() || "template-city";
+  let data = null;
+  try {
+    const res = await fetch(
+      `/api/lenses/development-services/pipeline?cityKey=${encodeURIComponent(key)}`,
+    );
+    data = res.ok ? await res.json() : null;
+  } catch {
+    data = null;
+  }
+  /**
+   * A failed read is not an empty city. It renders as a stated failure with its
+   * own basis rather than as a city that has no cases.
+   */
+  if (!data) {
+    renderPipeline({
+      cityKey: key,
+      generated: false,
+      records: [],
+      metrics: [],
+      basis: `the pipeline did not read for ${key}`,
+    });
+    return;
+  }
+  renderPipeline(data);
 }
 
 /* ---------------------------------------------------------------- routing */
@@ -615,4 +815,5 @@ const resettle = bindStages();
 bindCompass();
 bindMenu();
 composeGoldMap(staffMap.parcelNodeId, staffMap.cityKey);
+loadPipeline(staffMap.cityKey);
 if (resettle) resettle();
