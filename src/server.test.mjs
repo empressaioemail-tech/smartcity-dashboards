@@ -193,6 +193,40 @@ describe("HTTP surface", () => {
     assert.equal(one.status, 200);
   });
 
+  /**
+   * Production divergence guard. Every local run leaves DASHBOARDS_API_KEY
+   * unset, so the pack gate is open locally and shut on the deployed service.
+   * The fixture pipeline shipped passing every test and then read as
+   * honest-empty in production, because a public-free pack's records were
+   * refused to the anonymous visitor the demo exists for. This test asserts the
+   * production condition, with the key SET, and it is the one that fires.
+   */
+  it("serves a public-free pack's records to an anonymous caller even with DASHBOARDS_API_KEY set", async () => {
+    process.env.DASHBOARDS_API_KEY = "scaffold-test-key";
+    try {
+      const base = `http://127.0.0.1:${port}`;
+      const anon = await fetch(`${base}/api/lenses/development-services/pipeline?cityKey=template-city`);
+      assert.equal(anon.status, 200);
+      const body = await anon.json();
+      assert.equal(body.status, "ok");
+      assert.ok(body.records.length > 0, "public-free demo must carry its records anonymously");
+      assert.ok(body.records.every((r) => r.fixture === true && r.origin === "fixture"));
+
+      const empty = await fetch(`${base}/api/lenses/development-services/pipeline?cityKey=empty-city`);
+      assert.equal(empty.status, 200);
+      assert.equal((await empty.json()).records.length, 0);
+
+      // Enumeration stays shut, and tenant-private stays shut. Only content
+      // reads of a public-free pack open up.
+      const list = await fetch(`${base}/api/city-packs`);
+      assert.equal(list.status, 401);
+      const tenantPrivate = await fetch(`${base}/api/lenses/development-services/pipeline?cityKey=fixture-city`);
+      assert.equal(tenantPrivate.status, 401);
+    } finally {
+      delete process.env.DASHBOARDS_API_KEY;
+    }
+  });
+
   it("requires Bearer on city-packs when DASHBOARDS_API_KEY is set, and leaves health and lenses public", async () => {
     process.env.DASHBOARDS_API_KEY = "scaffold-test-key";
     try {
