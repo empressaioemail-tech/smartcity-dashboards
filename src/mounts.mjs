@@ -61,23 +61,28 @@ export function smartsiteEmbedUrl(parcelNodeId) {
   return `${origin}${mounts.smartsite.parcelPath}${id}`;
 }
 
+export const DEFAULT_PLAN_REVIEW_EMBED_ORIGIN = "https://plan-review-app-ten.vercel.app";
+
+/**
+ * Plan Review mounts at city altitude, so the embed must suppress the host's own
+ * product top bar. The host ships html[data-embed="1"] rules; embed=1 sets it.
+ * Same contract as smartFilesEmbedUrl.
+ */
 export function planReviewEmbedUrl(envMap = process.env) {
   const raw = envMap?.PLAN_REVIEW_EMBED_ORIGIN;
   const origin = String(
-    raw == null || String(raw).trim() === ""
-      ? "https://plan-review-app-ten.vercel.app"
-      : raw,
-  ).replace(/\/$/, "");
-  return `${origin}/`;
+    raw == null || String(raw).trim() === "" ? DEFAULT_PLAN_REVIEW_EMBED_ORIGIN : raw,
+  ).trim();
+  return withEmbedQuery(origin, DEFAULT_PLAN_REVIEW_EMBED_ORIGIN);
 }
 
-function withEmbedQuery(origin) {
+function withEmbedQuery(origin, fallback = DEFAULT_SMART_FILES_EMBED_ORIGIN) {
   try {
     const url = new URL(origin);
     if (!url.searchParams.has("embed")) url.searchParams.set("embed", "1");
     return url.toString();
   } catch {
-    const base = String(origin || DEFAULT_SMART_FILES_EMBED_ORIGIN).replace(/\/$/, "");
+    const base = String(origin || fallback).replace(/\/$/, "");
     return `${base}/?embed=1`;
   }
 }

@@ -18,10 +18,10 @@ describe("G-13 mounts", () => {
   });
 
   it("embeds Plan Review on plan-review-app, not a cloned reviewer", () => {
-    assert.equal(planReviewEmbedUrl({}), "https://plan-review-app-ten.vercel.app/");
+    assert.equal(planReviewEmbedUrl({}), "https://plan-review-app-ten.vercel.app/?embed=1");
     assert.equal(
       planReviewEmbedUrl({ PLAN_REVIEW_EMBED_ORIGIN: "https://plan-review-app-ten.vercel.app/" }),
-      "https://plan-review-app-ten.vercel.app/",
+      "https://plan-review-app-ten.vercel.app/?embed=1",
     );
   });
 

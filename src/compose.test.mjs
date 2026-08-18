@@ -46,7 +46,7 @@ describe("city-manager compose", () => {
     assert.equal(unset.atoms.atomCount, 0);
     assert.equal("atoms" in unset.atoms, false);
     assert.equal(unset.smartsite.url.includes("parcelNodeId=48021%3A34137"), true);
-    assert.equal(unset.planReview.url, "https://plan-review-app-ten.vercel.app/");
+    assert.equal(unset.planReview.url, "https://plan-review-app-ten.vercel.app/?embed=1");
     assert.equal(unset.smartFiles.contract, "embed");
     assert.equal(unset.smartFiles.url, "https://smart-files-app.vercel.app/?embed=1");
     assert.equal(unset.filesRoom.status, "unavailable");
@@ -371,7 +371,7 @@ describe("city-manager compose", () => {
     assert.equal(composed.meetings.contract, "files-record-read");
     assert.equal("mygov" in composed.meetings, false);
     assert.equal(composed.planReview.contract, "embed");
-    assert.equal(composed.planReview.url, "https://plan-review-app-ten.vercel.app/");
+    assert.equal(composed.planReview.url, "https://plan-review-app-ten.vercel.app/?embed=1");
     assert.equal(composed.smartFiles.contract, "embed");
     assert.equal(composed.smartFiles.url, "https://smart-files-app.vercel.app/?embed=1");
     assert.equal("mygov" in composed, false);
