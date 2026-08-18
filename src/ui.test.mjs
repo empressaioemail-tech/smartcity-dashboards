@@ -411,17 +411,19 @@ describe("G-77 fixture pack on Development services", () => {
 
   it("hides through a mechanism that actually works on this kit", () => {
     /**
-     * The hidden attribute is inert on any component the kit gives an explicit
-     * display. Two of them were already patched one at a time in shell.css; the
-     * rest were not, which is how an amber Partial pill shipped beside the words
-     * "no meeting packet has been read". Every toggle goes through show().
+     * The hidden attribute was inert on any component the kit gives an explicit
+     * display, which is how an amber Partial pill shipped beside the words
+     * "no meeting packet has been read". G-81 fixed that at the root with one
+     * global [hidden] rule in shell.css and retired the two per-component
+     * patches; src/hidden-rule.test.mjs owns that rule and measures it. show()
+     * stays as the belt and braces, and every toggle still goes through it.
      */
     assert.match(app, /function show\(el, on\)/);
     for (const cls of ["pill", "prov", "state"]) {
       assert.match(shell, new RegExp(`\\.${cls} \\{[^}]*display:`), cls);
       assert.equal(shell.includes(`.${cls}[hidden]`), false, cls);
     }
-    assert.match(shell, /\.stage\[hidden\] \{ display: none; \}/);
+    assert.match(shell, /\[hidden\][^{]*\{[^}]*display:\s*none\s*!important/);
     for (const name of ["honesty", "state", "empty", "wrap", "mark", "prov", "list"]) {
       assert.match(app, new RegExp(`show\\(${name}, `), name);
       assert.equal(new RegExp(`\\b${name}\\.hidden = `).test(app), false, name);
