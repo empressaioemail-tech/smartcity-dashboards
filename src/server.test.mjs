@@ -136,10 +136,11 @@ describe("HTTP surface", () => {
     assert.equal(html.includes("$0"), false);
     const review = await (await fetch(`${base}/?lens=development-services&tab=review`)).text();
     assert.match(review, /id="review-site"/);
-    assert.match(review, /id="overview-site"/);
+    assert.match(review, /id="map-site"/);
+    assert.match(review, /id="anchor-overview-map"/);
     const app = await (await fetch(`${base}/app.js`)).text();
     assert.match(app, /smartFiles/);
-    assert.match(app, /files-site/);
+    assert.match(app, /files-stage|MountStage/);
     const staff = await (await fetch(`${base}/staff-review.mjs`)).text();
     assert.match(staff, /smart-files-app\.vercel\.app/);
     assert.match(staff, /work=files|FILES_WORK/);
@@ -154,7 +155,7 @@ describe("HTTP surface", () => {
     const connections = await (await fetch(`${base}/?work=connections`)).text();
     assert.match(connections, /id="work-connections"/);
     assert.match(connections, /67 of 67/);
-    assert.equal((connections.match(/data-home-row="/g) || []).length, 67);
+    assert.equal((connections.match(/data-home-row="/g) || []).length, 70);
     const files = await (await fetch(`${base}/?work=files`)).text();
     assert.match(files, /id="work-files"/);
     const packs = await (await fetch(`${base}/api/city-packs`)).json();
@@ -168,7 +169,7 @@ describe("HTTP surface", () => {
     assert.equal(review.toLowerCase().includes("permitflow"), false);
     const app = await (await fetch(`${base}/app.js`)).text();
     assert.match(app, /resolveStaffLensQuery/);
-    assert.match(app, /isDevelopmentServices/);
+    assert.match(app, /applyLens/);
     assert.match(app, /planReview/);
     assert.equal(app.toLowerCase().includes("permitflow"), false);
     const compass = await fetch(`${base}/compass`);
@@ -281,7 +282,7 @@ describe("HTTP surface", () => {
     assert.match(composed.meetings.basis, /no municode calendar grant/);
     assert.deepEqual(composed.meetings.records, []);
     assert.equal(composed.planReview.contract, "embed");
-    assert.equal(composed.planReview.url, "https://plan-review-app-ten.vercel.app/");
+    assert.equal(composed.planReview.url, "https://plan-review-app-ten.vercel.app/?embed=1");
     assert.equal(composed.smartFiles.contract, "embed");
     assert.equal(composed.smartFiles.url, "https://smart-files-app.vercel.app/?embed=1");
     assert.deepEqual(Object.keys(composed).sort(), [

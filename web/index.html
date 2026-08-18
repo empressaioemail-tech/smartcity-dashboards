@@ -18,10 +18,13 @@
           <span class="seal">CT</span>
           <span class="brandcity">City of Template <span>· TX</span></span>
           <span class="env demo" id="env-badge">Demo</span>
-          <div class="grow searchwrap">
+          <div class="grow"></div>
+          <div class="searchwrap">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg>
-            <input class="inp" type="search" placeholder="Search records, parcels, cases" aria-label="Search" />
+            <input class="inp" id="record-search" type="search" placeholder="Search records, parcels, cases" aria-label="Record search" aria-describedby="record-search-note" disabled />
+            <span class="badge-off">Not built</span>
           </div>
+          <span class="t-caption" id="record-search-note" hidden>Record search is not built. Its home is Work, Records search.</span>
           <button type="button" class="cp-source" id="cp-source" aria-expanded="false" aria-controls="cp-sheet">
             <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M10.4 5.6L9 9 5.6 10.4 7 7z"/></svg>
             <span class="cp-src-l"><b>Compass</b><em id="cp-source-scope">Template · Overview</em></span>
@@ -30,38 +33,32 @@
 
         <div class="shell-body">
           <nav class="shell-nav" id="shell-nav" aria-label="Primary">
-            <div class="lensswitch">
-              <span class="l">
-                <span class="k">Viewing as</span>
-                <span class="v" id="lens-switch-label">City manager</span>
-              </span>
-            </div>
             <div class="navgroup">
               <div class="gl">Lenses</div>
-              <a class="navitem on" data-lens="city-manager" href="/?lens=city-manager">Overview</a>
-              <a class="navitem" data-lens="development-services" href="/?lens=development-services">Development services</a>
-              <a class="navitem" data-lens="finance" href="/?lens=finance">Finance</a>
+              <a class="navitem on" data-lens="city-manager" href="/?lens=city-manager">Overview<span class="grow"></span><span class="badge">Empty</span></a>
+              <a class="navitem" data-lens="development-services" href="/?lens=development-services">Development services<span class="grow"></span><span class="badge">Empty</span></a>
+              <a class="navitem" data-lens="finance" href="/?lens=finance">Finance<span class="grow"></span><span class="badge">Empty</span></a>
               <a class="navitem" data-lens="citizen" href="/?lens=citizen">Citizen<span class="grow"></span><span class="badge">Preview</span></a>
-              <span class="navitem unbuilt">Public works<span class="grow"></span><span class="badge">Not built</span></span>
-              <span class="navitem unbuilt">Parks<span class="grow"></span><span class="badge">Not built</span></span>
-              <span class="navitem unbuilt">Police<span class="grow"></span><span class="badge">Not built</span></span>
-              <span class="navitem unbuilt">Fire and EMS<span class="grow"></span><span class="badge">Not built</span></span>
-              <span class="navitem unbuilt">Fleet<span class="grow"></span><span class="badge">Not built</span></span>
+              <a class="navitem roster" data-lens="public-works" href="/?lens=public-works">Public works<span class="grow"></span><span class="badge">Not built</span></a>
+              <a class="navitem roster" data-lens="parks" href="/?lens=parks">Parks<span class="grow"></span><span class="badge">Not built</span></a>
+              <a class="navitem roster" data-lens="police" href="/?lens=police">Police<span class="grow"></span><span class="badge">Not built</span></a>
+              <a class="navitem roster" data-lens="fire-ems" href="/?lens=fire-ems">Fire and EMS<span class="grow"></span><span class="badge">Not built</span></a>
+              <a class="navitem roster" data-lens="fleet" href="/?lens=fleet">Fleet<span class="grow"></span><span class="badge">Not built</span></a>
             </div>
             <div class="navgroup">
               <div class="gl">Work</div>
-              <a class="navitem" data-lens="development-services" data-tab="review" href="/?lens=development-services&amp;tab=review">Plan review<span class="grow"></span><span class="badge">Preview</span></a>
+              <a class="navitem" data-work="review" href="/?work=review">Plan review<span class="grow"></span><span class="badge">Preview</span></a>
               <a class="navitem" data-work="files" href="/?work=files">Files<span class="grow"></span><span class="badge">Preview</span></a>
-              <span class="navitem unbuilt">Records search<span class="grow"></span><span class="badge">Not built</span></span>
+              <a class="navitem roster" data-work="records" href="/?work=records">Records search<span class="grow"></span><span class="badge">Not built</span></a>
             </div>
             <div class="navgroup">
               <div class="gl">City</div>
-              <a class="navitem" data-work="assets" href="/?work=assets">Assets</a>
+              <a class="navitem" data-work="assets" href="/?work=assets">Assets<span class="grow"></span><span class="badge">Empty</span></a>
               <a class="navitem" data-work="connections" href="/?work=connections">Connections</a>
-              <span class="navitem unbuilt">People and access<span class="grow"></span><span class="badge">Not built</span></span>
+              <a class="navitem roster" data-work="people" href="/?work=people">People and access<span class="grow"></span><span class="badge">Not built</span></a>
             </div>
             <div class="nav-foot">
-              <span class="prov"><b>0 of 4 sources read</b> <span class="sep">|</span> template-city</span>
+              <a class="prov" href="/?work=connections"><b id="nav-sources">1 of 12 sources connected</b> <span class="sep">|</span> template-city</a>
             </div>
           </nav>
 
@@ -71,11 +68,18 @@
                 <div class="crumb"><b>City of Template</b> <span>/</span> Overview</div>
                 <div class="titlerow">
                   <h1>Overview</h1>
-                  <span class="pill p-restricted">Preview</span>
+                  <span class="pill p-quiet">Empty</span>
                 </div>
+                <p class="lede">Where am I, what needs me, and what is missing. Nothing on this page is a count until a source reads.</p>
               </header>
               <div class="shell-regions">
                 <div class="colstack">
+                  <div class="metrics" id="overview-metrics">
+                    <div class="metric"><span class="k">Needs a decision</span><span class="v word">Not read</span><span class="n">No operations source</span></div>
+                    <div class="metric"><span class="k">Overdue reviews</span><span class="v word">Not read</span><span class="n">Review mount is preview</span></div>
+                    <div class="metric"><span class="k">Permits in flight</span><span class="v word">Not read</span><span class="n">No permit source</span></div>
+                    <div class="metric"><span class="k">Meetings this week</span><span class="v word">Not read</span><span class="n">No clerk source</span></div>
+                  </div>
                   <div class="panel">
                     <div class="panel-head"><span class="t">What needs you today</span><span class="grow"></span><span class="t-caption">Decision queue</span></div>
                     <div class="state">
@@ -86,7 +90,7 @@
                     </div>
                   </div>
                   <div class="panel" id="overview-meetings">
-                    <div class="panel-head"><span class="t">Public meetings</span><span class="grow"></span><span class="prov"><b>City clerk calendar</b> <span class="sep">|</span> <span id="overview-meetings-conn">unread</span></span><span class="pill p-warn" id="overview-meetings-honesty">Partial</span></div>
+                    <div class="panel-head"><span class="t">Public meetings</span><span class="grow"></span><span class="prov"><b>City clerk calendar</b> <span class="sep">|</span> <span id="overview-meetings-conn">unread</span></span><span class="pill p-warn" id="overview-meetings-honesty" hidden>Partial</span></div>
                     <div class="state" id="overview-meetings-state">
                       <span class="st-k">Calendar unread</span>
                       <h5>No meeting packet has been read.</h5>
@@ -96,20 +100,40 @@
                     <div class="panel-body flush" id="overview-meetings-list" hidden></div>
                   </div>
                   <div class="panel" id="overview-source-register">
-                    <div class="panel-head"><span class="t">Across departments</span><span class="grow"></span><span class="t-caption">What each lens reads, and whether it read</span></div>
+                    <div class="panel-head"><span class="t">Across departments</span><span class="grow"></span><span class="t-caption">Every lens on the roster, and whether it read</span></div>
                     <div class="panel-body flush">
-                      <div class="srcreg"><i class="rail"></i><span class="nm"><b>Development services</b><span>Permits, inspections, licenses</span></span><span class="prov"><b>never read</b></span><span class="pill p-quiet">Not connected</span></div>
-                      <div class="srcreg"><i class="rail"></i><span class="nm"><b>Plan review</b><span>Submittals against the adopted code</span></span><span class="prov"><b>preview mount</b></span><span class="pill p-warn">Preview</span></div>
-                      <div class="srcreg"><i class="rail"></i><span class="nm"><b>Finance</b><span>Adopted budget and fund ledger</span></span><span class="prov"><b>never read</b></span><span class="pill p-quiet">Not connected</span></div>
-                      <div class="srcreg"><i class="rail"></i><span class="nm"><b>Public works</b><span>Lens on the roster, not yet built</span></span><span class="prov"><b>not built</b></span><span class="pill p-quiet">Not built</span></div>
+                      <div class="reg-group">Built</div>
+                      <div class="srcreg"><i class="rail"></i><span class="nm"><b>Development services</b><span>Permits, inspections, licenses</span></span><span class="pill p-quiet">Not connected</span></div>
+                      <div class="srcreg"><i class="rail"></i><span class="nm"><b>Finance</b><span>Adopted budget and fund ledger</span></span><span class="pill p-quiet">Not connected</span></div>
+                      <div class="srcreg"><i class="rail"></i><span class="nm"><b>Citizen</b><span>Public lens, no account required</span></span><span class="pill p-restricted">Preview</span></div>
+                      <div class="reg-group">Work</div>
+                      <div class="srcreg"><i class="rail"></i><span class="nm"><b>Plan review</b><span>Submittals against the adopted code</span></span><span class="pill p-restricted">Preview</span></div>
+                      <div class="srcreg"><i class="rail"></i><span class="nm"><b>Files</b><span>The city private filing system</span></span><span class="pill p-restricted">Preview</span></div>
+                      <div class="srcreg"><i class="rail"></i><span class="nm"><b>Records search</b><span>City document search</span></span><span class="pill p-quiet">Not built</span></div>
+                      <div class="reg-group">Roster, not yet built</div>
+                      <div class="srcreg"><i class="rail"></i><span class="nm"><b>Public works</b><span>CIP, projects, reporting, phones</span></span><span class="pill p-quiet">Not built</span></div>
+                      <div class="srcreg"><i class="rail"></i><span class="nm"><b>Parks</b><span>Department on the roster</span></span><span class="pill p-quiet">Not built</span></div>
+                      <div class="srcreg"><i class="rail"></i><span class="nm"><b>Police</b><span>Patrol, cameras, incident log</span></span><span class="pill p-quiet">Not built</span></div>
+                      <div class="srcreg"><i class="rail"></i><span class="nm"><b>Fire and EMS</b><span>Occupancies, dispatch, flood and weather</span></span><span class="pill p-quiet">Not built</span></div>
+                      <div class="srcreg"><i class="rail"></i><span class="nm"><b>Fleet</b><span>Vehicles, drivers, utilisation, safety</span></span><span class="pill p-quiet">Not built</span></div>
+                      <div class="reg-group">City</div>
+                      <div class="srcreg"><i class="rail"></i><span class="nm"><b>Assets</b><span>City-owned inventory</span></span><span class="pill p-quiet">Empty</span></div>
+                      <div class="srcreg"><i class="rail"></i><span class="nm"><b>Connections</b><span>The function register</span></span><span class="pill p-restricted">Mounted</span></div>
+                      <div class="srcreg"><i class="rail"></i><span class="nm"><b>People and access</b><span>Staff session and grants</span></span><span class="pill p-quiet">Not built</span></div>
                     </div>
                   </div>
                 </div>
-                <div class="colstack">
+                <div class="colstack rail">
                   <div class="region">
-                    <div class="region-bar"><span class="t">The city</span><span class="grow"></span><span class="t-caption">SmartSite</span></div>
-                    <div class="region-canvas">
-                      <iframe id="overview-site" title="SmartSite embed" src="about:blank"></iframe>
+                    <div class="region-bar">
+                      <span class="t">The city</span>
+                      <span class="grow"></span>
+                      <span class="t-caption">SmartSite</span>
+                      <button type="button" class="btn btn-ghost btn-sm" data-stage-present="map">Expand</button>
+                      <button type="button" class="btn btn-ghost btn-sm" data-stage-max="map">Full</button>
+                    </div>
+                    <div class="region-canvas" id="anchor-overview-map" data-stage="map">
+                      <span class="mount-note">The city map mounts here.</span>
                     </div>
                     <div class="region-foot">
                       <span class="t-data" id="overview-parcel">48021:34137</span>
@@ -119,9 +143,9 @@
                     </div>
                   </div>
                   <div class="panel">
-                    <div class="panel-head"><span class="t">Sources</span><span class="grow"></span><span class="prov"><b>0 of 4 read</b></span></div>
+                    <div class="panel-head"><span class="t">Sources</span><span class="grow"></span><span class="prov"><b id="atoms-read">Not read</b></span></div>
                     <div class="panel-body">
-                      <p class="t-caption" id="atoms-basis">County parcel record is the map subject. Atoms and files rooms stay honest if the mount is empty.</p>
+                      <p class="t-caption" id="atoms-basis">County parcel record is the map subject. The records panel and the files room stay honest when the mount is empty.</p>
                       <p class="t-data" id="atoms-summary"></p>
                     </div>
                   </div>
@@ -134,7 +158,7 @@
                 <div class="crumb"><b>City of Template</b> <span>/</span> <b>Development services</b> <span>/</span> <span id="ds-crumb">Pipeline</span></div>
                 <div class="titlerow">
                   <h1>Development services</h1>
-                  <span class="pill p-restricted">Preview</span>
+                  <span class="pill p-quiet">Empty</span>
                 </div>
               </header>
               <div class="tabs" role="tablist" aria-label="Development services">
@@ -147,12 +171,21 @@
               </div>
               <div class="ds-tab on" id="tab-pipeline">
                 <div class="shell-regions solo">
-                  <div class="panel">
-                    <div class="state">
-                      <span class="st-k">Pipeline unread</span>
-                      <h5>No cases are in flight on template-city.</h5>
-                      <p>The queue is first-class once a permit source is granted. Until then this tab stays empty. Stage names are not invented, and no internal routing is shown.</p>
-                      <span class="basis">Basis: no adapter granted on template-city</span>
+                  <div class="colstack">
+                    <div class="metrics">
+                      <div class="metric"><span class="k">Overdue</span><span class="v word">Not read</span><span class="n">No permit source</span></div>
+                      <div class="metric"><span class="k">In review</span><span class="v word">Not read</span><span class="n">No permit source</span></div>
+                      <div class="metric"><span class="k">Awaiting applicant</span><span class="v word">Not read</span><span class="n">No permit source</span></div>
+                      <div class="metric"><span class="k">Ready to issue</span><span class="v word">Not read</span><span class="n">No permit source</span></div>
+                    </div>
+                    <div class="panel">
+                      <div class="panel-head"><span class="t">Pipeline</span><span class="grow"></span><span class="t-caption">Cases in flight</span></div>
+                      <div class="state">
+                        <span class="st-k">Pipeline unread</span>
+                        <h5>No cases are in flight on template-city.</h5>
+                        <p>The queue is first-class once a permit source is granted. Until then this tab stays empty. Stage names are not invented, and no internal routing is shown.</p>
+                        <span class="basis">Basis: no adapter granted on template-city</span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -161,18 +194,35 @@
                 <div class="shell-regions">
                   <div class="colstack">
                     <div class="panel">
+                      <div class="panel-head"><span class="t">Place</span><span class="grow"></span><span class="t-caption">Selected parcel</span></div>
                       <div class="state">
                         <span class="st-k">Place</span>
                         <h5>Parcel resolves from the map, not a typed form.</h5>
                         <p>Click the map to select a place. The identifier appears in the region footer as a consequence. Gold 48021:34137 is the demo fixture.</p>
+                        <span class="basis">Basis: public record on the SmartSite mount. No parcel form on this product.</span>
+                      </div>
+                    </div>
+                    <div class="panel">
+                      <div class="panel-head"><span class="t">On this place</span><span class="grow"></span><span class="t-caption">Related records</span></div>
+                      <div class="panel-body flush">
+                        <div class="srcreg"><i class="rail"></i><span class="nm"><b>Reviews</b><span>Submittals against this parcel</span></span><span class="pill p-quiet">Not connected</span></div>
+                        <div class="srcreg"><i class="rail"></i><span class="nm"><b>Cases</b><span>Permits, inspections, code enforcement</span></span><span class="pill p-quiet">Not connected</span></div>
+                        <div class="srcreg"><i class="rail"></i><span class="nm"><b>Files</b><span>Documents referenced onto this place</span></span><span class="pill p-restricted">Preview</span></div>
+                        <div class="srcreg"><i class="rail"></i><span class="nm"><b>Assets</b><span>City-owned records at this place</span></span><span class="pill p-quiet">Empty</span></div>
                       </div>
                     </div>
                   </div>
-                  <div class="colstack">
+                  <div class="colstack rail">
                     <div class="region">
-                      <div class="region-bar"><span class="t">Place</span><span class="grow"></span><span class="t-caption">SmartSite</span></div>
-                      <div class="region-canvas">
-                        <iframe id="place-site" title="SmartSite place embed" src="about:blank"></iframe>
+                      <div class="region-bar">
+                        <span class="t">Place</span>
+                        <span class="grow"></span>
+                        <span class="t-caption">SmartSite</span>
+                        <button type="button" class="btn btn-ghost btn-sm" data-stage-present="map">Expand</button>
+                        <button type="button" class="btn btn-ghost btn-sm" data-stage-max="map">Full</button>
+                      </div>
+                      <div class="region-canvas" id="anchor-place-map" data-stage="map">
+                        <span class="mount-note">The place map mounts here.</span>
                       </div>
                       <div class="region-foot">
                         <span class="t-data">48021:34137</span>
@@ -187,12 +237,18 @@
               <div class="ds-tab" id="tab-review">
                 <div class="shell-regions solo">
                   <div class="region">
-                    <div class="region-bar"><span class="t">Review</span><span class="grow"></span><span class="t-caption">Plan Review preview mount</span></div>
-                    <div class="region-canvas">
-                      <iframe id="review-site" title="Plan Review embed" src="about:blank"></iframe>
+                    <div class="region-bar">
+                      <span class="t">Review</span>
+                      <span class="grow"></span>
+                      <span class="t-caption">Plan Review, mounted at city altitude</span>
+                      <a class="btn btn-ghost btn-sm" href="/?work=review">Open in Work</a>
+                      <button type="button" class="btn btn-ghost btn-sm" data-stage-max="review">Full</button>
+                    </div>
+                    <div class="region-canvas doc" id="anchor-ds-review" data-stage="review">
+                      <span class="mount-note">The review console mounts here.</span>
                     </div>
                     <div class="region-foot">
-                      <span class="t-caption" id="review-basis">Native compose is a later card. This tab may still mount the reviewer host.</span>
+                      <span class="t-caption" id="review-basis">Native compose is a later card. This tab mounts the same console as Work, Plan review.</span>
                     </div>
                   </div>
                 </div>
@@ -201,7 +257,7 @@
                 <div class="shell-regions solo"><div class="panel"><div class="state"><span class="st-k">Inspections</span><h5>No inspection source is connected.</h5><p>This tab is chrome. It does not invent a board or a count.</p><span class="basis">Basis: no adapter granted</span></div></div></div>
               </div>
               <div class="ds-tab" id="tab-code-enforcement">
-                <div class="shell-regions solo"><div class="panel"><div class="state"><span class="st-k">Code enforcement</span><h5>No case source is connected.</h5><p>This tab is chrome. It does not invent a case list.</p><span class="basis">Basis: no adapter granted</span></div></div></div>
+                <div class="shell-regions solo"><div class="panel"><div class="state"><span class="st-k">Code enforcement</span><h5>No case source is connected.</h5><p>This tab is chrome. It does not invent a case list. Code enforcement has one home and it is this tab.</p><span class="basis">Basis: no adapter granted</span></div></div></div>
               </div>
               <div class="ds-tab" id="tab-licenses">
                 <div class="shell-regions solo"><div class="panel"><div class="state"><span class="st-k">Licenses</span><h5>No license source is connected.</h5><p>This tab is chrome. It does not invent active licenses.</p><span class="basis">Basis: no adapter granted</span></div></div></div>
@@ -213,8 +269,9 @@
                 <div class="crumb"><b>City of Template</b> <span>/</span> Finance</div>
                 <div class="titlerow">
                   <h1>Finance</h1>
-                  <span class="pill p-quiet">No source connected</span>
+                  <span class="pill p-quiet">Empty</span>
                 </div>
+                <p class="lede">No metric strip on this lens. Four zeros in a header would be four false claims.</p>
               </header>
               <div class="shell-regions">
                 <div class="colstack">
@@ -223,7 +280,7 @@
                       <span class="st-k">No source connected</span>
                       <h5>No finance records for this city yet.</h5>
                       <p>This lens reads from the city's adopted budget, its fund ledger, permit fee revenue, and department spend. None of the four has been connected as a confirmed ledger, so there is nothing to report. That is not a zero balance.</p>
-                      <span class="basis">Basis: 0 of 4 required sources connected. Contact: city finance director. Payments unclaimed.</span>
+                      <span class="basis">Basis: 0 of 4 required sources connected, counted from the source register below. Contact: city finance director. Payments unclaimed.</span>
                     </div>
                   </div>
                   <div class="panel" id="finance-source-register">
@@ -254,38 +311,196 @@
             </section>
 
             <section class="lens" id="lens-citizen">
-              <div class="cz sc-light">
-                <div>
-                  <h1>Near you</h1>
-                  <p>See what is happening around an address in Template. Nothing here requires an account. This is a public lens, not a separate product.</p>
-                </div>
-                <div class="panel">
-                  <div class="panel-body citizen-lookup">
-                    <div class="searchwrap">
-                      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg>
-                      <input class="inp" id="citizen-address" type="search" placeholder="Enter an address" aria-label="Address" />
+              <div class="cz-scroll sc-light">
+                <div class="cz">
+                  <div>
+                    <div class="titlerow">
+                      <h1>Near you</h1>
+                      <span class="pill p-restricted">Preview</span>
                     </div>
-                    <button type="button" class="btn btn-primary" id="citizen-lookup">Look up</button>
+                    <p>See what is happening around an address in Template. Nothing here requires an account. This is a public lens, not a separate product.</p>
+                  </div>
+                  <div class="panel">
+                    <div class="panel-head"><span class="t">Look up an address</span><span class="grow"></span><span class="pill p-quiet">Not built</span></div>
+                    <div class="panel-body citizen-lookup">
+                      <div class="searchwrap">
+                        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg>
+                        <input class="inp" id="citizen-address" type="search" placeholder="Enter an address" aria-label="Address" aria-describedby="citizen-lookup-basis" disabled />
+                      </div>
+                      <button type="button" class="btn" id="citizen-lookup" disabled>Look up</button>
+                    </div>
+                    <div class="panel-body">
+                      <p class="t-caption" id="citizen-lookup-basis">Lookup returns nothing today and the control is disabled rather than silent. It answers from public record once a source is connected for this city. A parcel identifier is never required to open this lens.</p>
+                    </div>
+                  </div>
+                  <div class="panel">
+                    <div class="panel-head"><span class="t">Your requests</span><span class="grow"></span><span class="pill p-quiet">None on file</span></div>
+                    <div class="panel-body">
+                      <p>When a case exists you will see it in public words such as Waiting on you or In review. Staff names and internal routing never appear here.</p>
+                    </div>
+                  </div>
+                  <div class="panel" id="citizen-payments">
+                    <div class="panel-head"><span class="t">Pay permit fees</span></div>
+                    <div class="panel-body">
+                      <p>Online payment is not available for this city yet. Counter address and hours are published when this city connects them. This demo does not invent a street.</p>
+                      <span class="basis">Basis: no payment processor connected for this city. Payments unclaimed.</span>
+                    </div>
+                  </div>
+                  <div class="panel">
+                    <div class="panel-head"><span class="t">Public meetings</span><span class="grow"></span><span class="prov"><b>City clerk calendar</b></span></div>
+                    <div class="panel-body">
+                      <p>The clerk calendar is the source. Meeting records are listed on Overview when a clerk grant has written them to files. This lens does not invent an agenda.</p>
+                    </div>
                   </div>
                 </div>
-                <p class="t-caption" id="citizen-lookup-basis" hidden>Address lookup is public vocabulary only. A parcel identifier is not required to open this lens.</p>
+              </div>
+            </section>
+
+            <section class="lens roster-lens" id="lens-public-works">
+              <header class="pagehead">
+                <div class="crumb"><b>City of Template</b> <span>/</span> Public works</div>
+                <div class="titlerow"><h1>Public works</h1><span class="pill p-quiet">Not built</span></div>
+              </header>
+              <div class="shell-regions solo">
                 <div class="panel">
-                  <div class="panel-head"><span class="t">Your requests</span><span class="grow"></span><span class="pill p-quiet">None on file</span></div>
-                  <div class="panel-body">
-                    <p>When a case exists you will see it in public words such as Waiting on you or In review. Staff names and internal routing never appear here.</p>
+                  <div class="state">
+                    <span class="st-k">Lens on the roster</span>
+                    <h5>Public works is named, and not built.</h5>
+                    <p>The department is on the roster so the navigation never implies coverage the product does not have. Capital projects, reporting, and phone analytics land here when the lens is built.</p>
+                    <span class="basis">Basis: no view designed for this lens. Its jobs are listed on Connections with their homes.</span>
+                  </div>
+                  <div class="roster-note">
+                    <span class="t-label">Jobs waiting on this lens</span>
+                    <div class="roster-list">
+                      <span class="prov"><b>CIP / projects</b></span>
+                      <span class="prov"><b>Reporting</b></span>
+                      <span class="prov"><b>Phones</b></span>
+                      <span class="prov"><b>Reports centre</b></span>
+                      <span class="prov"><b>Call analytics</b></span>
+                    </div>
                   </div>
                 </div>
-                <div class="panel" id="citizen-payments">
-                  <div class="panel-head"><span class="t">Pay permit fees</span></div>
-                  <div class="panel-body">
-                    <p>Online payment is not available for this city yet. Counter address and hours are published when this city connects them. This demo does not invent a street.</p>
-                    <span class="basis">Basis: no payment processor connected for this city. Payments unclaimed.</span>
-                  </div>
-                </div>
+              </div>
+            </section>
+
+            <section class="lens roster-lens" id="lens-parks">
+              <header class="pagehead">
+                <div class="crumb"><b>City of Template</b> <span>/</span> Parks</div>
+                <div class="titlerow"><h1>Parks</h1><span class="pill p-quiet">Not built</span></div>
+              </header>
+              <div class="shell-regions solo">
                 <div class="panel">
-                  <div class="panel-head"><span class="t">Public meetings</span><span class="grow"></span><span class="prov"><b>City clerk calendar</b></span></div>
-                  <div class="panel-body">
-                    <p>The clerk calendar is the source. Meeting records are listed on Overview when a clerk grant has written them to files. This lens does not invent an agenda.</p>
+                  <div class="state">
+                    <span class="st-k">Lens on the roster</span>
+                    <h5>Parks is named, and not built.</h5>
+                    <p>Parks is a department page on the live city roster. It is named here so the roster stays honest about coverage rather than hiding behind an overflow menu.</p>
+                    <span class="basis">Basis: no view designed for this lens. Municipal court is ruled long-tail and stays on Connections.</span>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section class="lens roster-lens" id="lens-police">
+              <header class="pagehead">
+                <div class="crumb"><b>City of Template</b> <span>/</span> Police</div>
+                <div class="titlerow"><h1>Police</h1><span class="pill p-quiet">Not built</span></div>
+              </header>
+              <div class="shell-regions solo">
+                <div class="panel">
+                  <div class="state">
+                    <span class="st-k">Lens on the roster</span>
+                    <h5>Police is named, and not built.</h5>
+                    <p>The emergency operations jobs fold into this lens and Fire and EMS rather than a separate operations centre product. No incident wallpaper is drawn before a source exists.</p>
+                    <span class="basis">Basis: no view designed for this lens. Vendor grants are later cards, not this chrome.</span>
+                  </div>
+                  <div class="roster-note">
+                    <span class="t-label">Jobs waiting on this lens</span>
+                    <div class="roster-list">
+                      <span class="prov"><b>Patrol</b></span>
+                      <span class="prov"><b>Cameras</b></span>
+                      <span class="prov"><b>Incident log</b></span>
+                      <span class="prov"><b>Regional operations map</b></span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section class="lens roster-lens" id="lens-fire-ems">
+              <header class="pagehead">
+                <div class="crumb"><b>City of Template</b> <span>/</span> Fire and EMS</div>
+                <div class="titlerow"><h1>Fire and EMS</h1><span class="pill p-quiet">Not built</span></div>
+              </header>
+              <div class="shell-regions solo">
+                <div class="panel">
+                  <div class="state">
+                    <span class="st-k">Lens on the roster</span>
+                    <h5>Fire and EMS is named, and not built.</h5>
+                    <p>Occupancies, volunteer response, county dispatch, and flood and weather land here. Flood layers are records or map overlays on Place, never a separate product.</p>
+                    <span class="basis">Basis: no view designed for this lens. Vendor grants are later cards, not this chrome.</span>
+                  </div>
+                  <div class="roster-note">
+                    <span class="t-label">Jobs waiting on this lens</span>
+                    <div class="roster-list">
+                      <span class="prov"><b>Occupancies</b></span>
+                      <span class="prov"><b>Volunteer response</b></span>
+                      <span class="prov"><b>County dispatch</b></span>
+                      <span class="prov"><b>Flood and weather</b></span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section class="lens roster-lens" id="lens-fleet">
+              <header class="pagehead">
+                <div class="crumb"><b>City of Template</b> <span>/</span> Fleet</div>
+                <div class="titlerow"><h1>Fleet</h1><span class="pill p-quiet">Not built</span></div>
+              </header>
+              <div class="shell-regions solo">
+                <div class="panel">
+                  <div class="state">
+                    <span class="st-k">Lens on the roster</span>
+                    <h5>Fleet is named, and not built.</h5>
+                    <p>Vehicles, drivers, utilisation, and safety land here. A vehicle on a telemetry feed is a fleet record on this lens; it is never a city-owned asset record on Assets.</p>
+                    <span class="basis">Basis: no view designed for this lens. Fleet telemetry does not fill the Assets inventory.</span>
+                  </div>
+                  <div class="roster-note">
+                    <span class="t-label">Jobs waiting on this lens</span>
+                    <div class="roster-list">
+                      <span class="prov"><b>Vehicles</b></span>
+                      <span class="prov"><b>Drivers</b></span>
+                      <span class="prov"><b>Utilisation</b></span>
+                      <span class="prov"><b>Safety</b></span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section class="lens" id="work-review">
+              <header class="pagehead">
+                <div class="crumb"><b>City of Template</b> <span>/</span> Plan review</div>
+                <div class="titlerow">
+                  <h1>Plan review</h1>
+                  <span class="pill p-restricted">Preview</span>
+                  <span class="grow"></span>
+                  <span class="t-caption">Same console as Development services, Review</span>
+                </div>
+              </header>
+              <div class="shell-regions solo">
+                <div class="region">
+                  <div class="region-bar">
+                    <span class="t">Review console</span>
+                    <span class="grow"></span>
+                    <span class="t-caption">Plan Review, mounted at city altitude</span>
+                    <button type="button" class="btn btn-ghost btn-sm" data-stage-max="review">Full</button>
+                  </div>
+                  <div class="region-canvas doc" id="anchor-work-review" data-stage="review">
+                    <span class="mount-note">The review console mounts here.</span>
+                  </div>
+                  <div class="region-foot">
+                    <span class="t-caption" id="review-basis-work">This view mounts the serving Plan Review host with its own product top bar suppressed. One shell, one top bar. Native compose is a later card.</span>
                   </div>
                 </div>
               </div>
@@ -297,16 +512,40 @@
                 <div class="titlerow">
                   <h1>Files</h1>
                   <span class="pill p-restricted">Preview</span>
+                  <span class="grow"></span>
+                  <span class="t-caption">Scoped to this city tenant</span>
                 </div>
               </header>
               <div class="shell-regions solo">
                 <div class="region">
-                  <div class="region-bar"><span class="t">Files</span><span class="grow"></span><span class="t-caption">Smart Files mount</span></div>
-                  <div class="region-canvas">
-                    <iframe id="files-site" title="Smart Files embed" src="about:blank"></iframe>
+                  <div class="region-bar">
+                    <span class="t">Files</span>
+                    <span class="grow"></span>
+                    <span class="t-caption">Smart Files, mounted at city altitude</span>
+                    <button type="button" class="btn btn-ghost btn-sm" data-stage-max="files">Full</button>
+                  </div>
+                  <div class="region-canvas doc" id="anchor-files" data-stage="files">
+                    <span class="mount-note">The file browser mounts here.</span>
                   </div>
                   <div class="region-foot">
-                    <span class="t-caption" id="files-basis">This view mounts the serving Smart Files host. It does not copy the browser.</span>
+                    <span class="t-caption" id="files-basis">This view mounts the serving Smart Files host with its own product top bar suppressed. It does not copy the browser.</span>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section class="lens" id="work-records">
+              <header class="pagehead">
+                <div class="crumb"><b>City of Template</b> <span>/</span> Records search</div>
+                <div class="titlerow"><h1>Records search</h1><span class="pill p-quiet">Not built</span></div>
+              </header>
+              <div class="shell-regions solo">
+                <div class="panel">
+                  <div class="state">
+                    <span class="st-k">Not built</span>
+                    <h5>City document search is not built on this product.</h5>
+                    <p>Document search stays a named island on the live city until a records-search lens is designed. The top-bar search box is disabled for the same reason, so the chrome and this page say the same thing.</p>
+                    <span class="basis">Basis: no records-search view designed. Named on Connections as an island, not as a home that exists.</span>
                   </div>
                 </div>
               </div>
@@ -318,33 +557,114 @@
                 <div class="titlerow">
                   <h1>Assets</h1>
                   <span class="pill p-quiet">Empty</span>
+                  <span class="grow"></span>
+                  <span class="actionbar">
+                    <button type="button" class="btn btn-sm" disabled>Record an asset</button>
+                    <button type="button" class="btn btn-sm" disabled>Import inventory</button>
+                    <button type="button" class="btn btn-sm" disabled>Export</button>
+                  </span>
                 </div>
+                <p class="lede">The inventory is the landing screen and empty is the designed state. Actions are disabled because no inventory exists to act on.</p>
               </header>
-              <div class="shell-regions">
-                <div class="colstack">
-                  <div class="panel">
-                    <div class="state">
-                      <span class="st-k">No city-owned assets</span>
-                      <h5>No city-owned asset records for template-city.</h5>
-                      <p>This page is the inventory. Empty is the designed state. A truck on a vendor feed is not a city asset record, so nothing is painted here to look populated.</p>
-                      <span class="basis">Basis: G-24 stays zero. No hydrant, fleet, or sample inventory on template-city.</span>
+              <div class="tabs" role="tablist" aria-label="Assets">
+                <a role="tab" aria-selected="true" data-atab="inventory" href="/?work=assets&amp;atab=inventory">Inventory</a>
+                <a role="tab" aria-selected="false" data-atab="map" href="/?work=assets&amp;atab=map">Map</a>
+                <a role="tab" aria-selected="false" data-atab="fixture" href="/?work=assets&amp;atab=fixture">Demo fixture record</a>
+              </div>
+              <div class="assets-tab on" id="atab-inventory">
+                <div class="shell-regions">
+                  <div class="colstack">
+                    <div class="panel">
+                      <div class="state">
+                        <span class="st-k">No city-owned assets</span>
+                        <h5>No city-owned asset records for template-city.</h5>
+                        <p>This page is the inventory. Empty is the designed state. A truck on a vendor feed is not a city asset record, so nothing is painted here to look populated.</p>
+                        <span class="basis">Basis: G-24 stays zero. No hydrant, fleet, or sample inventory on template-city. Contact: city public works director.</span>
+                      </div>
+                    </div>
+                    <div class="panel">
+                      <div class="panel-head"><span class="t">What an asset record holds</span><span class="grow"></span><span class="t-caption">Once recorded</span></div>
+                      <div class="panel-body flush">
+                        <div class="srcreg"><i class="rail"></i><span class="nm"><b>What it is</b><span>Class, owner department, and identifier</span></span><span class="pill p-quiet">Unread</span></div>
+                        <div class="srcreg"><i class="rail"></i><span class="nm"><b>Where it is</b><span>Place on the city map, not a vendor layer</span></span><span class="pill p-quiet">Unread</span></div>
+                        <div class="srcreg"><i class="rail"></i><span class="nm"><b>Condition and history</b><span>Inspections and work against the record</span></span><span class="pill p-quiet">Unread</span></div>
+                        <div class="srcreg"><i class="rail"></i><span class="nm"><b>As-builts</b><span>Files referenced from the city room</span></span><span class="pill p-quiet">Unread</span></div>
+                        <div class="srcreg"><i class="rail"></i><span class="nm"><b>Live state</b><span>A reading accrues to the asset and joins its history</span></span><span class="pill p-quiet">Unread</span></div>
+                      </div>
                     </div>
                   </div>
-                  <div class="panel">
-                    <div class="panel-head"><span class="t">What an asset record holds</span><span class="grow"></span><span class="t-caption">Once recorded</span></div>
-                    <div class="panel-body flush">
-                      <div class="srcreg"><i class="rail"></i><span class="nm"><b>What it is</b><span>Class, owner department, and identifier</span></span><span class="pill p-quiet">Unread</span></div>
-                      <div class="srcreg"><i class="rail"></i><span class="nm"><b>Where it is</b><span>Place on the city map, not a vendor layer</span></span><span class="pill p-quiet">Unread</span></div>
-                      <div class="srcreg"><i class="rail"></i><span class="nm"><b>Condition and history</b><span>Inspections and work against the record</span></span><span class="pill p-quiet">Unread</span></div>
-                      <div class="srcreg"><i class="rail"></i><span class="nm"><b>As-builts</b><span>Files referenced from the city room</span></span><span class="pill p-quiet">Unread</span></div>
+                  <div class="colstack">
+                    <div class="panel">
+                      <div class="panel-head"><span class="t">Counter</span><span class="grow"></span><span class="prov"><b>zero</b></span></div>
+                      <div class="panel-body">
+                        <p class="t-caption">The inventory counter stays at zero until a city records an asset. It is not seeded from a vendor feed, a parcel roll, or a sample file.</p>
+                      </div>
+                    </div>
+                    <div class="panel">
+                      <div class="panel-head"><span class="t">What is not an asset</span></div>
+                      <div class="panel-body flush">
+                        <div class="srcreg"><i class="rail"></i><span class="nm"><b>Fleet telemetry</b><span>A vehicle on a feed is a Fleet record</span></span><span class="pill p-quiet">Excluded</span></div>
+                        <div class="srcreg"><i class="rail"></i><span class="nm"><b>Public-record parcels</b><span>County records are the map subject, not city property</span></span><span class="pill p-quiet">Excluded</span></div>
+                      </div>
                     </div>
                   </div>
                 </div>
-                <div class="colstack">
-                  <div class="panel">
-                    <div class="panel-head"><span class="t">Map</span><span class="grow"></span><span class="t-caption">No asset layer</span></div>
-                    <div class="panel-body">
-                      <p class="t-caption">The city outline may appear later. Vendor fleet telemetry is not an asset layer. Contact: city public works director.</p>
+              </div>
+              <div class="assets-tab" id="atab-map">
+                <div class="shell-regions solo">
+                  <div class="region">
+                    <div class="region-bar"><span class="t">Asset map</span><span class="grow"></span><span class="t-caption">City outline, no asset layer</span></div>
+                    <div class="region-canvas">
+                      <span class="mount-note">
+                        <b class="t-data">No asset layer</b>
+                        The city outline appears here once the city is drawn. Vendor fleet telemetry is not an asset layer, so nothing is plotted to make this map look populated.
+                      </span>
+                    </div>
+                    <div class="region-foot">
+                      <span class="t-caption">Basis: zero city-owned asset records on template-city. Contact: city public works director.</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="assets-tab" id="atab-fixture">
+                <div class="shell-regions">
+                  <div class="colstack">
+                    <div class="panel">
+                      <div class="panel-head">
+                        <span class="t">Asset record</span>
+                        <span class="grow"></span>
+                        <span class="env demo">Demo fixture</span>
+                        <span class="pill p-restricted">Restricted</span>
+                      </div>
+                      <div class="panel-body">
+                        <p class="t-caption">This record is a shape, not a city asset. It exists to show what an asset record holds. It is not a record of any live city, and no path presents it as one.</p>
+                      </div>
+                      <div class="panel-body">
+                        <dl class="kv">
+                          <dt>Asset id</dt><dd class="t-data">Fixture, not issued by a city</dd>
+                          <dt>Type</dt><dd>Named by the city when it records the asset</dd>
+                          <dt>Owner department</dt><dd>Named by the city</dd>
+                          <dt>Install date</dt><dd>Unread</dd>
+                          <dt>Condition</dt><dd>Unread, with the inspection date that set it</dd>
+                          <dt>Place</dt><dd>Resolved from the city map, never typed</dd>
+                          <dt>As-builts</dt><dd>Referenced from Files with room access intact</dd>
+                          <dt>Live state</dt><dd>Slot visible and empty. No source attached.</dd>
+                        </dl>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="colstack">
+                    <div class="panel">
+                      <div class="panel-head"><span class="t">History</span><span class="grow"></span><span class="pill p-quiet">Unread</span></div>
+                      <div class="panel-body">
+                        <p class="t-caption">Inspections and work orders against the record appear here as an event table. A fixture has no history, so none is drawn.</p>
+                      </div>
+                    </div>
+                    <div class="panel">
+                      <div class="panel-head"><span class="t">Provenance</span></div>
+                      <div class="panel-body">
+                        <p class="t-caption">A real record names who recorded it and when. This fixture names neither, because nobody recorded it.</p>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -357,83 +677,115 @@
                 <div class="titlerow">
                   <h1>Connections</h1>
                   <span class="pill p-restricted">Register</span>
+                  <span class="grow"></span>
+                  <span class="prov"><b id="connections-sources">1 of 12 sources connected</b></span>
                 </div>
+                <p class="lede">Every staff job has a named home. A home is a nav item, a tab, a City page, or a killed or island ruling. A feed is not a home.</p>
               </header>
               <div class="shell-regions solo">
                 <div class="panel">
-                  <div class="panel-head"><span class="t">Function homes</span><span class="grow"></span><span class="prov"><b>67 of 67</b> <span class="sep">|</span> Homes-table row</span></div>
+                  <div class="panel-head"><span class="t">Function homes</span><span class="grow"></span><span class="prov"><b>67 of 67</b> <span class="sep">|</span> Homes-table row</span><span class="prov"><b>3</b> <span class="sep">|</span> layout-inventory addendum</span></div>
                   <div class="panel-body">
-                    <p class="t-caption">Every staff job from the G-18 Homes tables has a named home here. A home is a nav item, a tab, a City page, or a killed or island ruling. A feed is not a home. No live sync time is invented.</p>
+                    <p class="t-caption">Counting rule: one row per Homes-table row in the G-18 function-homes file (primary 31, review-product 7, products 6, feeds 12, other 11), plus three layout-inventory jobs the Homes tables never named. Disposition is one of six: Mounted, Empty, Not built, Island, Killed, Not connected. No live sync time is invented.</p>
                   </div>
                   <div class="panel-body flush" id="connections-register">
-                    <div class="srcreg" data-home-row="1" data-home-table="primary"><i class="rail"></i><span class="nm"><b>See the whole city this morning</b><span>Overview</span></span><span class="pill p-restricted">Mounted</span></div>
-                      <div class="srcreg" data-home-row="2" data-home-table="primary"><i class="rail"></i><span class="nm"><b>Overview metric tiles</b><span>Overview metric strip</span></span><span class="pill p-quiet">Empty</span></div>
-                      <div class="srcreg" data-home-row="3" data-home-table="primary"><i class="rail"></i><span class="nm"><b>Workspace launch cards</b><span>Sidebar</span></span><span class="pill p-quiet">Killed</span></div>
-                      <div class="srcreg" data-home-row="4" data-home-table="primary"><i class="rail"></i><span class="nm"><b>City calendar</b><span>Overview Public meetings; Citizen Meetings</span></span><span class="pill p-restricted">Mounted</span></div>
-                      <div class="srcreg" data-home-row="5" data-home-table="primary"><i class="rail"></i><span class="nm"><b>Live City Pulse / data-source dots</b><span>Overview Across departments; City Connections</span></span><span class="pill p-warn">Mounted / Empty</span></div>
-                      <div class="srcreg" data-home-row="6" data-home-table="primary"><i class="rail"></i><span class="nm"><b>Money, budget, spend, scenario</b><span>Finance</span></span><span class="pill p-quiet">Empty</span></div>
-                      <div class="srcreg" data-home-row="7" data-home-table="primary"><i class="rail"></i><span class="nm"><b>OpenGov embed / COA</b><span>Finance</span></span><span class="pill p-quiet">Not built</span></div>
-                      <div class="srcreg" data-home-row="8" data-home-table="primary"><i class="rail"></i><span class="nm"><b>Permit fee revenue</b><span>Finance source register, Partial</span></span><span class="pill p-quiet">Empty</span></div>
-                      <div class="srcreg" data-home-row="9" data-home-table="primary"><i class="rail"></i><span class="nm"><b>Permitting pipeline</b><span>Development services Pipeline</span></span><span class="pill p-quiet">Empty</span></div>
-                      <div class="srcreg" data-home-row="10" data-home-table="primary"><i class="rail"></i><span class="nm"><b>Inspections</b><span>Development services Inspections</span></span><span class="pill p-quiet">Not built</span></div>
-                      <div class="srcreg" data-home-row="11" data-home-table="primary"><i class="rail"></i><span class="nm"><b>Work orders</b><span>Development services Pipeline (staff only)</span></span><span class="pill p-quiet">Not built</span></div>
-                      <div class="srcreg" data-home-row="12" data-home-table="primary"><i class="rail"></i><span class="nm"><b>Business licenses</b><span>Development services Licenses</span></span><span class="pill p-quiet">Not built</span></div>
-                      <div class="srcreg" data-home-row="13" data-home-table="primary"><i class="rail"></i><span class="nm"><b>Code enforcement</b><span>Development services Code enforcement</span></span><span class="pill p-quiet">Not built</span></div>
-                      <div class="srcreg" data-home-row="14" data-home-table="primary"><i class="rail"></i><span class="nm"><b>Property Intel / parcel dossier</b><span>Development services Place; SmartSite map</span></span><span class="pill p-restricted">Mounted</span></div>
-                      <div class="srcreg" data-home-row="15" data-home-table="primary"><i class="rail"></i><span class="nm"><b>Second parcel map stack</b><span>Killed as a product map</span></span><span class="pill p-warn">Island</span></div>
-                      <div class="srcreg" data-home-row="16" data-home-table="primary"><i class="rail"></i><span class="nm"><b>Emergency EOC</b><span>Police + Fire and EMS</span></span><span class="pill p-quiet">Not built</span></div>
-                      <div class="srcreg" data-home-row="17" data-home-table="primary"><i class="rail"></i><span class="nm"><b>Regional ops map / resources / incident log</b><span>Police / Fire</span></span><span class="pill p-quiet">Not built</span></div>
-                      <div class="srcreg" data-home-row="18" data-home-table="primary"><i class="rail"></i><span class="nm"><b>Police</b><span>Police</span></span><span class="pill p-quiet">Not built</span></div>
-                      <div class="srcreg" data-home-row="19" data-home-table="primary"><i class="rail"></i><span class="nm"><b>Fire / EMS</b><span>Fire and EMS</span></span><span class="pill p-quiet">Not built</span></div>
-                      <div class="srcreg" data-home-row="20" data-home-table="primary"><i class="rail"></i><span class="nm"><b>Flood / weather</b><span>Fire and EMS; Place overlays</span></span><span class="pill p-quiet">Not built</span></div>
-                      <div class="srcreg" data-home-row="21" data-home-table="primary"><i class="rail"></i><span class="nm"><b>VFD</b><span>Fire and EMS</span></span><span class="pill p-quiet">Not built</span></div>
-                      <div class="srcreg" data-home-row="22" data-home-table="primary"><i class="rail"></i><span class="nm"><b>County dispatch</b><span>Fire and EMS</span></span><span class="pill p-quiet">Not built</span></div>
-                      <div class="srcreg" data-home-row="23" data-home-table="primary"><i class="rail"></i><span class="nm"><b>Cameras</b><span>Police (Verkada)</span></span><span class="pill p-quiet">Not built</span></div>
-                      <div class="srcreg" data-home-row="24" data-home-table="primary"><i class="rail"></i><span class="nm"><b>Fleet / operations</b><span>Fleet</span></span><span class="pill p-quiet">Not built</span></div>
-                      <div class="srcreg" data-home-row="25" data-home-table="primary"><i class="rail"></i><span class="nm"><b>Fleet map / vehicles / drivers / safety</b><span>Fleet</span></span><span class="pill p-quiet">Not built</span></div>
-                      <div class="srcreg" data-home-row="26" data-home-table="primary"><i class="rail"></i><span class="nm"><b>CIP / projects</b><span>Public works</span></span><span class="pill p-quiet">Not built</span></div>
-                      <div class="srcreg" data-home-row="27" data-home-table="primary"><i class="rail"></i><span class="nm"><b>Power BI reporting</b><span>Public works</span></span><span class="pill p-quiet">Not built</span></div>
-                      <div class="srcreg" data-home-row="28" data-home-table="primary"><i class="rail"></i><span class="nm"><b>Phones / GoTo</b><span>Public works</span></span><span class="pill p-quiet">Not built</span></div>
-                      <div class="srcreg" data-home-row="29" data-home-table="primary"><i class="rail"></i><span class="nm"><b>Compass chatbot</b><span>Compass top-bar sheet</span></span><span class="pill p-restricted">Mounted chrome</span></div>
-                      <div class="srcreg" data-home-row="30" data-home-table="primary"><i class="rail"></i><span class="nm"><b>Public morning brief</b><span>Killed on unauth Dashboards</span></span><span class="pill p-quiet">Killed</span></div>
-                      <div class="srcreg" data-home-row="31" data-home-table="primary"><i class="rail"></i><span class="nm"><b>Prophecy document search</b><span>Work Records search</span></span><span class="pill p-quiet">Not built</span></div>
-                      <div class="srcreg" data-home-row="32" data-home-table="review-product"><i class="rail"></i><span class="nm"><b>Reviewer queue</b><span>Work Plan review</span></span><span class="pill p-restricted">Mounted</span></div>
-                      <div class="srcreg" data-home-row="33" data-home-table="review-product"><i class="rail"></i><span class="nm"><b>Intake</b><span>Plan review intake</span></span><span class="pill p-quiet">Not built</span></div>
-                      <div class="srcreg" data-home-row="34" data-home-table="review-product"><i class="rail"></i><span class="nm"><b>Inspect / Fire / GIS review tabs</b><span>Plan review disciplines</span></span><span class="pill p-quiet">Not built</span></div>
-                      <div class="srcreg" data-home-row="35" data-home-table="review-product"><i class="rail"></i><span class="nm"><b>Code enforcement (duplicate product)</b><span>Development services Code enforcement</span></span><span class="pill p-quiet">Not built</span></div>
-                      <div class="srcreg" data-home-row="36" data-home-table="review-product"><i class="rail"></i><span class="nm"><b>Applicant / contractor portals</b><span>Citizen My requests</span></span><span class="pill p-quiet">Not built</span></div>
-                      <div class="srcreg" data-home-row="37" data-home-table="review-product"><i class="rail"></i><span class="nm"><b>City document table</b><span>Files</span></span><span class="pill p-warn">Island</span></div>
-                      <div class="srcreg" data-home-row="38" data-home-table="review-product"><i class="rail"></i><span class="nm"><b>Nested review product chrome</b><span>none</span></span><span class="pill p-quiet">Killed</span></div>
-                      <div class="srcreg" data-home-row="39" data-home-table="products"><i class="rail"></i><span class="nm"><b>Operations Dashboard</b><span>Overview</span></span><span class="pill p-restricted">Mounted</span></div>
-                      <div class="srcreg" data-home-row="40" data-home-table="products"><i class="rail"></i><span class="nm"><b>Parcel Intelligence</b><span>Development services Place / SmartSite</span></span><span class="pill p-restricted">Mounted</span></div>
-                      <div class="srcreg" data-home-row="41" data-home-table="products"><i class="rail"></i><span class="nm"><b>AI Plan Review / Codex 1b</b><span>Work Plan review</span></span><span class="pill p-restricted">Mounted</span></div>
-                      <div class="srcreg" data-home-row="42" data-home-table="products"><i class="rail"></i><span class="nm"><b>Citizen public SKU</b><span>Citizen</span></span><span class="pill p-quiet">Killed</span></div>
-                      <div class="srcreg" data-home-row="43" data-home-table="products"><i class="rail"></i><span class="nm"><b>3D city model product</b><span>none</span></span><span class="pill p-quiet">Killed</span></div>
-                      <div class="srcreg" data-home-row="44" data-home-table="products"><i class="rail"></i><span class="nm"><b>Compass</b><span>Top-bar sheet</span></span><span class="pill p-restricted">Mounted chrome</span></div>
-                      <div class="srcreg" data-home-row="45" data-home-table="feeds"><i class="rail"></i><span class="nm"><b>MyGov</b><span>Development services Pipeline; Overview queue</span></span><span class="pill p-quiet">Not connected</span></div>
-                      <div class="srcreg" data-home-row="46" data-home-table="feeds"><i class="rail"></i><span class="nm"><b>Samsara</b><span>Fleet</span></span><span class="pill p-quiet">Not connected</span></div>
-                      <div class="srcreg" data-home-row="47" data-home-table="feeds"><i class="rail"></i><span class="nm"><b>Spireon</b><span>Police</span></span><span class="pill p-quiet">Not connected</span></div>
-                      <div class="srcreg" data-home-row="48" data-home-table="feeds"><i class="rail"></i><span class="nm"><b>Verkada</b><span>Police</span></span><span class="pill p-quiet">Not connected</span></div>
-                      <div class="srcreg" data-home-row="49" data-home-table="feeds"><i class="rail"></i><span class="nm"><b>FirstDue</b><span>Fire and EMS</span></span><span class="pill p-quiet">Not connected</span></div>
-                      <div class="srcreg" data-home-row="50" data-home-table="feeds"><i class="rail"></i><span class="nm"><b>OpenGov</b><span>Finance</span></span><span class="pill p-quiet">Not connected</span></div>
-                      <div class="srcreg" data-home-row="51" data-home-table="feeds"><i class="rail"></i><span class="nm"><b>ArcGIS / Esri</b><span>Place map (SmartSite)</span></span><span class="pill p-restricted">Mounted</span></div>
-                      <div class="srcreg" data-home-row="52" data-home-table="feeds"><i class="rail"></i><span class="nm"><b>Power BI</b><span>Public works</span></span><span class="pill p-quiet">Not connected</span></div>
-                      <div class="srcreg" data-home-row="53" data-home-table="feeds"><i class="rail"></i><span class="nm"><b>GoTo Connect</b><span>Public works</span></span><span class="pill p-quiet">Not connected</span></div>
-                      <div class="srcreg" data-home-row="54" data-home-table="feeds"><i class="rail"></i><span class="nm"><b>Municode calendar</b><span>Overview Public meetings</span></span><span class="pill p-restricted">Home exists</span></div>
-                      <div class="srcreg" data-home-row="55" data-home-table="feeds"><i class="rail"></i><span class="nm"><b>Anthropic</b><span>Compass</span></span><span class="pill p-restricted">Chrome only</span></div>
-                      <div class="srcreg" data-home-row="56" data-home-table="feeds"><i class="rail"></i><span class="nm"><b>CRM feed</b><span>none</span></span><span class="pill p-quiet">Killed</span></div>
-                      <div class="srcreg" data-home-row="57" data-home-table="other"><i class="rail"></i><span class="nm"><b>Reports</b><span>Public works; Finance</span></span><span class="pill p-quiet">Not built</span></div>
-                      <div class="srcreg" data-home-row="58" data-home-table="other"><i class="rail"></i><span class="nm"><b>Activity</b><span>Overview; People and access</span></span><span class="pill p-quiet">Not built</span></div>
-                      <div class="srcreg" data-home-row="59" data-home-table="other"><i class="rail"></i><span class="nm"><b>Projects</b><span>Public works</span></span><span class="pill p-quiet">Not built</span></div>
-                      <div class="srcreg" data-home-row="60" data-home-table="other"><i class="rail"></i><span class="nm"><b>Call analytics</b><span>Public works</span></span><span class="pill p-quiet">Not built</span></div>
-                      <div class="srcreg" data-home-row="61" data-home-table="other"><i class="rail"></i><span class="nm"><b>Design lab</b><span>none</span></span><span class="pill p-quiet">Killed</span></div>
-                      <div class="srcreg" data-home-row="62" data-home-table="other"><i class="rail"></i><span class="nm"><b>Data audit</b><span>Connections</span></span><span class="pill p-quiet">Not built</span></div>
-                      <div class="srcreg" data-home-row="63" data-home-table="other"><i class="rail"></i><span class="nm"><b>Departments including Parks and Courts</b><span>Parks; Courts on Connections</span></span><span class="pill p-quiet">Not built</span></div>
-                      <div class="srcreg" data-home-row="64" data-home-table="other"><i class="rail"></i><span class="nm"><b>Citizen twelve tiles</b><span>Citizen</span></span><span class="pill p-restricted">Mounted</span></div>
-                      <div class="srcreg" data-home-row="65" data-home-table="other"><i class="rail"></i><span class="nm"><b>Auth / session / notifications / theme / sign out</b><span>Top bar; People and access</span></span><span class="pill p-quiet">Not built</span></div>
-                      <div class="srcreg" data-home-row="66" data-home-table="other"><i class="rail"></i><span class="nm"><b>Status bar integration count</b><span>Connections; nav footer</span></span><span class="pill p-quiet">Empty</span></div>
-                      <div class="srcreg" data-home-row="67" data-home-table="other"><i class="rail"></i><span class="nm"><b>City-owned assets</b><span>City Assets</span></span><span class="pill p-quiet">Empty</span></div>
-                  
+                    <div class="srcreg" data-home-row="1" data-home-table="primary" data-disposition="Mounted"><i class="rail"></i><span class="nm"><b>See the whole city this morning</b><span>Overview</span></span><span class="pill p-restricted">Mounted</span></div>
+                      <div class="srcreg" data-home-row="2" data-home-table="primary" data-disposition="Empty"><i class="rail"></i><span class="nm"><b>Overview metric tiles</b><span>Overview metric strip</span></span><span class="pill p-quiet">Empty</span></div>
+                      <div class="srcreg" data-home-row="3" data-home-table="primary" data-disposition="Killed"><i class="rail"></i><span class="nm"><b>Workspace launch cards</b><span>No home. Navigation lives in the sidebar only.</span></span><span class="pill p-quiet">Killed</span></div>
+                      <div class="srcreg" data-home-row="4" data-home-table="primary" data-disposition="Empty"><i class="rail"></i><span class="nm"><b>City calendar</b><span>Overview Public meetings; Citizen Meetings</span></span><span class="pill p-quiet">Empty</span></div>
+                      <div class="srcreg" data-home-row="5" data-home-table="primary" data-disposition="Mounted"><i class="rail"></i><span class="nm"><b>Live City Pulse / data-source dots</b><span>Overview Across departments; City Connections</span></span><span class="pill p-restricted">Mounted</span></div>
+                      <div class="srcreg" data-home-row="6" data-home-table="primary" data-disposition="Empty"><i class="rail"></i><span class="nm"><b>Money, budget, spend, scenario</b><span>Finance</span></span><span class="pill p-quiet">Empty</span></div>
+                      <div class="srcreg" data-home-row="7" data-home-table="primary" data-disposition="Not built"><i class="rail"></i><span class="nm"><b>OpenGov embed / COA</b><span>Finance</span></span><span class="pill p-quiet">Not built</span></div>
+                      <div class="srcreg" data-home-row="8" data-home-table="primary" data-disposition="Empty"><i class="rail"></i><span class="nm"><b>Permit fee revenue</b><span>Finance source register, marked Partial</span></span><span class="pill p-quiet">Empty</span></div>
+                      <div class="srcreg" data-home-row="9" data-home-table="primary" data-disposition="Empty"><i class="rail"></i><span class="nm"><b>Permitting pipeline</b><span>Development services Pipeline</span></span><span class="pill p-quiet">Empty</span></div>
+                      <div class="srcreg" data-home-row="10" data-home-table="primary" data-disposition="Not built"><i class="rail"></i><span class="nm"><b>Inspections</b><span>Development services Inspections</span></span><span class="pill p-quiet">Not built</span></div>
+                      <div class="srcreg" data-home-row="11" data-home-table="primary" data-disposition="Not built"><i class="rail"></i><span class="nm"><b>Work orders</b><span>Development services Pipeline (staff only)</span></span><span class="pill p-quiet">Not built</span></div>
+                      <div class="srcreg" data-home-row="12" data-home-table="primary" data-disposition="Not built"><i class="rail"></i><span class="nm"><b>Business licenses</b><span>Development services Licenses</span></span><span class="pill p-quiet">Not built</span></div>
+                      <div class="srcreg" data-home-row="13" data-home-table="primary" data-disposition="Not built"><i class="rail"></i><span class="nm"><b>Code enforcement</b><span>Development services Code enforcement</span></span><span class="pill p-quiet">Not built</span></div>
+                      <div class="srcreg" data-home-row="14" data-home-table="primary" data-disposition="Mounted"><i class="rail"></i><span class="nm"><b>Property Intel / parcel dossier</b><span>Development services Place; SmartSite map</span></span><span class="pill p-restricted">Mounted</span></div>
+                      <div class="srcreg" data-home-row="15" data-home-table="primary" data-disposition="Island"><i class="rail"></i><span class="nm"><b>Second parcel map stack</b><span>No product home. Stays on the city until a named cut.</span></span><span class="pill p-warn">Island</span></div>
+                      <div class="srcreg" data-home-row="16" data-home-table="primary" data-disposition="Not built"><i class="rail"></i><span class="nm"><b>Emergency EOC</b><span>Police + Fire and EMS</span></span><span class="pill p-quiet">Not built</span></div>
+                      <div class="srcreg" data-home-row="17" data-home-table="primary" data-disposition="Not built"><i class="rail"></i><span class="nm"><b>Regional ops map / resources / incident log</b><span>Police / Fire</span></span><span class="pill p-quiet">Not built</span></div>
+                      <div class="srcreg" data-home-row="18" data-home-table="primary" data-disposition="Not built"><i class="rail"></i><span class="nm"><b>Police</b><span>Police</span></span><span class="pill p-quiet">Not built</span></div>
+                      <div class="srcreg" data-home-row="19" data-home-table="primary" data-disposition="Not built"><i class="rail"></i><span class="nm"><b>Fire / EMS</b><span>Fire and EMS</span></span><span class="pill p-quiet">Not built</span></div>
+                      <div class="srcreg" data-home-row="20" data-home-table="primary" data-disposition="Not built"><i class="rail"></i><span class="nm"><b>Flood / weather</b><span>Fire and EMS; Place overlays</span></span><span class="pill p-quiet">Not built</span></div>
+                      <div class="srcreg" data-home-row="21" data-home-table="primary" data-disposition="Not built"><i class="rail"></i><span class="nm"><b>VFD</b><span>Fire and EMS</span></span><span class="pill p-quiet">Not built</span></div>
+                      <div class="srcreg" data-home-row="22" data-home-table="primary" data-disposition="Not built"><i class="rail"></i><span class="nm"><b>County dispatch</b><span>Fire and EMS</span></span><span class="pill p-quiet">Not built</span></div>
+                      <div class="srcreg" data-home-row="23" data-home-table="primary" data-disposition="Not built"><i class="rail"></i><span class="nm"><b>Cameras</b><span>Police</span></span><span class="pill p-quiet">Not built</span></div>
+                      <div class="srcreg" data-home-row="24" data-home-table="primary" data-disposition="Not built"><i class="rail"></i><span class="nm"><b>Fleet / operations</b><span>Fleet</span></span><span class="pill p-quiet">Not built</span></div>
+                      <div class="srcreg" data-home-row="25" data-home-table="primary" data-disposition="Not built"><i class="rail"></i><span class="nm"><b>Fleet map / vehicles / drivers / safety</b><span>Fleet</span></span><span class="pill p-quiet">Not built</span></div>
+                      <div class="srcreg" data-home-row="26" data-home-table="primary" data-disposition="Not built"><i class="rail"></i><span class="nm"><b>CIP / projects</b><span>Public works</span></span><span class="pill p-quiet">Not built</span></div>
+                      <div class="srcreg" data-home-row="27" data-home-table="primary" data-disposition="Not built"><i class="rail"></i><span class="nm"><b>Power BI reporting</b><span>Public works</span></span><span class="pill p-quiet">Not built</span></div>
+                      <div class="srcreg" data-home-row="28" data-home-table="primary" data-disposition="Not built"><i class="rail"></i><span class="nm"><b>Phones / GoTo</b><span>Public works</span></span><span class="pill p-quiet">Not built</span></div>
+                      <div class="srcreg" data-home-row="29" data-home-table="primary" data-disposition="Empty"><i class="rail"></i><span class="nm"><b>Compass chatbot</b><span>Compass top-bar sheet, chrome only</span></span><span class="pill p-quiet">Empty</span></div>
+                      <div class="srcreg" data-home-row="30" data-home-table="primary" data-disposition="Killed"><i class="rail"></i><span class="nm"><b>Public morning brief</b><span>No home. Leaked live operations without a session.</span></span><span class="pill p-quiet">Killed</span></div>
+                      <div class="srcreg" data-home-row="31" data-home-table="primary" data-disposition="Not built"><i class="rail"></i><span class="nm"><b>Prophecy document search</b><span>Work Records search</span></span><span class="pill p-quiet">Not built</span></div>
+                      <div class="srcreg" data-home-row="32" data-home-table="review-product" data-disposition="Mounted"><i class="rail"></i><span class="nm"><b>Reviewer queue</b><span>Work Plan review (iframe residual)</span></span><span class="pill p-restricted">Mounted</span></div>
+                      <div class="srcreg" data-home-row="33" data-home-table="review-product" data-disposition="Not built"><i class="rail"></i><span class="nm"><b>Intake</b><span>Plan review intake</span></span><span class="pill p-quiet">Not built</span></div>
+                      <div class="srcreg" data-home-row="34" data-home-table="review-product" data-disposition="Not built"><i class="rail"></i><span class="nm"><b>Inspect / Fire / GIS review tabs</b><span>Plan review disciplines</span></span><span class="pill p-quiet">Not built</span></div>
+                      <div class="srcreg" data-home-row="35" data-home-table="review-product" data-disposition="Not built"><i class="rail"></i><span class="nm"><b>Code enforcement (duplicate product)</b><span>Development services Code enforcement</span></span><span class="pill p-quiet">Not built</span></div>
+                      <div class="srcreg" data-home-row="36" data-home-table="review-product" data-disposition="Not built"><i class="rail"></i><span class="nm"><b>Applicant / contractor portals</b><span>Citizen My requests</span></span><span class="pill p-quiet">Not built</span></div>
+                      <div class="srcreg" data-home-row="37" data-home-table="review-product" data-disposition="Island"><i class="rail"></i><span class="nm"><b>City document table</b><span>Files</span></span><span class="pill p-warn">Island</span></div>
+                      <div class="srcreg" data-home-row="38" data-home-table="review-product" data-disposition="Killed"><i class="rail"></i><span class="nm"><b>Nested review product chrome</b><span>No home. One shell, one top bar.</span></span><span class="pill p-quiet">Killed</span></div>
+                      <div class="srcreg" data-home-row="39" data-home-table="products" data-disposition="Mounted"><i class="rail"></i><span class="nm"><b>Operations Dashboard</b><span>Overview</span></span><span class="pill p-restricted">Mounted</span></div>
+                      <div class="srcreg" data-home-row="40" data-home-table="products" data-disposition="Mounted"><i class="rail"></i><span class="nm"><b>Parcel Intelligence</b><span>Development services Place / SmartSite</span></span><span class="pill p-restricted">Mounted</span></div>
+                      <div class="srcreg" data-home-row="41" data-home-table="products" data-disposition="Mounted"><i class="rail"></i><span class="nm"><b>AI Plan Review / Codex 1b</b><span>Work Plan review (iframe residual)</span></span><span class="pill p-restricted">Mounted</span></div>
+                      <div class="srcreg" data-home-row="42" data-home-table="products" data-disposition="Killed"><i class="rail"></i><span class="nm"><b>Citizen public SKU</b><span>No home as a product. The capability is the Citizen lens.</span></span><span class="pill p-quiet">Killed</span></div>
+                      <div class="srcreg" data-home-row="43" data-home-table="products" data-disposition="Killed"><i class="rail"></i><span class="nm"><b>3D city model product</b><span>No home. Not a product surface.</span></span><span class="pill p-quiet">Killed</span></div>
+                      <div class="srcreg" data-home-row="44" data-home-table="products" data-disposition="Empty"><i class="rail"></i><span class="nm"><b>Compass</b><span>Top-bar sheet, chrome only</span></span><span class="pill p-quiet">Empty</span></div>
+                      <div class="srcreg" data-home-row="45" data-home-table="feeds" data-disposition="Not connected"><i class="rail"></i><span class="nm"><b>MyGov</b><span>Development services Pipeline; Overview queue</span></span><span class="pill p-quiet">Not connected</span></div>
+                      <div class="srcreg" data-home-row="46" data-home-table="feeds" data-disposition="Not connected"><i class="rail"></i><span class="nm"><b>Samsara</b><span>Fleet</span></span><span class="pill p-quiet">Not connected</span></div>
+                      <div class="srcreg" data-home-row="47" data-home-table="feeds" data-disposition="Not connected"><i class="rail"></i><span class="nm"><b>Spireon</b><span>Police</span></span><span class="pill p-quiet">Not connected</span></div>
+                      <div class="srcreg" data-home-row="48" data-home-table="feeds" data-disposition="Not connected"><i class="rail"></i><span class="nm"><b>Verkada</b><span>Police</span></span><span class="pill p-quiet">Not connected</span></div>
+                      <div class="srcreg" data-home-row="49" data-home-table="feeds" data-disposition="Not connected"><i class="rail"></i><span class="nm"><b>FirstDue</b><span>Fire and EMS</span></span><span class="pill p-quiet">Not connected</span></div>
+                      <div class="srcreg" data-home-row="50" data-home-table="feeds" data-disposition="Not connected"><i class="rail"></i><span class="nm"><b>OpenGov</b><span>Finance</span></span><span class="pill p-quiet">Not connected</span></div>
+                      <div class="srcreg" data-home-row="51" data-home-table="feeds" data-disposition="Mounted"><i class="rail"></i><span class="nm"><b>ArcGIS / Esri</b><span>Place map, through the SmartSite mount</span></span><span class="pill p-restricted">Mounted</span></div>
+                      <div class="srcreg" data-home-row="52" data-home-table="feeds" data-disposition="Not connected"><i class="rail"></i><span class="nm"><b>Power BI</b><span>Public works</span></span><span class="pill p-quiet">Not connected</span></div>
+                      <div class="srcreg" data-home-row="53" data-home-table="feeds" data-disposition="Not connected"><i class="rail"></i><span class="nm"><b>GoTo Connect</b><span>Public works</span></span><span class="pill p-quiet">Not connected</span></div>
+                      <div class="srcreg" data-home-row="54" data-home-table="feeds" data-disposition="Not connected"><i class="rail"></i><span class="nm"><b>Municode calendar</b><span>Overview Public meetings</span></span><span class="pill p-quiet">Not connected</span></div>
+                      <div class="srcreg" data-home-row="55" data-home-table="feeds" data-disposition="Not connected"><i class="rail"></i><span class="nm"><b>Anthropic</b><span>Compass</span></span><span class="pill p-quiet">Not connected</span></div>
+                      <div class="srcreg" data-home-row="56" data-home-table="feeds" data-disposition="Killed"><i class="rail"></i><span class="nm"><b>CRM feed</b><span>No home. Not a city feed.</span></span><span class="pill p-quiet">Killed</span></div>
+                      <div class="srcreg" data-home-row="57" data-home-table="other" data-disposition="Not built"><i class="rail"></i><span class="nm"><b>Reports</b><span>Public works; Finance</span></span><span class="pill p-quiet">Not built</span></div>
+                      <div class="srcreg" data-home-row="58" data-home-table="other" data-disposition="Not built"><i class="rail"></i><span class="nm"><b>Activity</b><span>Overview; People and access</span></span><span class="pill p-quiet">Not built</span></div>
+                      <div class="srcreg" data-home-row="59" data-home-table="other" data-disposition="Not built"><i class="rail"></i><span class="nm"><b>Projects</b><span>Public works</span></span><span class="pill p-quiet">Not built</span></div>
+                      <div class="srcreg" data-home-row="60" data-home-table="other" data-disposition="Not built"><i class="rail"></i><span class="nm"><b>Call analytics</b><span>Public works</span></span><span class="pill p-quiet">Not built</span></div>
+                      <div class="srcreg" data-home-row="61" data-home-table="other" data-disposition="Killed"><i class="rail"></i><span class="nm"><b>Design lab</b><span>No home. Internal playground.</span></span><span class="pill p-quiet">Killed</span></div>
+                      <div class="srcreg" data-home-row="62" data-home-table="other" data-disposition="Not built"><i class="rail"></i><span class="nm"><b>Data audit</b><span>Connections</span></span><span class="pill p-quiet">Not built</span></div>
+                      <div class="srcreg" data-home-row="63" data-home-table="other" data-disposition="Not built"><i class="rail"></i><span class="nm"><b>Departments including Parks and Courts</b><span>Parks lens; Municipal court on Connections</span></span><span class="pill p-quiet">Not built</span></div>
+                      <div class="srcreg" data-home-row="64" data-home-table="other" data-disposition="Mounted"><i class="rail"></i><span class="nm"><b>Citizen service requests</b><span>Citizen lens. The twelve-tile grid was dropped.</span></span><span class="pill p-restricted">Mounted</span></div>
+                      <div class="srcreg" data-home-row="65" data-home-table="other" data-disposition="Not built"><i class="rail"></i><span class="nm"><b>Auth / session / notifications / theme / sign out</b><span>Top bar; People and access</span></span><span class="pill p-quiet">Not built</span></div>
+                      <div class="srcreg" data-home-row="66" data-home-table="other" data-disposition="Mounted"><i class="rail"></i><span class="nm"><b>Status bar integration count</b><span>Connections; nav footer, counted from this register</span></span><span class="pill p-restricted">Mounted</span></div>
+                      <div class="srcreg" data-home-row="67" data-home-table="other" data-disposition="Empty"><i class="rail"></i><span class="nm"><b>City-owned assets</b><span>City Assets</span></span><span class="pill p-quiet">Empty</span></div>
+                      <div class="srcreg" data-home-row="68" data-home-table="layout-inventory" data-disposition="Not built"><i class="rail"></i><span class="nm"><b>Print / PDF export of a record</b><span>Action on the record surface that owns the record</span></span><span class="pill p-quiet">Not built</span></div>
+                      <div class="srcreg" data-home-row="69" data-home-table="layout-inventory" data-disposition="Not built"><i class="rail"></i><span class="nm"><b>Feedback with screenshot and category</b><span>Top bar; People and access</span></span><span class="pill p-quiet">Not built</span></div>
+                      <div class="srcreg" data-home-row="70" data-home-table="layout-inventory" data-disposition="Not built"><i class="rail"></i><span class="nm"><b>Municipal court</b><span>Connections only. Ruled long-tail, not a lens this wave.</span></span><span class="pill p-quiet">Not built</span></div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section class="lens" id="work-people">
+              <header class="pagehead">
+                <div class="crumb"><b>City of Template</b> <span>/</span> People and access</div>
+                <div class="titlerow"><h1>People and access</h1><span class="pill p-quiet">Not built</span></div>
+              </header>
+              <div class="shell-regions solo">
+                <div class="panel">
+                  <div class="state">
+                    <span class="st-k">Not built</span>
+                    <h5>There is no staff session on this product yet.</h5>
+                    <p>This page is where a city attorney reads every grant: who has access to what, who granted it, when, and every revoke including the ones that can be restored. It is also the home for the session, notifications, feedback, theme, and sign out.</p>
+                    <span class="basis">Basis: no staff session card has been taken. Everything on this product is the unauthenticated view, which is why no staff name appears anywhere on it.</span>
+                  </div>
+                  <div class="roster-note">
+                    <span class="t-label">Jobs waiting on this page</span>
+                    <div class="roster-list">
+                      <span class="prov"><b>Staff session and sign out</b></span>
+                      <span class="prov"><b>Notifications</b></span>
+                      <span class="prov"><b>Theme</b></span>
+                      <span class="prov"><b>Feedback with screenshot and category</b></span>
+                      <span class="prov"><b>Activity log</b></span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -449,7 +801,7 @@
             <span class="cp-grab" title="Drag to dismiss"></span>
             <span class="t-label">Compass</span>
             <span class="grow"></span>
-            <button type="button" class="btn btn-ghost btn-sm" id="cp-max">Maximize</button>
+            <span class="pill p-quiet">Chrome only</span>
             <button type="button" class="btn btn-ghost btn-sm" id="cp-close">Close</button>
           </div>
           <div class="cp-scope">
@@ -458,10 +810,19 @@
           </div>
           <div class="cp-thread">
             <p class="cp-turn">Compass follows the current city and lens. It is a source control, not a page and not a route.</p>
-            <p class="cp-note">Answers are not generated on this card. The sheet is chrome only.</p>
+            <p class="cp-note">Answers are not generated on this card, so there is no maximize control and no composer. The sheet is chrome until the answer engine is built.</p>
           </div>
         </div>
       </aside>
+
+      <div class="stage-scrim" id="stage-scrim" hidden></div>
+      <div class="stage" id="map-stage" hidden><iframe id="map-site" title="SmartSite embed" src="about:blank"></iframe></div>
+      <div class="stage doc" id="review-stage" hidden><iframe id="review-site" title="Plan Review embed" src="about:blank"></iframe></div>
+      <div class="stage doc" id="files-stage" hidden><iframe id="files-site" title="Smart Files embed" src="about:blank"></iframe></div>
+      <div class="stage-esc" id="stage-esc" hidden>
+        <span class="prov"><b id="stage-esc-label">Map</b> <span class="sep">|</span> Escape to close</span>
+        <button type="button" class="btn btn-sm" id="stage-esc-btn">Close</button>
+      </div>
     </div>
     <script type="module" src="/app.js"></script>
   </body>
