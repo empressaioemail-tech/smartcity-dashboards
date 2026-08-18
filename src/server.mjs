@@ -12,7 +12,7 @@ import { runMunicodeCalendar } from "./municode-calendar.mjs";
 import { loadDotenv } from "./load-env.mjs";
 import { pingDb } from "./db.mjs";
 import { MCP_TOOL_NAMES } from "./catalog.mjs";
-import { canReadPack, packReadStatus, resolveCaller, isServiceBearer } from "./tenancy.mjs";
+import { canReadPack, packContentReadStatus, packReadStatus, resolveCaller, isServiceBearer } from "./tenancy.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WEB = path.join(__dirname, "..", "web");
@@ -131,7 +131,9 @@ async function handle(req, res) {
     const caller = await resolveCaller(req);
     const cityKey = url.searchParams.get("cityKey") || "template-city";
     const pack = await getCityPack(cityKey);
-    const status = packReadStatus(pack, caller);
+    // Content read, not enumeration: a public-free pack is readable anonymously
+    // whether or not this deployment has a service key configured.
+    const status = packContentReadStatus(pack, caller);
     if (status === 404) {
       json(res, 404, { error: "unknown city pack" });
       return;

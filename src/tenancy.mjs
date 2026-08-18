@@ -70,6 +70,38 @@ export function canReadPack(pack, caller, envMap = process.env) {
   return !serviceKey;
 }
 
+/**
+ * Reading the CONTENT of a pack is not the same act as enumerating packs.
+ *
+ * canReadPack answers the enumeration question, and for a public-free pack it
+ * falls through to "is a service key configured", which is deployment posture
+ * rather than access policy. That is right for the pack list, where anonymous
+ * enumeration of tenants is not wanted, and wrong for content: a public-free
+ * pack whose records are unreadable by an anonymous caller is not public-free.
+ *
+ * It only became visible when template-city started carrying records. Every
+ * local run has DASHBOARDS_API_KEY unset, so the gate is open locally and shut
+ * in production, and the demo read as honest-empty on the deployed surface
+ * while passing every test. Hence packContentReadStatus below, and hence its
+ * test runs with the key SET.
+ */
+export function canReadPackContent(pack, caller, envMap = process.env) {
+  if (!pack) return false;
+  const policy = ACCESS_POLICIES.has(pack.accessPolicy)
+    ? pack.accessPolicy
+    : "public-free";
+  if (policy === "tenant-private") {
+    return canReadPack(pack, caller, envMap);
+  }
+  return true;
+}
+
+export function packContentReadStatus(pack, caller, envMap = process.env) {
+  if (!pack) return 404;
+  if (canReadPackContent(pack, caller, envMap)) return 200;
+  return caller?.kind === "anonymous" ? 401 : 403;
+}
+
 export function packReadStatus(pack, caller, envMap = process.env) {
   if (!pack) return 404;
   if (canReadPack(pack, caller, envMap)) return 200;
