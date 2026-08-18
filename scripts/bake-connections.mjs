@@ -18,15 +18,18 @@ if (end < 0) throw new Error("connections-register close missing");
 html = `${html.slice(0, open)}\n                    ${connectionsRegisterHtml()}\n                  ${html.slice(end)}`;
 
 /**
- * The nav footer and the Connections header both state how many sources are
- * connected. Both are derived from the register here so neither can drift into
- * a hand-typed count the way the old "7 integrations" and "0 of 4" did.
+ * The Connections header states how many feed integrations are connected
+ * product-wide, derived from the register here so it cannot drift into a
+ * hand-typed count the way the old "7 integrations" and "0 of 4" did.
+ *
+ * The nav footer is deliberately NOT baked from this register any more. It is a
+ * per-pack figure resolved at runtime from the active pack's grants (G-80): the
+ * register's numerator counts Esri as Mounted through the SmartSite embed,
+ * which is granted on no pack, so beside a city name that figure was false for
+ * the city. If this script ever bakes nav-sources again the footer silently
+ * reverts to a product-level count wearing a city's name.
  */
 const label = sourcesConnectedLabel();
-html = html.replace(
-  /(<b id="nav-sources">)[^<]*(<\/b>)/,
-  (_m, a, b) => `${a}${label}${b}`,
-);
 html = html.replace(
   /(<b id="connections-sources">)[^<]*(<\/b>)/,
   (_m, a, b) => `${a}${label}${b}`,
@@ -38,8 +41,11 @@ const count = (html.match(/data-home-row="/g) || []).length;
 if (count !== ALL_HOME_ROWS.length) {
   throw new Error(`expected ${ALL_HOME_ROWS.length} rows, got ${count}`);
 }
-if (!html.includes(`<b id="nav-sources">${label}</b>`)) {
-  throw new Error("nav source label did not bake");
+if (!html.includes(`<b id="connections-sources">${label}</b>`)) {
+  throw new Error("connections source label did not bake");
+}
+if (html.includes(`<b id="nav-sources">${label}</b>`)) {
+  throw new Error("nav-sources must stay per-pack, not the product register figure");
 }
 console.log(
   "baked",

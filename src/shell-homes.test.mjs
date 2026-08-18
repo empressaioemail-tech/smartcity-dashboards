@@ -122,8 +122,16 @@ describe("G-75 register vocabulary", () => {
     assert.equal(connected, SHELL_HOMES.filter((r) => r.table === "feeds" && r.disposition === "Mounted").length);
     assert.match(rule, /feeds table/);
     const label = sourcesConnectedLabel();
-    assert.match(html, new RegExp(`<b id="nav-sources">${label}</b>`));
     assert.match(html, new RegExp(`<b id="connections-sources">${label}</b>`));
+    /**
+     * G-80. The register figure is product-wide: its numerator counts Esri as
+     * Mounted through the SmartSite embed, which is granted on no pack. Beside
+     * a city name in the nav footer that was a figure without its denominator,
+     * so the footer now carries a per-pack figure resolved at runtime and this
+     * one stays on Connections, with its counting rule at the point of use.
+     */
+    assert.equal(html.includes(`<b id="nav-sources">${label}</b>`), false);
+    assert.match(html, /<b id="connections-sources">[^<]*<\/b> <span class="sep">\|<\/span> feeds table of this register/);
     assert.equal(html.includes("0 of 4 sources read"), false);
     assert.equal(html.includes("0 of 4 read"), false);
     assert.equal(html.includes("7 integrations"), false);

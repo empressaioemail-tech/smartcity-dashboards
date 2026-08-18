@@ -57,6 +57,106 @@ function show(el, on) {
   el.style.display = on ? "" : "none";
 }
 
+/* --------------------------------------------------------------- identity
+
+The chrome follows the pack. Every surface that names the city reads one
+resolved identity: the top bar name and state suffix, the seal, the environment
+badge on the top bar and in the Compass sheet, the document title, the Compass
+scope, the nav footer figure, and every breadcrumb and absence basis that names
+a pack.
+
+Two attributes carry it. [data-pack-name] takes the pack's displayName and
+[data-pack-key] takes its cityKey, so a surface added later opts in by markup
+rather than by remembering to add an id here.
+
+This file carries NO fallback city vocabulary of its own. Before the pack
+resolves, the fallback IS the static markup, and currentPackName reads it back
+out of the DOM. One rule, one implementation: src/city-identity.mjs declares the
+allowed fallback vocabulary and a test holds web/index.html to it.
+*/
+
+function currentPackName() {
+  const el = document.querySelector(".brandcity [data-pack-name]");
+  return el ? el.textContent.trim() : "";
+}
+
+/** The view label applyLens resolved, so the scope line can be re-rendered. */
+let viewLabel = "";
+
+function renderScope() {
+  setText("cp-source-scope", `${currentPackName()} · ${viewLabel}`);
+}
+
+function applyIdentity(identity) {
+  if (!identity) return;
+  const name = String(identity.displayName || "").trim();
+  const key = String(identity.cityKey || "").trim();
+  if (name) {
+    for (const el of document.querySelectorAll("[data-pack-name]")) el.textContent = name;
+  }
+  if (key) {
+    for (const el of document.querySelectorAll("[data-pack-key]")) el.textContent = key;
+    const shell = document.getElementById("app-shell");
+    if (shell) shell.dataset.cityKey = key;
+  }
+  setText("city-seal", identity.seal || "");
+
+  /**
+   * No pack carries a jurisdiction today, so the suffix is absent rather than
+   * asserting a state for a city that is nowhere. identity.stateBasis states why.
+   */
+  const stateEl = document.getElementById("brand-state");
+  if (stateEl) {
+    const code = String(identity.stateCode || "").trim();
+    stateEl.textContent = code ? `· ${code}` : "";
+    show(stateEl, Boolean(code));
+  }
+
+  /**
+   * Labelling gate item 1: the badge reads Demo on any pack whose records are
+   * generated, and a pack that is not demo does not render Demo. Both badges
+   * read the one resolved value, so they cannot diverge into two careful edits.
+   */
+  for (const id of ["env-badge", "cp-env-badge"]) {
+    const badge = document.getElementById(id);
+    if (!badge) continue;
+    badge.textContent = identity.environmentBadge || "";
+    badge.classList.toggle("demo", identity.isDemo === true);
+  }
+
+  /**
+   * The footer figure is about the pack being viewed, and its counting rule
+   * travels beside it. The register's product-wide figure stays on Connections.
+   */
+  const sources = identity.sources || {};
+  if (sources.label) setText("nav-sources", sources.label);
+  if (sources.rule) setText("nav-sources-rule", sources.rule);
+
+  if (identity.documentTitle) document.title = identity.documentTitle;
+  renderScope();
+}
+
+async function loadIdentity(cityKey) {
+  const key = String(cityKey || "").trim();
+  let identity = null;
+  try {
+    const q = key ? `?cityKey=${encodeURIComponent(key)}` : "";
+    const res = await fetch(`/api/city-identity${q}`);
+    identity = res.ok ? (await res.json()).identity : null;
+  } catch {
+    identity = null;
+  }
+  /**
+   * A failed read leaves the chrome on its fallback, which names no city, and
+   * states the absence with its basis instead of leaving a figure standing.
+   */
+  if (!identity) {
+    setText("nav-sources-rule", `pack identity did not read for ${key || "the default pack"}`);
+    return;
+  }
+  applyIdentity(identity);
+}
+
 /* ------------------------------------------------------------------ motion */
 
 /**
@@ -409,10 +509,12 @@ function renderMeetings(meetings) {
       show(list, false);
       list.replaceChildren();
     }
-    setText(
-      "overview-meetings-basis",
-      meetings?.basis ? `Basis: ${meetings.basis}` : "Basis: no municode calendar grant on template-city",
-    );
+    /**
+     * Only a basis that was actually read overwrites the markup. With no basis
+     * the static line stands, and it names no city, so a compose failure can no
+     * longer put another pack's name under an empty panel.
+     */
+    if (meetings?.basis) setText("overview-meetings-basis", `Basis: ${meetings.basis}`);
     return;
   }
   show(state, false);
@@ -543,11 +645,15 @@ function renderPipeline(pipeline) {
   const basis = document.getElementById("ds-pipeline-basis");
   const emptyHead = document.getElementById("ds-pipeline-empty-head");
   const emptyBasis = document.getElementById("ds-pipeline-empty-basis");
-  const crumbCity = document.getElementById("ds-crumb-city");
 
   applyPackState(pipeline);
   renderPipelineMetrics(pipeline);
-  if (crumbCity && pipeline.displayName) crumbCity.textContent = pipeline.displayName;
+  /**
+   * The Development services breadcrumb used to be written from here, which
+   * made the pipeline a second writer of the city's identity. It is now a
+   * [data-pack-name] element like every other crumb, with applyIdentity as its
+   * only writer, and a test asserts the two paths agree on displayName.
+   */
 
   const records = Array.isArray(pipeline.records) ? pipeline.records : [];
   const statusLabels = {};
@@ -594,7 +700,7 @@ function renderPipeline(pipeline) {
 }
 
 async function loadPipeline(cityKey) {
-  const key = String(cityKey || "").trim() || "template-city";
+  const key = String(cityKey || "").trim();
   let data = null;
   try {
     const res = await fetch(
@@ -664,7 +770,8 @@ function applyLens(staffLens) {
    * Flipping documentElement dragged the staff chrome light on a lens change.
    */
   const label = workOn ? WORK_LABELS[work] || work : LENS_LABELS[lens] || lens;
-  setText("cp-source-scope", `Template · ${label}`);
+  viewLabel = label;
+  renderScope();
   setText("cp-scope-lens", label);
   if (!workOn) setText("ds-crumb", TAB_LABELS[tab] || "Pipeline");
 }
@@ -814,6 +921,7 @@ applyLens(staffLens);
 const resettle = bindStages();
 bindCompass();
 bindMenu();
+loadIdentity(staffMap.cityKey);
 composeGoldMap(staffMap.parcelNodeId, staffMap.cityKey);
 loadPipeline(staffMap.cityKey);
 if (resettle) resettle();
