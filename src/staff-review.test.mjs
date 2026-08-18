@@ -6,6 +6,8 @@ import {
   DEFAULT_PLAN_REVIEW_ORIGIN,
   DEFAULT_SMART_FILES_ORIGIN,
   DEVELOPMENT_SERVICES_LENS,
+  ASSETS_WORK,
+  CONNECTIONS_WORK,
   FILES_WORK,
   FINANCE_LENS,
   planReviewIframeSrc,
@@ -107,5 +109,22 @@ describe("staff review query", () => {
       smartFilesIframeSrc("https://smart-files-app.vercel.app/?foo=1"),
       "https://smart-files-app.vercel.app/?foo=1&embed=1",
     );
+  });
+
+  it("treats ?work=assets and ?work=connections as City views", () => {
+    assert.deepEqual(resolveStaffLensQuery("?work=assets"), {
+      lens: CITY_MANAGER_LENS,
+      isDevelopmentServices: false,
+      isFilesWork: false,
+      tab: "",
+      work: ASSETS_WORK,
+    });
+    assert.deepEqual(resolveStaffLensQuery("?work=connections"), {
+      lens: CITY_MANAGER_LENS,
+      isDevelopmentServices: false,
+      isFilesWork: false,
+      tab: "",
+      work: CONNECTIONS_WORK,
+    });
   });
 });

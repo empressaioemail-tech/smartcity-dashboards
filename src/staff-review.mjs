@@ -5,7 +5,9 @@ export const CITIZEN_LENS = "citizen";
 export const DEFAULT_PLAN_REVIEW_ORIGIN = "https://plan-review-app-ten.vercel.app";
 export const DEFAULT_SMART_FILES_ORIGIN = "https://smart-files-app.vercel.app";
 export const FILES_WORK = "files";
-export const WORK_IDS = [FILES_WORK];
+export const ASSETS_WORK = "assets";
+export const CONNECTIONS_WORK = "connections";
+export const WORK_IDS = [FILES_WORK, ASSETS_WORK, CONNECTIONS_WORK];
 
 export const LEAD_LENS_IDS = [
   CITY_MANAGER_LENS,
