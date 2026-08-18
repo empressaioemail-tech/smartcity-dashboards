@@ -27,7 +27,7 @@ a { color: var(--sc-accent); }
   text-transform: uppercase;
   color: var(--sc-ink-3);
 }
-.t-caption { font: 400 12px/17px var(--sc-font-ui); color: var(--sc-ink-3); }
+.t-caption { font: 400 12px/16px var(--sc-font-ui); color: var(--sc-ink-3); }
 .t-data {
   font: 400 13px/18px var(--sc-font-data);
   font-variant-numeric: tabular-nums;
@@ -47,7 +47,7 @@ a { color: var(--sc-accent); }
   border: 1px solid var(--sc-line);
   background: var(--sc-surface);
   color: var(--sc-ink);
-  font: 500 13px/1 var(--sc-font-ui);
+  font: 500 14px/20px var(--sc-font-ui);
   cursor: pointer;
   white-space: nowrap;
 }
@@ -81,18 +81,20 @@ a { color: var(--sc-accent); }
   cursor: not-allowed;
 }
 .searchwrap { position: relative; display: flex; align-items: center; gap: var(--sc-2); flex: 1; min-width: 0; }
-.searchwrap .inp { padding-left: 30px; }
+/* The Not built badge sits inside the field, so the field reserves its width
+   rather than letting the placeholder run under it. */
+.searchwrap .inp { padding-left: 30px; padding-right: 100px; }
 .searchwrap > svg { position: absolute; left: 9px; color: var(--sc-ink-3); pointer-events: none; }
 .searchwrap .badge-off {
   position: absolute;
   right: 8px;
-  font: 500 10px/1 var(--sc-font-data);
+  font: 500 12px/16px var(--sc-font-data);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--sc-ink-3);
   border: 1px solid var(--sc-line);
   border-radius: 3px;
-  padding: 3px 5px;
+  padding: 1px 5px;
   background: var(--sc-surface-2);
   pointer-events: none;
 }
@@ -106,7 +108,7 @@ a { color: var(--sc-accent); }
   height: 20px;
   padding: 0 8px;
   border-radius: var(--sc-r-full);
-  font: 500 12px/1 var(--sc-font-ui);
+  font: 500 12px/16px var(--sc-font-ui);
   border: 1px solid transparent;
   white-space: nowrap;
 }
@@ -126,7 +128,8 @@ a { color: var(--sc-accent); }
   border-radius: var(--sc-r-control);
   border: 1px solid var(--sc-line);
   background: var(--sc-surface-2);
-  font: 400 11px/1 var(--sc-font-data);
+  font: 400 13px/18px var(--sc-font-data);
+  font-variant-numeric: tabular-nums;
   color: var(--sc-ink-3);
   white-space: nowrap;
 }
@@ -153,12 +156,12 @@ a.prov:hover { border-color: var(--sc-line-strong); background: var(--sc-surface
   background: var(--sc-surface);
   flex-wrap: wrap;
 }
-.panel-head .t { font: 620 13px/18px var(--sc-font-ui); color: var(--sc-ink); }
-.panel-head .sub { font: 400 12px/17px var(--sc-font-ui); color: var(--sc-ink-3); }
+.panel-head .t { font: 620 15px/22px var(--sc-font-ui); letter-spacing: -0.008em; color: var(--sc-ink); }
+.panel-head .sub { font: 400 12px/16px var(--sc-font-ui); color: var(--sc-ink-3); }
 .panel-head .grow, .grow { flex: 1; }
 .panel-body { padding: var(--sc-4); }
 .panel-body.flush { padding: 0; }
-.panel-body > p { margin: 0 0 var(--sc-2); color: var(--sc-ink-2); max-width: 76ch; }
+.panel-body > p { margin: 0 0 var(--sc-2); color: var(--sc-ink-2); max-width: 68ch; }
 .panel-body > p:last-child { margin-bottom: 0; }
 
 /* ---------- tabs ---------- */
@@ -177,7 +180,7 @@ a.prov:hover { border-color: var(--sc-line-strong); background: var(--sc-surface
   background: none;
   border: 0;
   cursor: pointer;
-  font: 500 13px/1 var(--sc-font-ui);
+  font: 500 14px/20px var(--sc-font-ui);
   color: var(--sc-ink-3);
   padding: 12px 0 11px;
   border-bottom: 2px solid transparent;
@@ -197,7 +200,7 @@ a.prov:hover { border-color: var(--sc-line-strong); background: var(--sc-surface
 .dt thead th {
   text-align: left;
   background: var(--sc-surface-2);
-  font: 500 11px/1 var(--sc-font-data);
+  font: 500 12px/16px var(--sc-font-data);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--sc-ink-3);
@@ -230,8 +233,8 @@ a.prov:hover { border-color: var(--sc-line-strong); background: var(--sc-surface
 .srcreg[data-disposition="Mounted"] .rail { background: var(--sc-restricted); }
 .srcreg[data-disposition="Island"] .rail { background: var(--sc-warn); }
 .srcreg .nm { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.srcreg .nm b { font: 600 13px/18px var(--sc-font-ui); color: var(--sc-ink); }
-.srcreg .nm span { font: 400 12px/17px var(--sc-font-ui); color: var(--sc-ink-3); }
+.srcreg .nm b { font: 600 14px/20px var(--sc-font-ui); color: var(--sc-ink); }
+.srcreg .nm span { font: 400 12px/16px var(--sc-font-ui); color: var(--sc-ink-3); }
 
 .reg-group {
   display: flex;
@@ -241,7 +244,7 @@ a.prov:hover { border-color: var(--sc-line-strong); background: var(--sc-surface
   background: var(--sc-surface-2);
   border-bottom: 1px solid var(--sc-line-faint);
   border-top: 1px solid var(--sc-line-faint);
-  font: 500 10px/1 var(--sc-font-data);
+  font: 500 12px/16px var(--sc-font-data);
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--sc-ink-3);
@@ -262,18 +265,18 @@ a.prov:hover { border-color: var(--sc-line-strong); background: var(--sc-surface
   max-width: 62ch;
 }
 .state .st-k {
-  font: 500 11px/1 var(--sc-font-data);
+  font: 500 12px/16px var(--sc-font-data);
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--sc-ink-3);
 }
-.state h2, .state h5 { font: 620 16px/23px var(--sc-font-ui); margin: 0; color: var(--sc-ink); }
-.state p { font: 400 13px/20px var(--sc-font-ui); color: var(--sc-ink-2); margin: 0; max-width: none; }
+.state h2, .state h5 { font: 620 15px/22px var(--sc-font-ui); letter-spacing: -0.008em; margin: 0; color: var(--sc-ink); }
+.state p { font: 400 14px/20px var(--sc-font-ui); color: var(--sc-ink-2); margin: 0; max-width: none; }
 /* A basis line reads the same wherever it appears, inside an empty state or
    under a panel paragraph. Scoping it to .state left the loose ones unstyled. */
 .basis {
   display: block;
-  font: 400 12px/18px var(--sc-font-data);
+  font: 400 13px/18px var(--sc-font-data);
   color: var(--sc-ink-3);
   border-left: 2px solid var(--sc-line);
   padding-left: var(--sc-3);
@@ -300,14 +303,14 @@ a.prov:hover { border-color: var(--sc-line-strong); background: var(--sc-surface
   gap: var(--sc-1);
   min-width: 0;
 }
+/* At the 12px floor a key like MEETINGS THIS WEEK no longer fits one narrow
+   column, and an ellipsis would drop the label rather than the decoration. The
+   four metrics are grid items and stretch together, so wrapping costs nothing. */
 .metric .k {
-  font: 500 11px/1 var(--sc-font-data);
+  font: 500 12px/16px var(--sc-font-data);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--sc-ink-3);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 .metric .v {
   font: 400 26px/32px var(--sc-font-data);
@@ -318,8 +321,8 @@ a.prov:hover { border-color: var(--sc-line-strong); background: var(--sc-surface
 .metric.has-value .v { color: var(--sc-ink); }
 /* A metric with no source states that in words. It never shows a zero, because
    a zero here would be a claim the city has not made. */
-.metric .v.word { font: 500 15px/32px var(--sc-font-ui); letter-spacing: 0; }
-.metric .n { font: 400 11px/16px var(--sc-font-ui); color: var(--sc-ink-3); }
+.metric .v.word { font: 620 15px/32px var(--sc-font-ui); letter-spacing: -0.008em; }
+.metric .n { font: 400 12px/16px var(--sc-font-ui); color: var(--sc-ink-3); }
 
 /* ---------- region and mount anchor ---------- */
 
@@ -336,14 +339,16 @@ a.prov:hover { border-color: var(--sc-line-strong); background: var(--sc-surface
 .region-bar {
   display: flex;
   align-items: center;
-  gap: var(--sc-2);
+  flex-wrap: wrap;
+  column-gap: var(--sc-2);
+  row-gap: var(--sc-1);
   min-height: 38px;
-  padding: 0 var(--sc-2) 0 var(--sc-3);
+  padding: var(--sc-1) var(--sc-2) var(--sc-1) var(--sc-3);
   border-bottom: 1px solid var(--sc-line-faint);
   flex: none;
 }
 .region-bar .t {
-  font: 500 11px/1 var(--sc-font-data);
+  font: 500 12px/16px var(--sc-font-data);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--sc-ink-3);
@@ -368,7 +373,7 @@ a.prov:hover { border-color: var(--sc-line-strong); background: var(--sc-surface
   text-align: center;
   padding: var(--sc-5);
   color: var(--sc-ink-3);
-  font: 400 12px/18px var(--sc-font-ui);
+  font: 400 14px/20px var(--sc-font-ui);
 }
 .region-foot {
   border-top: 1px solid var(--sc-line-faint);
@@ -416,12 +421,13 @@ a.prov:hover { border-color: var(--sc-line-strong); background: var(--sc-surface
   border: 1px solid var(--sc-line-strong);
   display: grid;
   place-items: center;
-  font: 600 9px/1 var(--sc-font-data);
+  font: 500 12px/16px var(--sc-font-data);
+  letter-spacing: 0.06em;
   color: var(--sc-ink-2);
   background: var(--sc-surface-3);
   flex: none;
 }
-.brandcity { font: 600 13px/1 var(--sc-font-ui); color: var(--sc-ink); white-space: nowrap; }
+.brandcity { font: 600 14px/20px var(--sc-font-ui); color: var(--sc-ink); white-space: nowrap; }
 .brandcity span { font-weight: 400; color: var(--sc-ink-3); }
 .env {
   display: inline-flex;
@@ -429,8 +435,8 @@ a.prov:hover { border-color: var(--sc-line-strong); background: var(--sc-surface
   height: 20px;
   padding: 0 8px;
   border-radius: var(--sc-r-control);
-  font: 500 11px/1 var(--sc-font-data);
-  letter-spacing: 0.04em;
+  font: 500 12px/16px var(--sc-font-data);
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   border: 1px dashed var(--sc-line-strong);
   color: var(--sc-ink-3);
@@ -460,21 +466,27 @@ a.prov:hover { border-color: var(--sc-line-strong); background: var(--sc-surface
 .navgroup { padding: var(--sc-3) var(--sc-2) 0; }
 .navgroup:first-child { padding-top: var(--sc-4); }
 .navgroup > .gl {
-  font: 500 10px/1 var(--sc-font-data);
+  font: 500 12px/16px var(--sc-font-data);
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--sc-ink-3);
   padding: 0 10px var(--sc-2);
 }
+/* Label at the body step and badge at the 12px floor no longer always fit one
+   248px row. The row keeps auto height and the badge drops under the label,
+   right-aligned, rather than the badge going under the floor or a state word
+   being dropped. The markup is unchanged. */
 .navitem {
   display: flex;
   align-items: center;
-  gap: 9px;
+  flex-wrap: wrap;
+  column-gap: 9px;
+  row-gap: 2px;
   min-height: 32px;
-  padding: 0 10px;
+  padding: 6px 10px;
   margin-bottom: 1px;
   border-radius: var(--sc-r-control);
-  font: 500 13px/1 var(--sc-font-ui);
+  font: 500 14px/20px var(--sc-font-ui);
   color: var(--sc-ink-2);
   text-decoration: none;
   cursor: pointer;
@@ -493,14 +505,15 @@ a.prov:hover { border-color: var(--sc-line-strong); background: var(--sc-surface
   background: var(--sc-accent);
 }
 .navitem .badge {
-  font: 500 10px/1 var(--sc-font-data);
+  font: 500 12px/16px var(--sc-font-data);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--sc-ink-3);
   border: 1px solid var(--sc-line);
   border-radius: 3px;
-  padding: 3px 5px;
+  padding: 0 5px;
   flex: none;
+  margin-left: auto;
 }
 .navitem.roster { color: var(--sc-ink-3); }
 .navitem.roster:hover { color: var(--sc-ink-2); }
@@ -524,7 +537,7 @@ a.prov:hover { border-color: var(--sc-line-strong); background: var(--sc-surface
   white-space: normal;
   flex-wrap: wrap;
   row-gap: 2px;
-  line-height: 15px;
+  line-height: 18px;
 }
 
 .shell-main {
@@ -544,12 +557,12 @@ a.prov:hover { border-color: var(--sc-line-strong); background: var(--sc-surface
   gap: var(--sc-2);
   flex: none;
 }
-.crumb { display: flex; align-items: center; gap: 7px; font: 400 12px/1 var(--sc-font-ui); color: var(--sc-ink-3); flex-wrap: wrap; }
+.crumb { display: flex; align-items: center; gap: 7px; font: 400 12px/16px var(--sc-font-ui); color: var(--sc-ink-3); flex-wrap: wrap; }
 .crumb b { font-weight: 500; color: var(--sc-ink-2); }
 .pagehead .titlerow { display: flex; align-items: center; gap: var(--sc-3); flex-wrap: wrap; }
-.pagehead h1 { font: 620 20px/27px var(--sc-font-ui); letter-spacing: -0.015em; margin: 0; color: var(--sc-ink); }
+.pagehead h1 { font: 620 19px/26px var(--sc-font-ui); letter-spacing: -0.015em; margin: 0; color: var(--sc-ink); }
 .pagehead .fill { flex: 1; }
-.pagehead .lede { font: 400 13px/19px var(--sc-font-ui); color: var(--sc-ink-3); margin: 0; max-width: 82ch; }
+.pagehead .lede { font: 400 14px/20px var(--sc-font-ui); color: var(--sc-ink-3); margin: 0; max-width: 68ch; }
 
 /* The work surface: fills the frame, columns scroll independently. */
 .shell-regions {
@@ -602,7 +615,7 @@ a.prov:hover { border-color: var(--sc-line-strong); background: var(--sc-surface
   overflow-y: auto;
   background: var(--sc-canvas);
 }
-.cz h1 { font: 620 25px/33px var(--sc-font-ui); letter-spacing: -0.02em; margin: 0; color: var(--sc-ink); }
+.cz h1 { font: 650 26px/32px var(--sc-font-ui); letter-spacing: -0.022em; margin: 0; color: var(--sc-ink); }
 .cz p { font-size: 15px; line-height: 23px; margin: var(--sc-2) 0 0; max-width: none; color: var(--sc-ink-2); }
 .cz .btn, .cz .inp { height: 44px; font-size: 15px; }
 .cz .panel-body > p { font-size: 15px; line-height: 23px; }
@@ -615,8 +628,11 @@ a.prov:hover { border-color: var(--sc-line-strong); background: var(--sc-surface
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  height: 32px;
-  padding: 0 10px;
+  /* The label is body-em and the scope is the data step, so the stack is 38px
+     and the control can no longer be pinned to 32px inside the 52px bar. */
+  height: auto;
+  min-height: 32px;
+  padding: 2px 10px;
   border-radius: var(--sc-r-control);
   border: 1px solid var(--sc-line);
   background: var(--sc-surface-2);
@@ -627,8 +643,8 @@ a.prov:hover { border-color: var(--sc-line-strong); background: var(--sc-surface
 }
 .cp-source:hover { border-color: var(--sc-line-strong); background: var(--sc-surface-3); }
 .cp-source .cp-src-l { display: flex; flex-direction: column; align-items: flex-start; line-height: 1; }
-.cp-source .cp-src-l b { font: 600 12px/14px var(--sc-font-ui); color: var(--sc-ink); }
-.cp-source .cp-src-l em { font: 400 10px/13px var(--sc-font-data); font-style: normal; color: var(--sc-ink-3); }
+.cp-source .cp-src-l b { font: 600 14px/20px var(--sc-font-ui); color: var(--sc-ink); }
+.cp-source .cp-src-l em { font: 400 13px/18px var(--sc-font-data); font-style: normal; color: var(--sc-ink-3); }
 .cp-scrim { position: fixed; inset: 0; background: var(--sc-canvas); opacity: 0.34; z-index: 8; }
 .cp-sheet {
   position: fixed;
@@ -662,8 +678,8 @@ a.prov:hover { border-color: var(--sc-line-strong); background: var(--sc-surface
   flex: none;
 }
 .cp-thread { flex: 1; overflow: auto; padding: var(--sc-4) var(--sc-3); display: flex; flex-direction: column; gap: var(--sc-3); }
-.cp-turn { font: 400 13px/20px var(--sc-font-ui); color: var(--sc-ink-2); margin: 0; }
-.cp-note { font: 400 12px/18px var(--sc-font-ui); color: var(--sc-ink-3); margin: 0; }
+.cp-turn { font: 400 14px/20px var(--sc-font-ui); color: var(--sc-ink-2); margin: 0; }
+.cp-note { font: 400 12px/16px var(--sc-font-ui); color: var(--sc-ink-3); margin: 0; }
 
 /* ---------- mount stages ----------
    One persistent iframe per product, positioned over the anchor that is
@@ -725,8 +741,8 @@ a.prov:hover { border-color: var(--sc-line-strong); background: var(--sc-surface
   gap: var(--sc-2) var(--sc-4);
   align-items: baseline;
 }
-.kv dt { font: 500 11px/18px var(--sc-font-data); letter-spacing: 0.06em; text-transform: uppercase; color: var(--sc-ink-3); margin: 0; }
-.kv dd { margin: 0; font: 400 13px/19px var(--sc-font-ui); color: var(--sc-ink-2); }
+.kv dt { font: 500 12px/16px var(--sc-font-data); letter-spacing: 0.06em; text-transform: uppercase; color: var(--sc-ink-3); margin: 0; }
+.kv dd { margin: 0; font: 400 14px/20px var(--sc-font-ui); color: var(--sc-ink-2); }
 
 .actionbar { display: flex; align-items: center; gap: var(--sc-2); flex-wrap: wrap; }
 
@@ -747,6 +763,9 @@ a.prov:hover { border-color: var(--sc-line-strong); background: var(--sc-surface
 
 @media (max-width: 1180px) {
   .shell-regions { grid-template-columns: minmax(0, 1fr) 320px; }
+  /* Below this width four metric columns are about 75px each. On main that
+     ellipsised every key to four characters; two columns keep the label. */
+  .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 900px) {
