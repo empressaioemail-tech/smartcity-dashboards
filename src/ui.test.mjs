@@ -40,7 +40,8 @@ describe("G-66 four-lens shell", () => {
     assert.equal(/\b0\b.*\b0\b.*\b0\b.*\b0\b/.test(html.match(/id="lens-finance"[\s\S]*?id="lens-citizen"/)?.[0] || ""), false);
     assert.match(html, /id="citizen-payments"/);
     assert.match(html, /Online payment is not available/);
-    assert.match(html, /1311 Chestnut Street/);
+    assert.match(html, /does not invent a street/);
+    assert.equal(html.includes("Chestnut"), false);
     assert.match(html, /Payments unclaimed/);
     assert.equal(html.includes("Payment Complete"), false);
     assert.equal(html.includes("Pay now"), false);
@@ -66,6 +67,7 @@ describe("G-66 four-lens shell", () => {
     assert.match(html, /cityKey template-city/);
     assert.match(html, /48021:34137/);
     assert.match(html, /Demo fixture/);
+    assert.equal(html.includes("Bastrop"), false);
     assert.equal(html.toLowerCase().includes("bastrop onboarded"), false);
     assert.equal(html.includes("morning-brief"), false);
     assert.equal(html.includes("25-000280"), false);

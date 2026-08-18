@@ -4,8 +4,8 @@ import {
   ADAPTER_KINDS,
   assertAdapterKindShape,
   assertGrantedAdapterShape,
+  assertPublicFeedSourceUrl,
   listAdapterKinds,
-  TEMPLATE_MUNICODE_CALENDAR_GRANT,
 } from "./adapters.mjs";
 import { FIXTURE_CITY, TEMPLATE_CITY } from "./city-pack.mjs";
 import { FORBIDDEN_PRODUCT_STRINGS } from "./catalog.mjs";
@@ -51,16 +51,14 @@ describe("adapter kinds", () => {
     );
   });
 
-  it("grants municode calendar onto template-city files and keeps fixture-city empty", () => {
+  it("holds the municode calendar grant off template-city and refuses a Bastrop clerk host", () => {
     const municode = listAdapterKinds().find((k) => k.id === "municode");
     assert.equal(municode.writesTo, "spine");
-    assertGrantedAdapterShape(TEMPLATE_MUNICODE_CALENDAR_GRANT);
-    assert.equal(TEMPLATE_CITY.grantedAdapters.length, 1);
-    assert.equal(TEMPLATE_CITY.grantedAdapters[0].kind, "municode");
-    assert.equal(TEMPLATE_CITY.grantedAdapters[0].purpose, "calendar");
-    assert.equal(TEMPLATE_CITY.grantedAdapters[0].writesTo, "files");
-    assert.equal(TEMPLATE_CITY.grantedAdapters[0].accessPolicy, "public-free");
-    assert.match(TEMPLATE_CITY.grantedAdapters[0].writesToOverrideReason, /L26/);
+    assert.deepEqual(TEMPLATE_CITY.grantedAdapters, []);
+    assert.throws(
+      () => assertPublicFeedSourceUrl("https://bastrop-tx.municodemeetings.com/"),
+      /Bastrop clerk host/,
+    );
     assert.deepEqual(FIXTURE_CITY.grantedAdapters, []);
     assert.throws(
       () =>

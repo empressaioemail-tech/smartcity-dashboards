@@ -72,15 +72,9 @@ describe("HTTP surface", () => {
     const packs = await (await fetch(`${base}/api/city-packs`)).json();
     assert.equal(packs.cityPacks.length, 1);
     assert.equal(packs.cityPacks[0].cityKey, "template-city");
-    assert.equal(packs.cityPacks[0].grantedAdapterCount, 1);
+    assert.equal(packs.cityPacks[0].grantedAdapterCount, 0);
     const template = await (await fetch(`${base}/api/city-packs/template-city`)).json();
-    assert.equal(template.cityPack.grantedAdapters[0].kind, "municode");
-    assert.equal(template.cityPack.grantedAdapters[0].purpose, "calendar");
-    assert.equal(template.cityPack.grantedAdapters[0].writesTo, "files");
-    assert.equal(template.cityPack.grantedAdapters[0].accessPolicy, "public-free");
-    assert.match(template.cityPack.grantedAdapters[0].writesToOverrideReason, /L26/);
-    assert.match(template.cityPack.grantedAdapters[0].sourceUrl, /municodemeetings\.com/);
-    assert.equal(template.cityPack.grantedAdapters[0].sourceUrl.includes("smartcityos.io"), false);
+    assert.deepEqual(template.cityPack.grantedAdapters, []);
     const fixtureAnon = await fetch(`${base}/api/city-packs/fixture-city`);
     assert.equal(fixtureAnon.status, 401);
 
@@ -164,7 +158,7 @@ describe("HTTP surface", () => {
     const files = await (await fetch(`${base}/?work=files`)).text();
     assert.match(files, /id="work-files"/);
     const packs = await (await fetch(`${base}/api/city-packs`)).json();
-    assert.equal(packs.cityPacks[0].grantedAdapterCount, 1);
+    assert.equal(packs.cityPacks[0].grantedAdapterCount, 0);
   });
 
   it("serves the staff-review module and switches development-services to plan-review-app", async () => {
@@ -217,9 +211,7 @@ describe("HTTP surface", () => {
       });
       assert.equal(okOne.status, 200);
       const templatePack = await okOne.json();
-      assert.equal(templatePack.cityPack.grantedAdapters[0].kind, "municode");
-      assert.equal(templatePack.cityPack.grantedAdapters[0].writesTo, "files");
-      assert.equal(templatePack.cityPack.grantedAdapters[0].accessPolicy, "public-free");
+      assert.deepEqual(templatePack.cityPack.grantedAdapters, []);
       const fixtureRun = await fetch(`${base}/api/adapters/municode/calendar/run?cityKey=fixture-city`, {
         method: "POST",
         headers: { authorization: "Bearer scaffold-test-key" },
@@ -284,9 +276,9 @@ describe("HTTP surface", () => {
     assert.equal(composed.filesRoom.status, "unavailable");
     assert.equal(composed.filesRoom.basis, "SMART_FILES_BACKEND_URL unset");
     assert.equal(composed.meetings.contract, "files-record-read");
-    assert.equal(composed.meetings.status, "unavailable");
+    assert.equal(composed.meetings.status, "empty");
     assert.equal(composed.meetings.honesty, "partial");
-    assert.equal(composed.meetings.basis, "SMART_FILES_BACKEND_URL unset");
+    assert.match(composed.meetings.basis, /no municode calendar grant/);
     assert.deepEqual(composed.meetings.records, []);
     assert.equal(composed.planReview.contract, "embed");
     assert.equal(composed.planReview.url, "https://plan-review-app-ten.vercel.app/");

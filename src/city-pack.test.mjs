@@ -20,11 +20,7 @@ describe("city packs", () => {
     const fixture = await getCityPack("fixture-city", {});
     assert.equal(template.accessPolicy, "public-free");
     assert.equal(fixture.accessPolicy, "tenant-private");
-    assert.equal(template.grantedAdapters.length, 1);
-    assert.equal(template.grantedAdapters[0].kind, "municode");
-    assert.equal(template.grantedAdapters[0].purpose, "calendar");
-    assert.equal(template.grantedAdapters[0].writesTo, "files");
-    assert.equal(template.grantedAdapters[0].accessPolicy, "public-free");
+    assert.deepEqual(template.grantedAdapters, []);
     assert.deepEqual(fixture.grantedAdapters, []);
     assert.notEqual(template.cityKey, "bastrop");
     assert.notEqual(fixture.cityKey, "bastrop");
@@ -106,7 +102,7 @@ describe("city packs", () => {
     const template = await getCityPack("template-city", neonEnv, { query });
     assert.equal(fixture.accessPolicy, "tenant-private");
     assert.deepEqual(fixture.grantedAdapters, []);
-    assert.equal(template.grantedAdapters[0].kind, "municode");
+    assert.deepEqual(template.grantedAdapters, []);
     assertCityPackShape(fixture);
     assertCityPackShape(template);
   });

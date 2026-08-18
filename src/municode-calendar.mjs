@@ -1,9 +1,10 @@
-import { assertPublicFeedSourceUrl, calendarGrantFor } from "./adapters.mjs";
+import { assertPublicFeedSourceUrl, calendarGrantFor, isIdentityHeldClerkHost } from "./adapters.mjs";
 import { getCityPack } from "./city-pack.mjs";
 import { createFilesClient, filesBaseUrl } from "./files-client.mjs";
 
 export const PUBLIC_MEETINGS_FOLDER_LABEL = "Public meetings";
-export const DEFAULT_MUNICODE_SOURCE = "https://bastrop-tx.municodemeetings.com/";
+export const DEFAULT_MUNICODE_SOURCE = "https://example.com/meetings";
+export const HELD_BASTROP_CLERK = "https://bastrop-tx.municodemeetings.com/";
 
 function stripTags(html) {
   return String(html || "")
@@ -227,6 +228,12 @@ export async function listMeetingsForOverview({
   if (!grant) {
     return honestMeetings("empty", `no municode calendar grant on ${cityKey}`);
   }
+  if (isIdentityHeldClerkHost(grant.sourceUrl)) {
+    return honestMeetings(
+      "empty",
+      "identity hold: Bastrop clerk calendar is not a template-city source",
+    );
+  }
   if (!filesBaseUrl(env)) {
     return honestMeetings("unavailable", "SMART_FILES_BACKEND_URL unset");
   }
@@ -234,11 +241,26 @@ export async function listMeetingsForOverview({
   try {
     return honestMeetings(
       ...(await (async () => {
+        if (isIdentityHeldClerkHost(grant.sourceUrl)) {
+          return [
+            "empty",
+            "identity hold: Bastrop clerk calendar is not a template-city source",
+            [],
+          ];
+        }
         const read = await readMeetingRecords({
           cityKey,
           filesClient: client,
           sourceUrl: grant.sourceUrl,
         });
+        const leaked = (read.records || []).some((row) => isIdentityHeldClerkHost(row.source));
+        if (leaked) {
+          return [
+            "empty",
+            "identity hold: Bastrop clerk calendar is not a template-city source",
+            [],
+          ];
+        }
         return [read.status, read.basis, read.records];
       })()),
     );
@@ -261,6 +283,16 @@ export async function runMunicodeCalendar({
       cityKey,
       status: "empty",
       basis: `no municode calendar grant on ${cityKey}`,
+      fetched: 0,
+      written: 0,
+      records: [],
+    };
+  }
+  if (isIdentityHeldClerkHost(grant.sourceUrl)) {
+    return {
+      cityKey,
+      status: "empty",
+      basis: "identity hold: Bastrop clerk calendar is not a template-city source",
       fetched: 0,
       written: 0,
       records: [],

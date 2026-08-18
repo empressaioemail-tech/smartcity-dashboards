@@ -47,7 +47,7 @@ function renderMeetings(meetings) {
     }
     setText(
       "overview-meetings-basis",
-      meetings?.basis ? `Basis: ${meetings.basis}` : "Basis: no meeting files read on template-city",
+      meetings?.basis ? `Basis: ${meetings.basis}` : "Basis: no municode calendar grant on template-city",
     );
     return;
   }
