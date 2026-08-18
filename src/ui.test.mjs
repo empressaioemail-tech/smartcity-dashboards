@@ -90,8 +90,27 @@ describe("G-66 four-lens shell", () => {
     assert.equal(html.includes("file-list"), false);
     assert.equal(html.includes("share-link"), false);
     assert.match(app, /smartFiles/);
-    assert.match(app, /work === "files"/);
+    assert.match(app, /WORK_LABELS/);
     assert.match(app, /files-site/);
+  });
+
+  it("names Parks, Records search, Assets, Connections, and People in the nav", () => {
+    assert.match(html, /class="navitem unbuilt">Parks/);
+    assert.match(html, /class="navitem unbuilt">Records search/);
+    assert.match(html, /href="\/\?work=assets"/);
+    assert.match(html, /href="\/\?work=connections"/);
+    assert.match(html, /class="navitem unbuilt">People and access/);
+    assert.match(html, /<div class="gl">City<\/div>/);
+    assert.equal(html.includes('class="navitem unbuilt">Assets'), false);
+    assert.match(html, /id="work-assets"/);
+    assert.match(html, /id="work-connections"/);
+    assert.match(html, /No city-owned asset records for template-city/);
+    assert.match(html, /G-24 stays zero/);
+    assert.equal(html.includes("sample inventory presented"), false);
+    assert.equal(/\bSamsara\b/.test(html.match(/id="work-assets"[\s\S]*?id="work-connections"/)?.[0] || ""), false);
+    assert.equal(html.includes("$0"), false);
+    assert.equal(html.includes("$0.00"), false);
+    assert.match(app, /work-assets|WORK_LABELS/);
   });
 
   it("uses kit tokens only and does not fork sc-kit.css", () => {

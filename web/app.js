@@ -17,6 +17,12 @@ const TAB_LABELS = {
   licenses: "Licenses",
 };
 
+const WORK_LABELS = {
+  files: "Files",
+  assets: "Assets",
+  connections: "Connections",
+};
+
 function setText(id, value) {
   const el = document.getElementById(id);
   if (el) el.textContent = value || "";
@@ -72,17 +78,17 @@ function renderMeetings(meetings) {
 
 function applyLens(staffLens) {
   const { lens, tab, work } = staffLens;
-  const filesOn = work === "files";
+  const workOn = Boolean(work);
   document.querySelectorAll(".lens").forEach((el) => {
-    if (el.id === "work-files") {
-      el.classList.toggle("on", filesOn);
+    if (el.id.startsWith("work-")) {
+      el.classList.toggle("on", el.id === `work-${work}`);
     } else {
-      el.classList.toggle("on", !filesOn && el.id === `lens-${lens}`);
+      el.classList.toggle("on", !workOn && el.id === `lens-${lens}`);
     }
   });
   document.querySelectorAll(".navitem[data-lens], .navitem[data-work]").forEach((el) => {
-    if (filesOn) {
-      el.classList.toggle("on", el.dataset.work === "files");
+    if (workOn) {
+      el.classList.toggle("on", el.dataset.work === work);
       return;
     }
     const sameLens = el.dataset.lens === lens;
@@ -96,10 +102,11 @@ function applyLens(staffLens) {
   document.querySelectorAll(".ds-tab").forEach((el) => {
     el.classList.toggle("on", el.id === `tab-${tab}`);
   });
-  if (filesOn) {
-    setText("lens-switch-label", "Files");
-    setText("cp-source-scope", "Template · Files");
-    setText("cp-scope-lens", "Files");
+  if (workOn) {
+    const label = WORK_LABELS[work] || work;
+    setText("lens-switch-label", label);
+    setText("cp-source-scope", `Template · ${label}`);
+    setText("cp-scope-lens", label);
     document.documentElement.dataset.theme = "dark";
     return;
   }

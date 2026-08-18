@@ -151,6 +151,22 @@ describe("HTTP surface", () => {
     assert.match(staff, /work=files|FILES_WORK/);
   });
 
+  it("serves City Assets and Connections homes without a new grant", async () => {
+    const base = `http://127.0.0.1:${port}`;
+    const assets = await (await fetch(`${base}/?work=assets`)).text();
+    assert.match(assets, /id="work-assets"/);
+    assert.match(assets, /No city-owned asset records for template-city/);
+    assert.equal(assets.includes("$0"), false);
+    const connections = await (await fetch(`${base}/?work=connections`)).text();
+    assert.match(connections, /id="work-connections"/);
+    assert.match(connections, /67 of 67/);
+    assert.equal((connections.match(/data-home-row="/g) || []).length, 67);
+    const files = await (await fetch(`${base}/?work=files`)).text();
+    assert.match(files, /id="work-files"/);
+    const packs = await (await fetch(`${base}/api/city-packs`)).json();
+    assert.equal(packs.cityPacks[0].grantedAdapterCount, 1);
+  });
+
   it("serves the staff-review module and switches development-services to plan-review-app", async () => {
     const base = `http://127.0.0.1:${port}`;
     const review = await (await fetch(`${base}/staff-review.mjs`)).text();
