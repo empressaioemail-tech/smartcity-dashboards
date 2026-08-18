@@ -1,5 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   listCityPacks,
   getCityPack,
@@ -8,6 +11,7 @@ import {
   TEMPLATE_CITY,
   FIXTURE_CITY,
   EMPTY_CITY,
+  PACK_COLUMNS,
 } from "./city-pack.mjs";
 
 describe("city packs", () => {
@@ -197,5 +201,54 @@ describe("city packs", () => {
         }),
       /refusing supplier or city DSN/,
     );
+  });
+});
+
+describe("G-79 pack read path", () => {
+  it("selects every column rowToPack consumes, so a stored pack round-trips", async () => {
+    // Structural, not a needle list: whatever rowToPack reads must be selected.
+    const source = fs.readFileSync(
+      path.join(path.dirname(fileURLToPath(import.meta.url)), "city-pack.mjs"),
+      "utf8",
+    );
+    const body = source.slice(source.indexOf("function rowToPack"));
+    const consumed = new Set(
+      [...body.slice(0, body.indexOf("\n}")).matchAll(/row\.([a-z_]+)/g)].map((m) => m[1]),
+    );
+    assert.ok(consumed.size >= 8, "expected rowToPack to read the pack columns");
+    const selected = new Set(PACK_COLUMNS.split(",").map((c) => c.trim()));
+    for (const col of consumed) {
+      assert.ok(selected.has(col), `SELECT omits ${col}, which rowToPack reads`);
+    }
+  });
+
+  it("round-trips generatesFixtures and environment through an injected Neon row", async () => {
+    const envMap = { DATABASE_URL: "postgres://user:pw@ep-x.neon.tech/neondb" };
+    const seen = [];
+    const query = async (sql, params) => {
+      seen.push(sql);
+      if (!/^SELECT/.test(sql.trim())) return { rows: [] };
+      return {
+        rows: [
+          {
+            city_key: "template-city",
+            jurisdiction_fips: null,
+            display_name: "Template city",
+            access_policy: "public-free",
+            lenses: ["city-manager"],
+            granted_adapters: [],
+            notes: "stored row",
+            environment: "demo",
+            generates_fixtures: true,
+          },
+        ],
+      };
+    };
+    const pack = await getCityPack("template-city", envMap, { query });
+    assert.equal(pack.generatesFixtures, true, "stored true must survive the read");
+    assert.equal(pack.environment, "demo");
+    const select = seen.find((s) => /^SELECT/.test(s.trim()));
+    assert.match(select, /generates_fixtures/);
+    assert.match(select, /environment/);
   });
 });

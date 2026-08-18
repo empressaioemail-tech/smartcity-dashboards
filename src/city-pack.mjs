@@ -124,6 +124,17 @@ function packParams(pack) {
   ];
 }
 
+/**
+ * The one column list the read path uses, kept beside rowToPack because they
+ * have to agree. They did not: the write path learned `environment` and
+ * `generates_fixtures` while both SELECTs kept their old explicit lists, so a
+ * stored pack came back with generatesFixtures false no matter what the row
+ * said. Nothing local caught it, because a local run has no DSN and never
+ * takes the SQL path at all.
+ */
+export const PACK_COLUMNS =
+  "city_key, jurisdiction_fips, display_name, access_policy, lenses, granted_adapters, notes, environment, generates_fixtures";
+
 function rowToPack(row) {
   const pack = {
     cityKey: row.city_key,
@@ -170,7 +181,7 @@ export async function listCityPacks(envMap = process.env, deps = {}) {
     await ensureCityPacksTable(envMap, deps);
     const result = await runQuery(
       envMap,
-      `SELECT city_key, jurisdiction_fips, display_name, access_policy, lenses, granted_adapters, notes
+      `SELECT ${PACK_COLUMNS}
          FROM city_packs
         ORDER BY city_key`,
       [],
@@ -186,7 +197,7 @@ export async function getCityPack(cityKey, envMap = process.env, deps = {}) {
     await ensureCityPacksTable(envMap, deps);
     const result = await runQuery(
       envMap,
-      `SELECT city_key, jurisdiction_fips, display_name, access_policy, lenses, granted_adapters, notes
+      `SELECT ${PACK_COLUMNS}
          FROM city_packs
         WHERE city_key = $1`,
       [cityKey],
