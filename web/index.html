@@ -15,8 +15,8 @@
       <div class="cp-recede" id="cp-recede">
         <header class="shell-top">
           <button type="button" class="btn btn-ghost menu-btn" id="menu-btn" aria-label="Open menu">Menu</button>
-          <span class="seal">CT</span>
-          <span class="brandcity">City of Template <span>· TX</span></span>
+          <span class="seal" id="city-seal"></span>
+          <span class="brandcity"><data data-pack-name>This city</data> <span id="brand-state" hidden style="display:none"></span></span>
           <span class="env demo" id="env-badge">Demo</span>
           <div class="grow"></div>
           <div class="searchwrap">
@@ -27,7 +27,7 @@
           <span class="t-caption" id="record-search-note" hidden>Record search is not built. Its home is Work, Records search.</span>
           <button type="button" class="cp-source" id="cp-source" aria-expanded="false" aria-controls="cp-sheet">
             <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M10.4 5.6L9 9 5.6 10.4 7 7z"/></svg>
-            <span class="cp-src-l"><b>Compass</b><em id="cp-source-scope">Template · Overview</em></span>
+            <span class="cp-src-l"><b>Compass</b><em id="cp-source-scope">This city · Overview</em></span>
           </button>
         </header>
 
@@ -58,14 +58,14 @@
               <a class="navitem roster" data-work="people" href="/?work=people">People and access<span class="grow"></span><span class="badge">Not built</span></a>
             </div>
             <div class="nav-foot">
-              <a class="prov" href="/?work=connections"><b id="nav-sources">1 of 12 sources connected</b> <span class="sep">|</span> template-city</a>
+              <a class="prov" href="/?work=connections"><b id="nav-sources">Sources not read</b> <span class="sep">|</span> <span data-pack-key>this pack</span> <span id="nav-sources-rule">no grant count has been read for this pack</span></a>
             </div>
           </nav>
 
           <main class="shell-main">
-            <section class="lens on" id="lens-city-manager" data-city-key="template-city">
+            <section class="lens on" id="lens-city-manager">
               <header class="pagehead">
-                <div class="crumb"><b>City of Template</b> <span>/</span> Overview</div>
+                <div class="crumb"><b data-pack-name>This city</b> <span>/</span> Overview</div>
                 <div class="titlerow">
                   <h1>Overview</h1>
                   <span class="pill p-quiet">Empty</span>
@@ -84,9 +84,9 @@
                     <div class="panel-head"><span class="t">What needs you today</span><span class="grow"></span><span class="t-caption">Decision queue</span></div>
                     <div class="state">
                       <span class="st-k">No live operations</span>
-                      <h5>No decisions are waiting on template-city.</h5>
-                      <p>This queue would list items that need a call across connected departments. No operations feed is granted on template-city, so there is nothing to resolve here.</p>
-                      <span class="basis">Basis: no operations grant on cityKey template-city. Gold parcel 48021:34137 is a demo fixture, not a city onboarded.</span>
+                      <h5>No decisions are waiting on <span data-pack-key>this pack</span>.</h5>
+                      <p>This queue would list items that need a call across connected departments. No operations feed is granted on <span data-pack-key>this pack</span>, so there is nothing to resolve here.</p>
+                      <span class="basis">Basis: no operations grant on cityKey <span data-pack-key>this pack</span>. Gold parcel 48021:34137 is a demo fixture, not a city onboarded.</span>
                     </div>
                   </div>
                   <div class="panel" id="overview-meetings">
@@ -94,8 +94,8 @@
                     <div class="state" id="overview-meetings-state">
                       <span class="st-k">Calendar unread</span>
                       <h5>No meeting packet has been read.</h5>
-                      <p>Public meetings list files records from a clerk calendar grant. No clerk source is granted on template-city, so this panel stays empty rather than showing another city's sessions.</p>
-                      <span class="basis" id="overview-meetings-basis">Basis: no municode calendar grant on template-city</span>
+                      <p>Public meetings list files records from a clerk calendar grant. No clerk source is granted on <span data-pack-key>this pack</span>, so this panel stays empty rather than showing another city's sessions.</p>
+                      <span class="basis" id="overview-meetings-basis">Basis: no clerk calendar grant has been read for this pack</span>
                     </div>
                     <div class="panel-body flush" id="overview-meetings-list" hidden></div>
                   </div>
@@ -155,7 +155,7 @@
 
             <section class="lens" id="lens-development-services">
               <header class="pagehead">
-                <div class="crumb"><b id="ds-crumb-city">City of Template</b> <span>/</span> <b>Development services</b> <span>/</span> <span id="ds-crumb">Pipeline</span></div>
+                <div class="crumb"><b id="ds-crumb-city" data-pack-name>This city</b> <span>/</span> <b>Development services</b> <span>/</span> <span id="ds-crumb">Pipeline</span></div>
                 <div class="titlerow">
                   <h1>Development services</h1>
                   <span class="pill p-quiet" id="ds-state-chip">Empty</span>
@@ -284,7 +284,7 @@
 
             <section class="lens" id="lens-finance">
               <header class="pagehead">
-                <div class="crumb"><b>City of Template</b> <span>/</span> Finance</div>
+                <div class="crumb"><b data-pack-name>This city</b> <span>/</span> Finance</div>
                 <div class="titlerow">
                   <h1>Finance</h1>
                   <span class="pill p-quiet">Empty</span>
@@ -336,7 +336,7 @@
                       <h1>Near you</h1>
                       <span class="pill p-restricted">Preview</span>
                     </div>
-                    <p>See what is happening around an address in Template. Nothing here requires an account. This is a public lens, not a separate product.</p>
+                    <p>See what is happening around an address in <span data-pack-name>this city</span>. Nothing here requires an account. This is a public lens, not a separate product.</p>
                   </div>
                   <div class="panel">
                     <div class="panel-head"><span class="t">Look up an address</span><span class="grow"></span><span class="pill p-quiet">Not built</span></div>
@@ -376,7 +376,7 @@
 
             <section class="lens roster-lens" id="lens-public-works">
               <header class="pagehead">
-                <div class="crumb"><b>City of Template</b> <span>/</span> Public works</div>
+                <div class="crumb"><b data-pack-name>This city</b> <span>/</span> Public works</div>
                 <div class="titlerow"><h1>Public works</h1><span class="pill p-quiet">Not built</span></div>
               </header>
               <div class="shell-regions solo">
@@ -403,7 +403,7 @@
 
             <section class="lens roster-lens" id="lens-parks">
               <header class="pagehead">
-                <div class="crumb"><b>City of Template</b> <span>/</span> Parks</div>
+                <div class="crumb"><b data-pack-name>This city</b> <span>/</span> Parks</div>
                 <div class="titlerow"><h1>Parks</h1><span class="pill p-quiet">Not built</span></div>
               </header>
               <div class="shell-regions solo">
@@ -420,7 +420,7 @@
 
             <section class="lens roster-lens" id="lens-police">
               <header class="pagehead">
-                <div class="crumb"><b>City of Template</b> <span>/</span> Police</div>
+                <div class="crumb"><b data-pack-name>This city</b> <span>/</span> Police</div>
                 <div class="titlerow"><h1>Police</h1><span class="pill p-quiet">Not built</span></div>
               </header>
               <div class="shell-regions solo">
@@ -446,7 +446,7 @@
 
             <section class="lens roster-lens" id="lens-fire-ems">
               <header class="pagehead">
-                <div class="crumb"><b>City of Template</b> <span>/</span> Fire and EMS</div>
+                <div class="crumb"><b data-pack-name>This city</b> <span>/</span> Fire and EMS</div>
                 <div class="titlerow"><h1>Fire and EMS</h1><span class="pill p-quiet">Not built</span></div>
               </header>
               <div class="shell-regions solo">
@@ -472,7 +472,7 @@
 
             <section class="lens roster-lens" id="lens-fleet">
               <header class="pagehead">
-                <div class="crumb"><b>City of Template</b> <span>/</span> Fleet</div>
+                <div class="crumb"><b data-pack-name>This city</b> <span>/</span> Fleet</div>
                 <div class="titlerow"><h1>Fleet</h1><span class="pill p-quiet">Not built</span></div>
               </header>
               <div class="shell-regions solo">
@@ -498,7 +498,7 @@
 
             <section class="lens" id="work-review">
               <header class="pagehead">
-                <div class="crumb"><b>City of Template</b> <span>/</span> Plan review</div>
+                <div class="crumb"><b data-pack-name>This city</b> <span>/</span> Plan review</div>
                 <div class="titlerow">
                   <h1>Plan review</h1>
                   <span class="pill p-restricted">Preview</span>
@@ -526,7 +526,7 @@
 
             <section class="lens" id="work-files">
               <header class="pagehead">
-                <div class="crumb"><b>City of Template</b> <span>/</span> Files</div>
+                <div class="crumb"><b data-pack-name>This city</b> <span>/</span> Files</div>
                 <div class="titlerow">
                   <h1>Files</h1>
                   <span class="pill p-restricted">Preview</span>
@@ -554,7 +554,7 @@
 
             <section class="lens" id="work-records">
               <header class="pagehead">
-                <div class="crumb"><b>City of Template</b> <span>/</span> Records search</div>
+                <div class="crumb"><b data-pack-name>This city</b> <span>/</span> Records search</div>
                 <div class="titlerow"><h1>Records search</h1><span class="pill p-quiet">Not built</span></div>
               </header>
               <div class="shell-regions solo">
@@ -571,7 +571,7 @@
 
             <section class="lens" id="work-assets">
               <header class="pagehead">
-                <div class="crumb"><b>City of Template</b> <span>/</span> Assets</div>
+                <div class="crumb"><b data-pack-name>This city</b> <span>/</span> Assets</div>
                 <div class="titlerow">
                   <h1>Assets</h1>
                   <span class="pill p-quiet">Empty</span>
@@ -595,9 +595,9 @@
                     <div class="panel">
                       <div class="state">
                         <span class="st-k">No city-owned assets</span>
-                        <h5>No city-owned asset records for template-city.</h5>
+                        <h5>No city-owned asset records for <span data-pack-key>this pack</span>.</h5>
                         <p>This page is the inventory. Empty is the designed state. A truck on a vendor feed is not a city asset record, so nothing is painted here to look populated.</p>
-                        <span class="basis">Basis: G-24 stays zero. No hydrant, fleet, or sample inventory on template-city. Contact: city public works director.</span>
+                        <span class="basis">Basis: G-24 stays zero. No hydrant, fleet, or sample inventory on <span data-pack-key>this pack</span>. Contact: city public works director.</span>
                       </div>
                     </div>
                     <div class="panel">
@@ -639,7 +639,7 @@
                       </span>
                     </div>
                     <div class="region-foot">
-                      <span class="t-caption">Basis: zero city-owned asset records on template-city. Contact: city public works director.</span>
+                      <span class="t-caption">Basis: zero city-owned asset records on <span data-pack-key>this pack</span>. Contact: city public works director.</span>
                     </div>
                   </div>
                 </div>
@@ -691,12 +691,12 @@
 
             <section class="lens" id="work-connections">
               <header class="pagehead">
-                <div class="crumb"><b>City of Template</b> <span>/</span> Connections</div>
+                <div class="crumb"><b data-pack-name>This city</b> <span>/</span> Connections</div>
                 <div class="titlerow">
                   <h1>Connections</h1>
                   <span class="pill p-restricted">Register</span>
                   <span class="grow"></span>
-                  <span class="prov"><b id="connections-sources">1 of 12 sources connected</b></span>
+                  <span class="prov"><b id="connections-sources">1 of 12 sources connected</b> <span class="sep">|</span> feeds table of this register, product wide</span>
                 </div>
                 <p class="lede">Every staff job has a named home. A home is a nav item, a tab, a City page, or a killed or island ruling. A feed is not a home.</p>
               </header>
@@ -784,7 +784,7 @@
 
             <section class="lens" id="work-people">
               <header class="pagehead">
-                <div class="crumb"><b>City of Template</b> <span>/</span> People and access</div>
+                <div class="crumb"><b data-pack-name>This city</b> <span>/</span> People and access</div>
                 <div class="titlerow"><h1>People and access</h1><span class="pill p-quiet">Not built</span></div>
               </header>
               <div class="shell-regions solo">
@@ -823,8 +823,8 @@
             <button type="button" class="btn btn-ghost btn-sm" id="cp-close">Close</button>
           </div>
           <div class="cp-scope">
-            <span class="prov"><b id="cp-scope-city">City of Template</b> <span class="sep">|</span> <span id="cp-scope-lens">Overview</span></span>
-            <span class="env demo">Demo</span>
+            <span class="prov"><b id="cp-scope-city" data-pack-name>This city</b> <span class="sep">|</span> <span id="cp-scope-lens">Overview</span></span>
+            <span class="env demo" id="cp-env-badge">Demo</span>
           </div>
           <div class="cp-thread">
             <p class="cp-turn">Compass follows the current city and lens. It is a source control, not a page and not a route.</p>

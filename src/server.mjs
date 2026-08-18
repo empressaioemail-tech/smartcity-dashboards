@@ -8,6 +8,7 @@ import { readMounts, smartsiteEmbedUrl, planReviewEmbedUrl, smartFilesEmbedUrl, 
 import { composeCityManager } from "./compose.mjs";
 import { listAdapterKinds } from "./adapters.mjs";
 import { composePipeline } from "./fixtures.mjs";
+import { cityIdentity } from "./city-identity.mjs";
 import { runMunicodeCalendar } from "./municode-calendar.mjs";
 import { loadDotenv } from "./load-env.mjs";
 import { pingDb } from "./db.mjs";
@@ -143,6 +144,34 @@ async function handle(req, res) {
       return;
     }
     json(res, 200, composePipeline(pack));
+    return;
+  }
+
+  /**
+   * The chrome's identity for the active pack.
+   *
+   * Gated on packContentReadStatus, not packReadStatus: identity is CONTENT.
+   * canReadPack answers the enumeration question and for a public-free pack
+   * falls through to "is a service key configured", which is deployment posture
+   * rather than access policy, and which is exactly how G-78 shipped a demo
+   * that refused its own records to the anonymous visitor it exists for.
+   * Enumeration through /api/city-packs stays on canReadPack and stays shut.
+   * A tenant-private pack still refuses an anonymous caller here.
+   */
+  if (req.method === "GET" && url.pathname === "/api/city-identity") {
+    const caller = await resolveCaller(req);
+    const cityKey = url.searchParams.get("cityKey") || "template-city";
+    const pack = await getCityPack(cityKey);
+    const status = packContentReadStatus(pack, caller);
+    if (status === 404) {
+      json(res, 404, { error: "unknown city pack" });
+      return;
+    }
+    if (status !== 200) {
+      json(res, status, { error: status === 401 ? "unauthorized" : "forbidden" });
+      return;
+    }
+    json(res, 200, { identity: cityIdentity(pack) });
     return;
   }
 

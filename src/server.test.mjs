@@ -157,7 +157,7 @@ describe("HTTP surface", () => {
     const base = `http://127.0.0.1:${port}`;
     const assets = await (await fetch(`${base}/?work=assets`)).text();
     assert.match(assets, /id="work-assets"/);
-    assert.match(assets, /No city-owned asset records for template-city/);
+    assert.match(assets, /No city-owned asset records for <span data-pack-key>/);
     assert.equal(assets.includes("$0"), false);
     const connections = await (await fetch(`${base}/?work=connections`)).text();
     assert.match(connections, /id="work-connections"/);
@@ -224,6 +224,66 @@ describe("HTTP surface", () => {
       assert.equal(tenantPrivate.status, 401);
     } finally {
       delete process.env.DASHBOARDS_API_KEY;
+    }
+  });
+
+  /**
+   * G-80, same production condition as the guard above and for the same reason.
+   * The chrome's identity read is a CONTENT read of a public-free pack, so it
+   * must answer the anonymous visitor on the deployed service, where the key is
+   * set, not only on a local run where it is unset and the gate falls open. If
+   * this went through the enumeration gate the top bar would resolve locally and
+   * hold its fallback in production, which is the shape of the last two
+   * divergences wearing different clothes.
+   */
+  it("resolves pack identity for an anonymous caller with DASHBOARDS_API_KEY set", async () => {
+    process.env.DASHBOARDS_API_KEY = "scaffold-test-key";
+    try {
+      const base = `http://127.0.0.1:${port}`;
+      const template = await fetch(`${base}/api/city-identity?cityKey=template-city`);
+      assert.equal(template.status, 200);
+      const t = (await template.json()).identity;
+      assert.equal(t.cityKey, "template-city");
+      assert.equal(t.displayName, "Template city");
+      assert.equal(t.seal, "TC");
+      assert.equal(t.environmentBadge, "Demo");
+      assert.equal(t.stateCode, null);
+      assert.equal(t.sources.label, "0 of 7 sources granted");
+      assert.match(t.sources.rule, /distinct adapter kinds granted on this pack/);
+      assert.equal(t.documentTitle, "Template city · SmartCity Dashboards");
+
+      const empty = await fetch(`${base}/api/city-identity?cityKey=empty-city`);
+      assert.equal(empty.status, 200);
+      const e = (await empty.json()).identity;
+      assert.equal(e.displayName, "Empty city");
+      assert.equal(e.seal, "EC");
+      // The whole point of the card: a pack switch is a whole switch.
+      assert.notEqual(e.displayName, t.displayName);
+      assert.notEqual(e.seal, t.seal);
+      assert.notEqual(e.documentTitle, t.documentTitle);
+
+      // Tenant-private still refuses, enumeration still shut, unknown is 404.
+      const tenantPrivate = await fetch(`${base}/api/city-identity?cityKey=fixture-city`);
+      assert.equal(tenantPrivate.status, 401);
+      const unknown = await fetch(`${base}/api/city-identity?cityKey=no-such-city`);
+      assert.equal(unknown.status, 404);
+      const list = await fetch(`${base}/api/city-packs`);
+      assert.equal(list.status, 401);
+
+      // A tenant subject reads its own tenant-private pack's identity.
+      process.env.HAUSKA_TENANT_KEYS = JSON.stringify({ "hauska-fixture": "fixture-city" });
+      const asTenant = await fetch(`${base}/api/city-identity?cityKey=fixture-city`, {
+        headers: { "x-hauska-key": "hauska-fixture" },
+      });
+      assert.equal(asTenant.status, 200);
+      assert.equal((await asTenant.json()).identity.displayName, "Fixture city");
+      const wrongTenant = await fetch(`${base}/api/city-identity?cityKey=fixture-city`, {
+        headers: { "x-hauska-key": "not-a-key" },
+      });
+      assert.equal(wrongTenant.status, 401);
+    } finally {
+      delete process.env.DASHBOARDS_API_KEY;
+      delete process.env.HAUSKA_TENANT_KEYS;
     }
   });
 

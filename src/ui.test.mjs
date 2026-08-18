@@ -64,8 +64,13 @@ describe("G-66 four-lens shell", () => {
   });
 
   it("keeps demo identity on template-city and does not leak live ops names", () => {
-    assert.match(html, /data-city-key="template-city"/);
-    assert.match(html, /cityKey template-city/);
+    /**
+     * G-80 moved the city key off the markup. It was a baked attribute and a
+     * baked basis line, both of which named template-city on every pack; the
+     * shell now carries the resolved key and the basis reads a pack hook.
+     */
+    assert.match(app, /shell\.dataset\.cityKey = key/);
+    assert.match(html, /cityKey <span data-pack-key>/);
     assert.match(html, /48021:34137/);
     assert.match(html, /Demo fixture/);
     assert.equal(html.includes("Bastrop"), false);
@@ -105,7 +110,7 @@ describe("G-66 four-lens shell", () => {
     assert.equal(html.includes('class="navitem unbuilt">Assets'), false);
     assert.match(html, /id="work-assets"/);
     assert.match(html, /id="work-connections"/);
-    assert.match(html, /No city-owned asset records for template-city/);
+    assert.match(html, /No city-owned asset records for <span data-pack-key>/);
     assert.match(html, /G-24 stays zero/);
     assert.equal(html.includes("sample inventory presented"), false);
     assert.equal(/\bSamsara\b/.test(html.match(/id="work-assets"[\s\S]*?id="work-connections"/)?.[0] || ""), false);
@@ -433,7 +438,7 @@ describe("G-77 fixture pack on Development services", () => {
   });
 
   it("keeps G-24 at zero and grants nothing on any pack", () => {
-    assert.match(html, /No city-owned asset records for template-city/);
+    assert.match(html, /No city-owned asset records for <span data-pack-key>/);
     // Generation is server side. The browser renders records, never invents them.
     assert.equal(/generatePipelineRecords|composePipeline/.test(app), false);
     // The one asset row on this lens stays an honest Empty, on every pack.
