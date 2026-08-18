@@ -19,6 +19,37 @@ a { color: var(--sc-accent); }
   border-radius: 3px;
 }
 
+/* ---------- the hidden attribute ---------- */
+
+/* The kit gives .pill, .prov, .state, .metric and a dozen others an explicit
+   display, and an author declaration of equal or greater weight beats the
+   user-agent [hidden] rule. So el.hidden = true was inert on exactly the
+   components most likely to be shown conditionally, and it shipped: an amber
+   Partial pill rendered beside the words "No meeting packet has been read".
+   Two components had already bought their way out one selector at a time
+   (.stage and .stage-esc each carried a private [hidden] patch, both deleted
+   with this rule). A third would have followed, then a fourth.
+
+   Why this form. An attribute selector and a class both score one, so [hidden]
+   and .pill tie and source order decides the winner; doubling the attribute to
+   raise the score beats one class but ties .lens.on and loses to any future
+   rule carrying three. Every specificity answer is a bet on where the next
+   component rule lands in this file, and that bet is the thing this card is
+   here to retire. An important author declaration is the only form that wins
+   over every normal author declaration whatever its specificity and wherever
+   it sits, and over a normal inline style as well, so this rule holds without
+   knowing anything about the rest of the stylesheet.
+
+   The :not() leaves hidden="until-found" alone, because the user-agent sheet
+   gives that value content-visibility rather than display: none. The rule
+   restores the platform default at a weight components cannot accidentally
+   override; it does not invent a stronger one. No markup here uses that value
+   today, and this keeps the day it does from being a surprise.
+
+   Guarded by src/hidden-rule.test.mjs, which also fails if a per-component
+   [hidden] patch reappears. */
+[hidden]:not([hidden="until-found" i]) { display: none !important; }
+
 /* ---------- type ---------- */
 
 .t-label {
@@ -701,7 +732,6 @@ a.prov:hover { border-color: var(--sc-line-strong); background: var(--sc-surface
   transform-origin: 0 0;
   will-change: transform;
 }
-.stage[hidden] { display: none; }
 .stage.doc { background: var(--sc-doc-ground); }
 .stage > iframe {
   position: absolute;
@@ -729,7 +759,6 @@ a.prov:hover { border-color: var(--sc-line-strong); background: var(--sc-surface
   gap: var(--sc-2);
 }
 .stage-esc .prov { background: var(--sc-surface); }
-.stage-esc[hidden] { display: none; }
 .mount-note b { display: block; color: var(--sc-ink-2); }
 .mount-note { max-width: 46ch; margin: 0 auto; }
 
