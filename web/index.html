@@ -90,7 +90,7 @@
                     </div>
                   </div>
                   <div class="panel" id="overview-meetings">
-                    <div class="panel-head"><span class="t">Public meetings</span><span class="grow"></span><span class="prov"><b>City clerk calendar</b> <span class="sep">|</span> <span id="overview-meetings-conn">unread</span></span><span class="pill p-warn" id="overview-meetings-honesty" hidden>Partial</span></div>
+                    <div class="panel-head"><span class="t">Public meetings</span><span class="grow"></span><span class="prov"><b>City clerk calendar</b> <span class="sep">|</span> <span id="overview-meetings-conn">unread</span></span><span class="pill p-warn" id="overview-meetings-honesty" hidden style="display:none">Partial</span></div>
                     <div class="state" id="overview-meetings-state">
                       <span class="st-k">Calendar unread</span>
                       <h5>No meeting packet has been read.</h5>
@@ -155,10 +155,10 @@
 
             <section class="lens" id="lens-development-services">
               <header class="pagehead">
-                <div class="crumb"><b>City of Template</b> <span>/</span> <b>Development services</b> <span>/</span> <span id="ds-crumb">Pipeline</span></div>
+                <div class="crumb"><b id="ds-crumb-city">City of Template</b> <span>/</span> <b>Development services</b> <span>/</span> <span id="ds-crumb">Pipeline</span></div>
                 <div class="titlerow">
                   <h1>Development services</h1>
-                  <span class="pill p-quiet">Empty</span>
+                  <span class="pill p-quiet" id="ds-state-chip">Empty</span>
                 </div>
               </header>
               <div class="tabs" role="tablist" aria-label="Development services">
@@ -172,19 +172,37 @@
               <div class="ds-tab on" id="tab-pipeline">
                 <div class="shell-regions solo">
                   <div class="colstack">
-                    <div class="metrics">
-                      <div class="metric"><span class="k">Overdue</span><span class="v word">Not read</span><span class="n">No permit source</span></div>
-                      <div class="metric"><span class="k">In review</span><span class="v word">Not read</span><span class="n">No permit source</span></div>
-                      <div class="metric"><span class="k">Awaiting applicant</span><span class="v word">Not read</span><span class="n">No permit source</span></div>
-                      <div class="metric"><span class="k">Ready to issue</span><span class="v word">Not read</span><span class="n">No permit source</span></div>
+                    <div class="metrics" id="ds-metrics">
+                      <div class="metric" data-metric="overdue"><span class="k">Overdue</span><span class="v word">Not read</span><span class="n">No permit source</span></div>
+                      <div class="metric" data-metric="in-review"><span class="k">In review</span><span class="v word">Not read</span><span class="n">No permit source</span></div>
+                      <div class="metric" data-metric="awaiting-applicant"><span class="k">Awaiting applicant</span><span class="v word">Not read</span><span class="n">No permit source</span></div>
+                      <div class="metric" data-metric="ready-to-issue"><span class="k">Ready to issue</span><span class="v word">Not read</span><span class="n">No permit source</span></div>
                     </div>
                     <div class="panel">
-                      <div class="panel-head"><span class="t">Pipeline</span><span class="grow"></span><span class="t-caption">Cases in flight</span></div>
-                      <div class="state">
+                      <div class="panel-head"><span class="t">Pipeline</span><span class="grow"></span><span class="pill p-warn" id="ds-pipeline-mark" hidden style="display:none">Demo records</span><span class="prov" id="ds-pipeline-prov" hidden style="display:none"><b>Generated fixture</b><span class="sep">|</span>MyGov output contract</span><span class="t-caption" id="ds-pipeline-caption">Cases in flight</span></div>
+                      <div class="state" id="ds-pipeline-empty">
                         <span class="st-k">Pipeline unread</span>
-                        <h5>No cases are in flight on template-city.</h5>
-                        <p>The queue is first-class once a permit source is granted. Until then this tab stays empty. Stage names are not invented, and no internal routing is shown.</p>
-                        <span class="basis">Basis: no adapter granted on template-city</span>
+                        <h5 id="ds-pipeline-empty-head">No cases are in flight on this pack.</h5>
+                        <p>The queue is first-class once a permit source is granted or the pack generates records. Until then this tab stays empty. Stage names are not invented, and no internal routing is shown.</p>
+                        <span class="basis" id="ds-pipeline-empty-basis">Basis: no adapter granted and no records generated</span>
+                      </div>
+                      <div id="ds-pipeline-records" hidden>
+                        <table class="dt">
+                          <thead>
+                            <tr>
+                              <th scope="col">Case</th>
+                              <th scope="col">Subject</th>
+                              <th scope="col">Stage</th>
+                              <th scope="col">Place</th>
+                              <th scope="col">Due</th>
+                              <th scope="col">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody id="ds-pipeline-rows"></tbody>
+                        </table>
+                        <div class="panel-body">
+                          <span class="basis" id="ds-pipeline-basis">Basis: generated fixture records</span>
+                        </div>
                       </div>
                     </div>
                   </div>

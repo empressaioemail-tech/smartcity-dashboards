@@ -7,6 +7,7 @@ import { listCityPacks, getCityPack, getPacksStore, ensureCityPacksTable } from 
 import { readMounts, smartsiteEmbedUrl, planReviewEmbedUrl, smartFilesEmbedUrl, assertNoSupplierDsn, assertNoSupplierMounts } from "./mounts.mjs";
 import { composeCityManager } from "./compose.mjs";
 import { listAdapterKinds } from "./adapters.mjs";
+import { composePipeline } from "./fixtures.mjs";
 import { runMunicodeCalendar } from "./municode-calendar.mjs";
 import { loadDotenv } from "./load-env.mjs";
 import { pingDb } from "./db.mjs";
@@ -119,6 +120,27 @@ async function handle(req, res) {
       caller,
     });
     json(res, 200, composed);
+    return;
+  }
+
+  /**
+   * Registered before the generic lens handler on purpose: /api/lenses/ swallows
+   * anything under it, and the compose route above learned that the hard way.
+   */
+  if (req.method === "GET" && url.pathname === "/api/lenses/development-services/pipeline") {
+    const caller = await resolveCaller(req);
+    const cityKey = url.searchParams.get("cityKey") || "template-city";
+    const pack = await getCityPack(cityKey);
+    const status = packReadStatus(pack, caller);
+    if (status === 404) {
+      json(res, 404, { error: "unknown city pack" });
+      return;
+    }
+    if (status !== 200) {
+      json(res, status, { error: status === 401 ? "unauthorized" : "forbidden" });
+      return;
+    }
+    json(res, 200, composePipeline(pack));
     return;
   }
 

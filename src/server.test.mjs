@@ -70,9 +70,16 @@ describe("HTTP surface", () => {
     assert.equal(lenses.lenses[3].id, "citizen");
 
     const packs = await (await fetch(`${base}/api/city-packs`)).json();
-    assert.equal(packs.cityPacks.length, 1);
-    assert.equal(packs.cityPacks[0].cityKey, "template-city");
-    assert.equal(packs.cityPacks[0].grantedAdapterCount, 0);
+    // Two public-free packs are now visible anonymously: the fixture pack and
+    // the honest-empty pack. fixture-city stays tenant-private and invisible.
+    assert.equal(packs.cityPacks.length, 2);
+    assert.deepEqual(
+      packs.cityPacks.map((p) => p.cityKey).sort(),
+      ["empty-city", "template-city"],
+    );
+    for (const pack of packs.cityPacks) {
+      assert.equal(pack.grantedAdapterCount, 0, pack.cityKey);
+    }
     const template = await (await fetch(`${base}/api/city-packs/template-city`)).json();
     assert.deepEqual(template.cityPack.grantedAdapters, []);
     const fixtureAnon = await fetch(`${base}/api/city-packs/fixture-city`);
@@ -252,6 +259,70 @@ describe("HTTP surface", () => {
       delete process.env.DASHBOARDS_API_KEY;
       delete process.env.HAUSKA_TENANT_KEYS;
     }
+  });
+
+  it("serves the Development services pipeline from the pack's records dimension", async () => {
+    delete process.env.DASHBOARDS_API_KEY;
+    const base = `http://127.0.0.1:${port}`;
+    const res = await fetch(
+      `${base}/api/lenses/development-services/pipeline?cityKey=template-city`,
+    );
+    assert.equal(res.status, 200);
+    const pipeline = await res.json();
+    assert.equal(pipeline.lensId, "development-services");
+    assert.equal(pipeline.cityKey, "template-city");
+    assert.equal(pipeline.generated, true);
+    assert.equal(pipeline.environment, "demo");
+    assert.equal(pipeline.kind, "mygov");
+    assert.equal(pipeline.recordType, "permit-case");
+    assert.equal(pipeline.records.length, 14);
+    assert.equal(pipeline.recordCount, 14);
+    // Labelling gate item 2 survives the wire: a record that leaves the surface
+    // still says it is a fixture.
+    for (const record of pipeline.records) {
+      assert.equal(record.origin, "fixture", record.recordId);
+      assert.equal(record.fixture, true, record.recordId);
+      assert.match(record.fixtureBasis, /\S/);
+    }
+    const tiles = pipeline.metrics.reduce((sum, m) => sum + m.count, 0);
+    assert.equal(tiles, pipeline.records.length);
+    assert.deepEqual(
+      pipeline.metrics.map((m) => `${m.id}=${m.count}`),
+      ["overdue=3", "in-review=5", "awaiting-applicant=4", "ready-to-issue=2"],
+    );
+    const body = JSON.stringify(pipeline);
+    assert.equal(body.includes("$"), false);
+    assert.equal(/bastrop/i.test(body), false);
+    assert.equal(/\b\d{5}:[A-Za-z0-9._-]+\b/.test(body), false);
+  });
+
+  it("keeps empty-city honest-empty and gates fixture-city and an unknown pack", async () => {
+    delete process.env.DASHBOARDS_API_KEY;
+    const base = `http://127.0.0.1:${port}`;
+    const emptyRes = await fetch(
+      `${base}/api/lenses/development-services/pipeline?cityKey=empty-city`,
+    );
+    assert.equal(emptyRes.status, 200);
+    const empty = await emptyRes.json();
+    assert.equal(empty.generated, false);
+    assert.equal(empty.status, "empty");
+    assert.deepEqual(empty.records, []);
+    assert.match(empty.basis, /empty-city generates no records/);
+    for (const metric of empty.metrics) assert.equal(metric.count, 0);
+
+    const tenant = await fetch(
+      `${base}/api/lenses/development-services/pipeline?cityKey=fixture-city`,
+    );
+    assert.equal(tenant.status, 401);
+    const unknown = await fetch(
+      `${base}/api/lenses/development-services/pipeline?cityKey=no-such-city`,
+    );
+    assert.equal(unknown.status, 404);
+    // The pipeline route sits above the generic lens handler and does not eat it.
+    const lens = await fetch(`${base}/api/lenses/development-services`);
+    assert.equal(lens.status, 200);
+    const lensBody = await lens.json();
+    assert.equal(lensBody.lens.id, "development-services");
   });
 
   it("registers city-manager compose before the generic lens handler and honest-empties without retrieval", async () => {

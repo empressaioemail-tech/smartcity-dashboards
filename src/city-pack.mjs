@@ -6,15 +6,42 @@ import { assertGrantedAdapterShape } from "./adapters.mjs";
 const memoryPacks = new Map();
 const ACCESS_POLICIES = new Set(["public-free", "tenant-private"]);
 
+/**
+ * The environment badge states, 30b section 3.1. Three identities must never
+ * render alike, which is the whole reason the badge exists.
+ */
+export const ENVIRONMENTS = new Set(["demo", "live", "staging"]);
+
 export const TEMPLATE_CITY = {
   cityKey: "template-city",
   jurisdictionFips: null,
   displayName: "Template city",
   accessPolicy: "public-free",
+  environment: "demo",
+  generatesFixtures: true,
   lenses: LEAD_LENSES.map((l) => l.id),
   grantedAdapters: [],
   notes:
-    "Public template pack. No clerk calendar grant. Bastrop is not this pack. Cutover is a later WDLL.",
+    "Public fixture pack. Records are generated from the adapter output contracts and marked fixture in the payload. No clerk calendar grant. Bastrop is not this pack. Cutover is a later WDLL.",
+};
+
+/**
+ * The honest-empty demonstration template-city used to carry. It exists so the
+ * absence states stay reachable and testable instead of becoming unreachable
+ * code once template-city starts generating records, per
+ * _decisions/2026-08-18_template_city_becomes_fixture_city.md.
+ */
+export const EMPTY_CITY = {
+  cityKey: "empty-city",
+  jurisdictionFips: null,
+  displayName: "Empty city",
+  accessPolicy: "public-free",
+  environment: "demo",
+  generatesFixtures: false,
+  lenses: LEAD_LENSES.map((l) => l.id),
+  grantedAdapters: [],
+  notes:
+    "The unconnected city. Generates nothing, grants nothing, and states every absence with a basis.",
 };
 
 export const FIXTURE_CITY = {
@@ -22,13 +49,16 @@ export const FIXTURE_CITY = {
   jurisdictionFips: null,
   displayName: "Fixture city",
   accessPolicy: "tenant-private",
+  environment: "demo",
+  generatesFixtures: false,
   lenses: LEAD_LENSES.map((l) => l.id),
   grantedAdapters: [],
   notes:
-    "Tenant-private fixture pack. Not Bastrop. Not a connected feed. Grants stay empty.",
+    "Tenant-private tenancy test subject, not the demo. Not Bastrop. Not a connected feed. Generates nothing and grants stay empty.",
 };
 
 memoryPacks.set(TEMPLATE_CITY.cityKey, TEMPLATE_CITY);
+memoryPacks.set(EMPTY_CITY.cityKey, EMPTY_CITY);
 memoryPacks.set(FIXTURE_CITY.cityKey, FIXTURE_CITY);
 
 const CREATE_CITY_PACKS_SQL = `
@@ -39,6 +69,8 @@ CREATE TABLE IF NOT EXISTS city_packs (
   access_policy TEXT NOT NULL DEFAULT 'public-free',
   lenses JSONB NOT NULL,
   granted_adapters JSONB NOT NULL DEFAULT '[]',
+  environment TEXT NOT NULL DEFAULT 'demo',
+  generates_fixtures BOOLEAN NOT NULL DEFAULT false,
   notes TEXT,
   stored_at TIMESTAMPTZ NOT NULL DEFAULT now()
 )`;
@@ -46,16 +78,24 @@ CREATE TABLE IF NOT EXISTS city_packs (
 const ADD_ACCESS_POLICY_SQL = `
 ALTER TABLE city_packs ADD COLUMN IF NOT EXISTS access_policy TEXT NOT NULL DEFAULT 'public-free'`;
 
+const ADD_ENVIRONMENT_SQL = `
+ALTER TABLE city_packs ADD COLUMN IF NOT EXISTS environment TEXT NOT NULL DEFAULT 'demo'`;
+
+const ADD_GENERATES_FIXTURES_SQL = `
+ALTER TABLE city_packs ADD COLUMN IF NOT EXISTS generates_fixtures BOOLEAN NOT NULL DEFAULT false`;
+
 const UPSERT_PACK_SQL = `
-INSERT INTO city_packs (city_key, jurisdiction_fips, display_name, access_policy, lenses, granted_adapters, notes)
-VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7)
+INSERT INTO city_packs (city_key, jurisdiction_fips, display_name, access_policy, lenses, granted_adapters, notes, environment, generates_fixtures)
+VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7, $8, $9)
 ON CONFLICT (city_key) DO UPDATE SET
   jurisdiction_fips = EXCLUDED.jurisdiction_fips,
   display_name = EXCLUDED.display_name,
   access_policy = EXCLUDED.access_policy,
   lenses = EXCLUDED.lenses,
   granted_adapters = EXCLUDED.granted_adapters,
-  notes = EXCLUDED.notes`;
+  notes = EXCLUDED.notes,
+  environment = EXCLUDED.environment,
+  generates_fixtures = EXCLUDED.generates_fixtures`;
 
 export function getPacksStore(envMap = process.env) {
   const url = String(envMap.DATABASE_URL || "").trim();
@@ -79,6 +119,8 @@ function packParams(pack) {
     JSON.stringify(pack.lenses),
     JSON.stringify(pack.grantedAdapters),
     pack.notes,
+    pack.environment,
+    pack.generatesFixtures,
   ];
 }
 
@@ -88,6 +130,8 @@ function rowToPack(row) {
     jurisdictionFips: row.jurisdiction_fips ?? null,
     displayName: row.display_name,
     accessPolicy: row.access_policy || "public-free",
+    environment: row.environment || "demo",
+    generatesFixtures: row.generates_fixtures === true,
     lenses: row.lenses,
     grantedAdapters: row.granted_adapters ?? [],
     notes: row.notes ?? null,
@@ -102,6 +146,8 @@ function listItem(pack) {
     jurisdictionFips: pack.jurisdictionFips,
     displayName: pack.displayName,
     accessPolicy: pack.accessPolicy,
+    environment: pack.environment,
+    generatesFixtures: pack.generatesFixtures === true,
     lensCount: pack.lenses.length,
     grantedAdapterCount: pack.grantedAdapters.length,
   };
@@ -111,7 +157,10 @@ export async function ensureCityPacksTable(envMap = process.env, deps = {}) {
   assertNoSupplierDsn(envMap);
   await runQuery(envMap, CREATE_CITY_PACKS_SQL, [], deps);
   await runQuery(envMap, ADD_ACCESS_POLICY_SQL, [], deps);
+  await runQuery(envMap, ADD_ENVIRONMENT_SQL, [], deps);
+  await runQuery(envMap, ADD_GENERATES_FIXTURES_SQL, [], deps);
   await runQuery(envMap, UPSERT_PACK_SQL, packParams(TEMPLATE_CITY), deps);
+  await runQuery(envMap, UPSERT_PACK_SQL, packParams(EMPTY_CITY), deps);
   await runQuery(envMap, UPSERT_PACK_SQL, packParams(FIXTURE_CITY), deps);
   return true;
 }
@@ -149,6 +198,17 @@ export async function getCityPack(cityKey, envMap = process.env, deps = {}) {
   return memoryPacks.get(cityKey) || null;
 }
 
+/**
+ * The environment badge text for a pack, 30b section 3.1. Declared here so the
+ * shipped chrome can be tested against the rule rather than against itself:
+ * ui.test.mjs asserts the badge in web/index.html equals this for the pack it
+ * serves, which is the divergence test between the rule and its rendering.
+ */
+export function environmentBadgeLabel(pack) {
+  const env = pack && ENVIRONMENTS.has(pack.environment) ? pack.environment : "demo";
+  return { demo: "Demo", live: "Live", staging: "Staging" }[env];
+}
+
 export function assertCityPackShape(pack) {
   if (!pack || typeof pack.cityKey !== "string" || !pack.cityKey) {
     throw new Error("city pack requires cityKey");
@@ -167,6 +227,29 @@ export function assertCityPackShape(pack) {
   }
   if (!Array.isArray(pack.grantedAdapters)) {
     throw new Error("city pack requires grantedAdapters[]");
+  }
+  if (typeof pack.generatesFixtures !== "boolean") {
+    throw new Error("city pack requires generatesFixtures true or false");
+  }
+  if (!ENVIRONMENTS.has(pack.environment)) {
+    throw new Error("city pack requires environment demo, live or staging");
+  }
+  if (pack.generatesFixtures) {
+    /**
+     * Labelling gate item 1. A pack whose records are generated is a demo, and
+     * the badge is the only thing standing between a fixture and a council
+     * meeting quoting it as a real number.
+     */
+    if (pack.environment !== "demo") {
+      throw new Error("a pack that generates fixtures is environment demo");
+    }
+    /**
+     * A pack carries generated fixtures or a real city's granted records, never
+     * both. Mixing them is the identity collapse G-74 was written to close.
+     */
+    if (pack.grantedAdapters.length > 0) {
+      throw new Error("a pack that generates fixtures grants no adapter");
+    }
   }
   for (const grant of pack.grantedAdapters) {
     assertGrantedAdapterShape(grant);
