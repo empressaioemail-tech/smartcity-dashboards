@@ -31,7 +31,7 @@ import {
   SCANNED_PACKS,
   expectedTitle,
 } from "./a11y-surfaces.mjs";
-import { CONFORMANCE_TAGS, WAIVERS, summarize, verdict, waivedTotal } from "./a11y-gate.mjs";
+import { CONFORMANCE_TAGS, GATED_BEST_PRACTICE, WAIVERS, summarize, verdict, waivedTotal } from "./a11y-gate.mjs";
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = (rel) => fs.readFileSync(path.join(root, rel), "utf8").replace(/\r\n/g, "\n");
@@ -159,7 +159,7 @@ describe("G-95 the gate is proven able to fire", () => {
     assert.ok(v.reasons.some((r) => r.includes("button-name") && r.includes("no waiver")), v.reasons.join("; "));
   });
 
-  it("does NOT fire on a best-practice rule, which is not a conformance failure", () => {
+  it("does NOT fire on an unadopted best-practice rule, but still reports it", () => {
     const results = cleanResults();
     results[0].violations.push({
       id: "region",
@@ -169,12 +169,36 @@ describe("G-95 the gate is proven able to fire", () => {
       nodes: 4,
       sample: ["div"],
     });
+    assert.equal(GATED_BEST_PRACTICE.region, undefined, "this arm needs a rule the gate has NOT adopted");
     const v = judge(results);
     assert.equal(v.pass, true, v.reasons.join("; "));
     // and it is still REPORTED rather than dropped
     const s = summarize(results, AXE, "http://test");
     assert.equal(s.bestPracticeViolations.length, 1);
     assert.equal(s.bestPracticeViolations[0].nodes, 4);
+  });
+
+  it("DOES fire on a best-practice rule it has adopted by name, with its criterion", () => {
+    /**
+     * The discrimination, and it was bought by a defect. heading-order carries
+     * no wcag tag, so the verdict ignored it - and G-95 had just taken it from
+     * 15 nodes to zero. A fix with no gate rots, and the plant for it would have
+     * reported the gate passing while the gate did exactly what it said.
+     */
+    assert.ok(GATED_BEST_PRACTICE["heading-order"], "heading-order is fixed to zero and must be gated");
+    assert.match(GATED_BEST_PRACTICE["heading-order"], /1\.3\.1|2\.4\.6/, "an adopted rule states the criterion it answers");
+    const results = cleanResults();
+    results[0].violations.push({
+      id: "heading-order",
+      impact: "moderate",
+      tags: ["cat.semantics", "best-practice"],
+      help: "heading levels should only increase by one",
+      nodes: 1,
+      sample: ["h5"],
+    });
+    const v = judge(results);
+    assert.equal(v.pass, false);
+    assert.ok(v.reasons.some((r) => r.includes("heading-order")), v.reasons.join("; "));
   });
 
   it("fires when a waived rule goes ABOVE its ceiling, on either theme alone", () => {
@@ -392,8 +416,29 @@ describe("G-95 the gate is wired and cannot skip", () => {
     }
     // One per refusal class: an axe conformance rule, the waived rule's
     // ceiling, the 2.4.2 check and the 2.4.7 check.
-    for (const id of ["button-name", "color-contrast", "page-title", "focus-indicator"]) {
+    for (const id of [
+      "button-name",
+      "color-contrast",
+      "page-title",
+      "focus-indicator",
+      "unresolved-contrast",
+      "heading-order",
+    ]) {
       assert.ok(PLANTS[id], `${id} has no plant, so that refusal class has never been watched firing`);
+    }
+    /**
+     * AND THE CONVERSE, which is the check that found a real defect: a plant for
+     * a rule the verdict does not refuse on is a plant that can only ever report
+     * the gate passing. Every planted axe RULE must be one this gate actually
+     * gates - either by carrying a conformance tag, or by being adopted by name.
+     */
+    const axeRulePlants = ["heading-order", "color-contrast", "button-name", "image-alt", "scrollable-region-focusable"];
+    for (const id of axeRulePlants) {
+      const conformance = !["heading-order"].includes(id);
+      assert.ok(
+        conformance || GATED_BEST_PRACTICE[id],
+        `${id} is planted but the verdict does not refuse on it, so its plant can only ever report a pass`,
+      );
     }
   });
 

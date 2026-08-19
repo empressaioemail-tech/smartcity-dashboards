@@ -59,6 +59,31 @@ export const CONFORMANCE_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"];
  * declined on scope rather than on capability.
  * ---------------------------------------------------------------------------
  */
+/**
+ * ---------------------------------------------------------------------------
+ * BEST-PRACTICE RULES THIS GATE REFUSES ANYWAY, each with the criterion it
+ * actually answers.
+ *
+ * FOUND BY READING THE PLANT LIST AGAINST THE VERDICT, which is the check that
+ * earns a plant list. `heading-order` carries no wcag tag, so it is
+ * best-practice by this gate's own classification and the verdict ignored it -
+ * meaning the plant for it would have reported "gate PASSED, WHICH IS THE BUG"
+ * while the gate was behaving exactly as written. Either the plant was wrong or
+ * the gate was, and the gate was: G-95 took heading-order from 15 nodes to zero,
+ * and a fix with no gate rots.
+ *
+ * Named individually rather than gating all of best-practice, because most of
+ * axe's best-practice rules are opinions this product has not adopted and a gate
+ * that refuses them would be red forever, which is a dead gate (DEV_PROCESS 2.0).
+ * Each entry states the conformance criterion it is standing in for, so a reader
+ * can tell a VPAT-relevant rule from a style preference.
+ * ---------------------------------------------------------------------------
+ */
+export const GATED_BEST_PRACTICE = {
+  "heading-order":
+    "not a wcag tag in axe, but a skipped heading level misrepresents the document outline, which is what 1.3.1 Info and Relationships and 2.4.6 Headings and Labels are read against in a conformance report. Taken to zero by G-95 and gated so it stays there.",
+};
+
 export const WAIVERS = [
   {
     rule: "color-contrast",
@@ -381,6 +406,11 @@ export function verdict(summary, waivers = WAIVERS) {
     reasons.push(
       `${inc.id}: ${inc.nodes} node(s) axe could NOT SETTLE across ${new Set(inc.surfaces).size} scan(s). An unresolved conformance check is not a pass; sample ${JSON.stringify(inc.sample)}`,
     );
+  }
+  for (const v of summary.bestPracticeViolations) {
+    const why = GATED_BEST_PRACTICE[v.id];
+    if (!why) continue;
+    reasons.push(`${v.id}: ${v.nodes} node(s). ${why}`);
   }
   if (summary.titleFindings.length) reasons.push(`${summary.titleFindings.length} 2.4.2 finding(s)`);
   if (summary.focusFindings.length) reasons.push(`${summary.focusFindings.length} 2.4.7 finding(s)`);

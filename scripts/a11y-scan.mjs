@@ -87,6 +87,7 @@ import { A11Y_TARGETS, expectedTitle, PRODUCT_TITLE } from "../src/a11y-surfaces
 import { THEMES, THEME_STORAGE_KEY } from "../src/theme.mjs";
 import {
   CONFORMANCE_TAGS,
+  GATED_BEST_PRACTICE,
   WAIVERS,
   summarize,
   verdict,
@@ -627,8 +628,13 @@ function report(summary, out = process.stdout) {
   }
   w(`best-practice rules failing: ${summary.bestPracticeViolations.length}`);
   for (const v of summary.bestPracticeViolations) {
-    w(`  ${v.id.padEnd(30)} ${String(v.nodes).padStart(4)} nodes  ${v.impact}`);
+    w(
+      `  ${v.id.padEnd(30)} ${String(v.nodes).padStart(4)} nodes  ${v.impact}${
+        GATED_BEST_PRACTICE[v.id] ? "  GATED ANYWAY" : "  reported, not gated"
+      }`,
+    );
     w(`      on: ${[...new Set(v.surfaces)].join(", ")}`);
+    if (GATED_BEST_PRACTICE[v.id]) w(`      why: ${GATED_BEST_PRACTICE[v.id]}`);
   }
   w("");
   w(`2.4.2 Page Titled findings: ${summary.titleFindings.length}`);
