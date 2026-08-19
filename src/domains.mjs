@@ -3,6 +3,15 @@ import { PERMITS_PIPELINE_DOMAIN } from "./domains/permits-pipeline.mjs";
 import { WORK_ORDERS_DOMAIN } from "./domains/work-orders.mjs";
 import { FLEET_VEHICLES_DOMAIN } from "./domains/fleet-vehicles.mjs";
 import { PATROL_VEHICLES_DOMAIN } from "./domains/patrol-vehicles.mjs";
+/* G-92 wave 2, department lenses. Appended, never interleaved. */
+import { POLICE_CAMERAS_DOMAIN } from "./domains/police-cameras.mjs";
+import { FIRE_APPARATUS_DOMAIN } from "./domains/fire-apparatus.mjs";
+import { CIP_PROJECTS_DOMAIN } from "./domains/cip-projects.mjs";
+import { CALL_ANALYTICS_DOMAIN } from "./domains/call-analytics.mjs";
+/* G-92, Development services. Appended as a contiguous block. */
+import { INSPECTIONS_DOMAIN } from "./domains/inspections.mjs";
+import { CODE_VIOLATIONS_DOMAIN } from "./domains/code-violations.mjs";
+import { BUSINESS_LICENSES_DOMAIN } from "./domains/business-licenses.mjs";
 
 /* ----------------------------------------------------------- the registry
 
@@ -17,9 +26,31 @@ built, and its emptiness on a given pack is a statement about SOURCES with a
 basis attached (ruling 1, operator-approved 2026-08-19). Those are different
 sentences to a customer and this list is the line between them.
 
-Four domains, three adapter kinds, and one of them deliberately ungranted on
-template-city so the ungranted state stays reachable and testable rather than
-becoming unreachable code.
+Four domains at G-91, three adapter kinds, and one of them deliberately
+ungranted on template-city so the ungranted state stays reachable and testable
+rather than becoming unreachable code.
+
+G-92 wave 2 appends four department domains under four more kinds. spireon is
+STILL not granted on template-city and patrol-vehicles is still the ungranted
+exemplar: growing the registry must not cost the product the one region that
+proves ruling 1 is implemented rather than described.
+
+WHAT WAVE 2 COULD NOT ADD, and it is a finding rather than an omission. Parks
+facilities and Court docket have no vendor at all — the build sheet records both
+as "gates: none yet". A domain MUST declare a gatedBy that resolves to a
+catalogued adapter kind (assertDomainShape, src/fixture-seam.mjs), a pack may
+only name catalogued kinds in fixtureGrants (assertCityPackShape,
+src/city-pack.mjs), and every generated record carries the vendor id in its kind
+field. There is no vendorless path through this seam, so neither lens is
+registered here and neither is faked with an invented kind. Both therefore read
+not-registered, which is the honest state today and the wrong one tomorrow;
+src/department-domains.test.mjs pins the finding so the next lane inherits it
+measured rather than re-deriving it.
+G-92 appends the three Development services domains that close the gap against
+the MyGov system live Bastrop already runs. Additions to this list are
+CONTIGUOUS AND APPEND-ONLY, because two wave-2 lanes edit this file at once and
+an append rebases where an insertion conflicts. Order in this array is registry
+order and nothing reads it as priority.
 */
 
 export const DOMAIN_REGISTRY = Object.freeze([
@@ -27,6 +58,16 @@ export const DOMAIN_REGISTRY = Object.freeze([
   WORK_ORDERS_DOMAIN,
   FLEET_VEHICLES_DOMAIN,
   PATROL_VEHICLES_DOMAIN,
+  POLICE_CAMERAS_DOMAIN,
+  FIRE_APPARATUS_DOMAIN,
+  CIP_PROJECTS_DOMAIN,
+  CALL_ANALYTICS_DOMAIN,
+  /* G-92 Development services: the three MyGov endpoints that were modelled
+     nowhere. All gated by mygov, which template-city already demonstrates, so
+     they populate on the shipped demo pack rather than needing a new grant. */
+  INSPECTIONS_DOMAIN,
+  CODE_VIOLATIONS_DOMAIN,
+  BUSINESS_LICENSES_DOMAIN,
 ]);
 
 export function listDomains(registry = DOMAIN_REGISTRY) {

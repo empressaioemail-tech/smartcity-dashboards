@@ -179,6 +179,124 @@ export const VEHICLE_STATUS_VALUES = [
   { id: "in-service", label: "In service", severity: "ok", resolved: true },
 ];
 
+/**
+ * Devices, G-92. Cameras and doors, and the reason this is its own set rather
+ * than a reuse of VEHICLE_STATUS_VALUES is that the bands genuinely differ: a
+ * camera is never "in shop" and a vehicle is never "signal loss". Fire apparatus
+ * DOES reuse the vehicle set, and that asymmetry is deliberate and stated in
+ * src/domains/fire-apparatus.mjs where it is read.
+ */
+export const DEVICE_STATUS_VALUES = [
+  { id: "offline", label: "Offline", severity: "crit", resolved: false },
+  { id: "signal-loss", label: "Signal loss", severity: "warn", resolved: false },
+  { id: "firmware-due", label: "Firmware due", severity: "info", resolved: false },
+  { id: "online", label: "Online", severity: "ok", resolved: true },
+];
+
+/**
+ * Capital projects, G-92. A CIP register carries a PHASE beside its status, and
+ * the two are different questions: phase is where the project is in its own
+ * lifecycle, status is whether it is in trouble. Collapsing them would lose the
+ * dimension the lens exists to show.
+ */
+export const PROJECT_STATUS_VALUES = [
+  { id: "stalled", label: "Stalled", severity: "crit", resolved: false },
+  { id: "at-risk", label: "At risk", severity: "warn", resolved: false },
+  { id: "in-progress", label: "In progress", severity: "info", resolved: false },
+  { id: "complete", label: "Complete", severity: "ok", resolved: true },
+];
+
+export const PROJECT_PHASE_VALUES = ["planning", "design", "bid", "construction", "closeout"];
+/* ------------------------------------------------- G-92 development services
+
+Three more record types under the mygov kind, and the reason they are here is
+the operator's requirement rather than a shape exercise: Development services
+must match the data the PRODUCTION Bastrop dashboard displays today, because it
+monitors the MyGov system the city already runs. Live carries MyGov across
+sixteen endpoints and this product modelled two of them, permits and work
+orders. inspections, code-violations (with its stats companion) and
+business-licenses are the three that close the gap
+(_inbox/2026-08-19_template_city_lens_build_sheet.md, entry 2; tab roster in
+30c_smartcity_platform_ia.md).
+
+Each carries a QUEUE STATE and one further dimension, and the two are declared
+separately on purpose. A queue state answers "where is this in the process" and
+the dimension answers "what came of it", and folding either into the other is
+how a surface ends up unable to say that a scheduled inspection has no result
+yet - which is the same shape as the ungranted/granted-empty collapse ruling 1
+exists to close, one layer down.
+
+Every one of these blocks stays additive to the arrays above. Nothing here
+changes permits or work orders, and no feed is connected by declaring a shape.
+*/
+
+/**
+ * Inspections, the queue state. Four in-flight states matching the strip the
+ * other DS domains already declare, and the loud end is first so a renderer
+ * sorting on severity puts exceptions at the top without a second rule.
+ */
+export const INSPECTION_STATUS_VALUES = [
+  { id: "past-due", label: "Past due", severity: "crit", resolved: false },
+  { id: "unscheduled", label: "Unscheduled", severity: "warn", resolved: false },
+  { id: "scheduled", label: "Scheduled", severity: "info", resolved: false },
+  { id: "completed", label: "Completed", severity: "ok", resolved: true },
+];
+
+/**
+ * Inspections, the result dimension. A SEPARATE axis from the queue state, and
+ * not-inspected is a declared value rather than a missing field: an inspection
+ * that has not happened has a positive determination about its result, and it
+ * carries a basis on the record. A null here would read as an oversight, which
+ * is the absence-with-no-basis defect this program hunts.
+ *
+ * `inspected` is what makes the pairing testable: a completed inspection must
+ * carry an inspected result and an uncompleted one must not.
+ */
+export const INSPECTION_RESULT_VALUES = [
+  { id: "failed", label: "Failed", severity: "crit", inspected: true },
+  { id: "corrections", label: "Corrections required", severity: "warn", inspected: true },
+  { id: "passed", label: "Passed", severity: "ok", inspected: true },
+  { id: "not-inspected", label: "Not inspected", severity: "quiet", inspected: false },
+];
+
+/** Code enforcement, the case state. Live mygov/code-violations. */
+export const CODE_CASE_STATUS_VALUES = [
+  { id: "past-compliance", label: "Past compliance date", severity: "crit", resolved: false },
+  { id: "awaiting-reinspection", label: "Awaiting reinspection", severity: "warn", resolved: false },
+  { id: "notice-issued", label: "Notice issued", severity: "info", resolved: false },
+  { id: "closed-compliant", label: "Closed compliant", severity: "ok", resolved: true },
+];
+
+/**
+ * Code enforcement, the escalation dimension. An ORDERED ladder, so `step` is
+ * declared data rather than the array index: a renderer or a test that needs the
+ * order must not have to know how this array happens to be written, and a rung
+ * inserted later must not silently renumber the ones above it.
+ *
+ * No rung names money. A city's escalation ladder ends in an assessed figure and
+ * this product has read no ledger, so the record states that absence with a
+ * basis instead of printing a number it cannot stand behind.
+ */
+export const CODE_ESCALATION_VALUES = [
+  { id: "courtesy-notice", label: "Courtesy notice", step: 1, severity: "quiet" },
+  { id: "formal-notice", label: "Formal notice", step: 2, severity: "info" },
+  { id: "final-notice", label: "Final notice", step: 3, severity: "warn" },
+  { id: "hearing-referral", label: "Referred to hearing", step: 4, severity: "crit" },
+];
+
+/**
+ * Business licences, the roll state. The expiry dimension itself is banded in
+ * src/domains/business-licenses.mjs, beside the plan that produces it, for the
+ * same reason the SLA bands live beside the work-order plan: a band is derived
+ * presentation and a status is contract.
+ */
+export const LICENSE_STATUS_VALUES = [
+  { id: "expired", label: "Expired", severity: "crit", resolved: false },
+  { id: "expiring", label: "Expiring", severity: "warn", resolved: false },
+  { id: "renewal-submitted", label: "Renewal submitted", severity: "info", resolved: false },
+  { id: "active", label: "Active", severity: "ok", resolved: true },
+];
+
 export const RECORD_SHAPES = {
   mygov: {
     declared: true,
@@ -251,10 +369,142 @@ export const RECORD_SHAPES = {
     declared: false,
     basis: "meeting record shape ships in municode-calendar.mjs and is not restated here",
   },
-  firstdue: { declared: false, basis: "incident record shape is not declared on G-91" },
-  verkada: { declared: false, basis: "camera and door record shape is not declared on G-91" },
-  goto: { declared: false, basis: "call-handling record shape is not declared on G-91" },
-  powerbi: { declared: false, basis: "CIP and reporting record shape is not declared on G-91" },
+  /**
+   * G-92. Four shapes that read `declared: false` at G-91 and now carry a
+   * contract, because four department lenses generate against them.
+   *
+   * Each one declares at least one field it will NEVER carry, with a basis. That
+   * is not decoration. An optional field with a stated basis is how this table
+   * says "a granted feed has this and a generated record does not, and here is
+   * why" — the pattern samsara.operatorName established, applied to the two
+   * families that are genuinely dangerous rather than merely absent.
+   */
+  firstdue: {
+    declared: true,
+    recordType: "fire-apparatus",
+    writesTo: "files",
+    statusValues: VEHICLE_STATUS_VALUES,
+    fields: [
+      { name: "unitLabel", type: "text", required: true },
+      { name: "apparatusType", type: "text", required: true },
+      {
+        name: "status",
+        type: "enum",
+        required: true,
+        values: VEHICLE_STATUS_VALUES.map((s) => s.id),
+      },
+      { name: "stationRef", type: "text", required: true },
+      { name: "stationLabel", type: "text", required: true },
+      {
+        name: "crew",
+        type: "text",
+        required: false,
+        basis:
+          "a granted feed carries the assigned crew; a generated record names no person, because a roster of real firefighters is not a demo fixture",
+      },
+    ],
+  },
+  verkada: {
+    declared: true,
+    recordType: "camera-device",
+    writesTo: "files",
+    statusValues: DEVICE_STATUS_VALUES,
+    fields: [
+      { name: "deviceLabel", type: "text", required: true },
+      {
+        name: "status",
+        type: "enum",
+        required: true,
+        values: DEVICE_STATUS_VALUES.map((s) => s.id),
+      },
+      { name: "siteRef", type: "text", required: true },
+      { name: "placement", type: "text", required: true },
+      { name: "occupancyBand", type: "text", required: true },
+      {
+        name: "plateReads",
+        type: "text",
+        required: false,
+        basis:
+          "the live vendor exposes a plate-read family; a generated record carries none, because a plate read is a surveillance record about an identifiable person and a demo fixture pack does not carry one",
+      },
+      {
+        name: "personsOfInterest",
+        type: "text",
+        required: false,
+        basis:
+          "the live vendor exposes a persons-of-interest family; a generated record carries none, for the same reason as plateReads and with the same force",
+      },
+      {
+        name: "occupancyCount",
+        type: "integer",
+        required: false,
+        basis:
+          "a granted feed carries a counted occupancy; a generated record carries a band only, because a specific head count is a specific claim about a specific place at a specific moment",
+      },
+    ],
+  },
+  goto: {
+    declared: true,
+    recordType: "call-volume",
+    writesTo: "files",
+    statusValues: null,
+    statusValuesBasis:
+      "a call-volume record is an aggregate bucket and has no in-flight status; the volume is the fact, and inventing a status band for it would put a severity on a number that carries none",
+    fields: [
+      { name: "queueRef", type: "text", required: true },
+      { name: "queueLabel", type: "text", required: true },
+      { name: "dayOffset", type: "integer", required: true },
+      { name: "callsOffered", type: "integer", required: true },
+      { name: "callsAnswered", type: "integer", required: true },
+      { name: "callsAbandoned", type: "integer", required: true },
+      {
+        name: "recording",
+        type: "text",
+        required: false,
+        basis:
+          "the live vendor exposes call recordings; a generated record carries none, because a recording is a conversation with an identifiable resident",
+      },
+      {
+        name: "callerRef",
+        type: "text",
+        required: false,
+        basis:
+          "the live vendor exposes individual call detail; a generated record aggregates to a queue and a relative day and never to a call",
+      },
+      {
+        name: "extensionOwner",
+        type: "text",
+        required: false,
+        basis:
+          "the live vendor exposes an extension directory; a generated record maps no extension to a person, because that mapping is a staff roster",
+      },
+    ],
+  },
+  powerbi: {
+    declared: true,
+    recordType: "capital-project",
+    writesTo: "files",
+    statusValues: PROJECT_STATUS_VALUES,
+    fields: [
+      { name: "subject", type: "text", required: true },
+      { name: "phase", type: "enum", required: true, values: PROJECT_PHASE_VALUES },
+      {
+        name: "status",
+        type: "enum",
+        required: true,
+        values: PROJECT_STATUS_VALUES.map((s) => s.id),
+      },
+      { name: "place", type: "place", required: true },
+      { name: "scheduleOffsetDays", type: "integer", required: true },
+      {
+        name: "budget",
+        type: "integer",
+        required: false,
+        basis:
+          "a granted feed carries the project budget; a generated record carries no figure, because a money number beside a city name is a claim about that city's finances and this record was generated",
+      },
+    ],
+  },
 };
 
 /**
@@ -286,6 +536,140 @@ RECORD_SHAPES.mygov.variants = {
     ],
   },
 };
+
+/**
+ * The three G-92 variants, attached to the SAME variants object rather than to a
+ * second table. Two tables for one rule is the CTRL-1 shape (DEV_PROCESS 2.4),
+ * so there is still exactly one shape table and recordShapeFor is still its only
+ * reader; this is a second attachment statement, not a second source of truth.
+ *
+ * Attaching rather than editing the literal above is deliberate and mechanical:
+ * two wave-2 lanes edit this file concurrently, and an append rebases where an
+ * in-place edit of a shared literal conflicts.
+ *
+ * Every one of these declares the field a GRANTED feed would carry and a
+ * generated record must not, with the basis stated on the field. That pattern is
+ * the reason a fixture and a real record are the same shape: what differs is
+ * which optional fields are filled, never the contract.
+ */
+Object.assign(RECORD_SHAPES.mygov.variants, {
+  inspection: {
+    declared: true,
+    recordType: "inspection",
+    writesTo: "spine",
+    statusValues: INSPECTION_STATUS_VALUES,
+    resultValues: INSPECTION_RESULT_VALUES,
+    fields: [
+      { name: "inspectionType", type: "text", required: true },
+      {
+        name: "status",
+        type: "enum",
+        required: true,
+        values: INSPECTION_STATUS_VALUES.map((s) => s.id),
+      },
+      {
+        name: "result",
+        type: "enum",
+        required: true,
+        values: INSPECTION_RESULT_VALUES.map((r) => r.id),
+      },
+      { name: "place", type: "place", required: true },
+      { name: "inspectorRef", type: "text", required: true },
+      {
+        name: "dayOffset",
+        type: "integer",
+        required: false,
+        basis:
+          "an unscheduled inspection carries no day at all and states that as its own basis; a scheduled or completed one carries the offset",
+      },
+      {
+        name: "inspectorName",
+        type: "text",
+        required: false,
+        basis:
+          "a granted feed carries the inspector name; a generated record carries an opaque inspector reference only, because a fixture must not name a person",
+      },
+      {
+        name: "inspectedOn",
+        type: "date",
+        required: false,
+        basis:
+          "a granted feed carries the absolute inspection date; a generated record carries the offset only, because a fixture must not print a calendar date",
+      },
+    ],
+  },
+  "code-violation": {
+    declared: true,
+    recordType: "code-violation",
+    writesTo: "spine",
+    statusValues: CODE_CASE_STATUS_VALUES,
+    escalationValues: CODE_ESCALATION_VALUES,
+    fields: [
+      { name: "violationType", type: "text", required: true },
+      {
+        name: "status",
+        type: "enum",
+        required: true,
+        values: CODE_CASE_STATUS_VALUES.map((s) => s.id),
+      },
+      {
+        name: "escalation",
+        type: "enum",
+        required: true,
+        values: CODE_ESCALATION_VALUES.map((e) => e.id),
+      },
+      { name: "escalationStep", type: "integer", required: true },
+      { name: "place", type: "place", required: true },
+      { name: "dueOffsetDays", type: "integer", required: true },
+      {
+        name: "assessedPenalty",
+        type: "text",
+        required: false,
+        basis:
+          "a granted feed and a city ledger are where an assessed figure comes from; a generated record states the absence and prints no figure",
+      },
+      {
+        name: "complianceDate",
+        type: "date",
+        required: false,
+        basis:
+          "a granted feed carries the absolute compliance date; a generated record carries the offset only, because a fixture must not print a calendar date",
+      },
+    ],
+  },
+  "business-license": {
+    declared: true,
+    recordType: "business-license",
+    writesTo: "spine",
+    statusValues: LICENSE_STATUS_VALUES,
+    fields: [
+      { name: "licenseCategory", type: "text", required: true },
+      {
+        name: "status",
+        type: "enum",
+        required: true,
+        values: LICENSE_STATUS_VALUES.map((s) => s.id),
+      },
+      { name: "place", type: "place", required: true },
+      { name: "holderRef", type: "text", required: true },
+      { name: "expiryOffsetDays", type: "integer", required: true },
+      {
+        name: "holderName",
+        type: "text",
+        required: false,
+        basis:
+          "a granted feed carries the licensed business name; a generated record carries an opaque holder reference only, because a fixture must not name a real business",
+      },
+      {
+        name: "expiresOn",
+        type: "date",
+        required: false,
+        basis:
+          "a granted feed carries the absolute expiry date; a generated record carries the offset only, because a fixture must not print a calendar date",
+      },
+    ],
+  },
+});
 
 /**
  * Resolves a shape for a kind, and for a specific record type within that kind.
