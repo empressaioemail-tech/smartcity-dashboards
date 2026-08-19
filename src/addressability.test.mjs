@@ -1057,7 +1057,7 @@ describe("G-88 addressability: a screen that renders can also be driven", () => 
      */
     assert.deepEqual(
       [...HOOKS_WRITTEN].sort(),
-      ["data-atab", "data-city-key", "data-src", "data-surface", "data-tab"],
+      ["data-atab", "data-city-key", "data-src", "data-surface", "data-tab", "data-theme"],
     );
 
     /**
@@ -1081,7 +1081,16 @@ describe("G-88 addressability: a screen that renders can also be driven", () => 
       assert.equal(REQUIRED_HOOKS.includes(excused), false);
       assert.ok(HOOKS_WRITTEN.has(excused), `${excused} is excused without a proven writer`);
     }
-    for (const hook of ["data-tab", "data-atab"]) {
+    /**
+     * data-theme joined the written set at G-90 and, like data-tab and
+     * data-atab and unlike data-surface, it stays REQUIRED rather than excused,
+     * because web/index.html attaches it to <html> as the static default. That
+     * attachment is load bearing rather than decorative: it is what a browser
+     * with scripting disabled paints, and it is what the head script overwrites
+     * only when a stored preference disagrees. If it ever leaves the markup, the
+     * scripting-off document loses its theme and this assertion is what says so.
+     */
+    for (const hook of ["data-tab", "data-atab", "data-theme"]) {
       assert.ok(HOOKS_WRITTEN.has(hook), `${hook} should still be script-written`);
       assert.ok(REQUIRED_HOOKS.includes(hook), `${hook} is attached in markup and must stay required`);
     }
@@ -1107,11 +1116,23 @@ describe("G-88 addressability: a screen that renders can also be driven", () => 
      * server.mjs's sendFile call sites and the bake source, shared with the class
      * gate rather than re-derived here - one rule, one implementation.
      */
-    assert.deepEqual(SCRIPT_SOURCES, ["src/staff-map.mjs", "src/staff-review.mjs", "web/app.js"]);
+    /**
+     * G-90 added src/theme.mjs to all three populations at once, which is the
+     * tripwire working: a served asset cannot dodge this scan by being new, and
+     * the three lists moving together is the evidence that they are one
+     * derivation rather than three hand-kept lists that happened to agree.
+     */
+    assert.deepEqual(SCRIPT_SOURCES, [
+      "src/staff-map.mjs",
+      "src/staff-review.mjs",
+      "src/theme.mjs",
+      "web/app.js",
+    ]);
     assert.deepEqual(MARKUP_SOURCES, [
       "src/shell-homes.mjs",
       "src/staff-map.mjs",
       "src/staff-review.mjs",
+      "src/theme.mjs",
       "web/app.js",
       "web/index.html",
     ]);
@@ -1128,6 +1149,7 @@ describe("G-88 addressability: a screen that renders can also be driven", () => 
     assert.deepEqual(SERVED_DOCUMENTS, [
       "src/staff-map.mjs",
       "src/staff-review.mjs",
+      "src/theme.mjs",
       "web/app.js",
       "web/index.html",
     ]);
@@ -1141,12 +1163,19 @@ describe("G-88 addressability: a screen that renders can also be driven", () => 
     for (const rel of MARKUP_SOURCES) assert.ok(fs.existsSync(path.join(root, rel)), rel);
 
     /**
-     * staff-map.mjs and staff-review.mjs address nothing, which is exactly why
-     * nobody would think to scan them. Written as a positive determination with
-     * its basis - they are pure query-string resolvers with no DOM access - because
-     * an empty result is not an absence.
+     * staff-map.mjs, staff-review.mjs and theme.mjs address nothing, which is
+     * exactly why nobody would think to scan them. Written as a positive
+     * determination with its basis - the first two are pure query-string
+     * resolvers and the third is a pure theme vocabulary, none with DOM access -
+     * because an empty result is not an absence.
+     *
+     * theme.mjs holding to this is load bearing rather than incidental. The
+     * whole reason it exists as a module is that the inline head script cannot
+     * import it; if it ever started touching the DOM, the temptation would be to
+     * move DOM work out of web/app.js into a file that runs at the same deferred
+     * moment, which changes nothing about when it runs and hides that it did.
      */
-    for (const rel of ["src/staff-map.mjs", "src/staff-review.mjs"]) {
+    for (const rel of ["src/staff-map.mjs", "src/staff-review.mjs", "src/theme.mjs"]) {
       assert.equal(idsFromGetElementById(rel).size, 0, `${rel} has started touching the DOM`);
       assert.equal(selectorStrings(rel).length, 0, `${rel} has started querying the DOM`);
       assert.equal(scriptText[rel].includes("document."), false, rel);

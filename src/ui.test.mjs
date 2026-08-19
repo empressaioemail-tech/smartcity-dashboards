@@ -543,9 +543,18 @@ describe("G-77 fixture pack on Development services", () => {
      * fail loudly when the served set changes, which is a decision to make
      * rather than a detail to discover three months later.
      */
+    /**
+     * G-90 moved this pin by one, which is the tripwire doing its job rather
+     * than a nuisance. src/theme.mjs is served at /theme.mjs and imported by
+     * web/app.js: it declares the theme vocabulary the inline head script has
+     * to carry a second copy of, because a script that imports is a module and
+     * a module is deferred, which is the G-89 defect. A new served asset is a
+     * decision, so it is recorded here rather than discovered later.
+     */
     assert.deepEqual(SERVED_ASSETS, [
       "src/staff-map.mjs",
       "src/staff-review.mjs",
+      "src/theme.mjs",
       "web/app.js",
       "web/index.html",
       "web/sc-kit.css",
@@ -588,6 +597,7 @@ describe("G-77 fixture pack on Development services", () => {
       "src/shell-homes.mjs",
       "src/staff-map.mjs",
       "src/staff-review.mjs",
+      "src/theme.mjs",
       "web/app.js",
       "web/index.html",
     ]);
@@ -596,12 +606,15 @@ describe("G-77 fixture pack on Development services", () => {
     }
 
     /**
-     * staff-map.mjs and staff-review.mjs assign no classes today, which is
-     * exactly why nobody noticed they were unscanned. Written as a positive
-     * determination with its basis, because an empty result is not an absence.
+     * staff-map.mjs, staff-review.mjs and theme.mjs assign no classes today,
+     * which is exactly why nobody noticed the first two were unscanned. Written
+     * as a positive determination with its basis, because an empty result is not
+     * an absence. theme.mjs joins the list on the same footing: it is a pure
+     * vocabulary and resolver module with no markup and no DOM, and the day it
+     * grows either, this fails rather than the scan silently shrinking.
      */
     const sources = readMarkupSources();
-    for (const rel of ["src/staff-map.mjs", "src/staff-review.mjs"]) {
+    for (const rel of ["src/staff-map.mjs", "src/staff-review.mjs", "src/theme.mjs"]) {
       assert.equal(classesUsed(sources[rel]).size, 0, `${rel} has started assigning classes`);
     }
     assert.ok(classesUsed(sources["src/shell-homes.mjs"]).size > 0, "shell-homes assigns classes");

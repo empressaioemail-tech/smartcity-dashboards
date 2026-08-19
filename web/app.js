@@ -1,5 +1,12 @@
 import { resolveStaffMapQuery } from "/staff-map.mjs";
 import { resolveStaffLensQuery } from "/staff-review.mjs";
+import {
+  THEME_STORAGE_KEY,
+  nextTheme,
+  resolveTheme,
+  themeToggleLabel,
+  themeToggleTitle,
+} from "/theme.mjs";
 
 const LENS_LABELS = {
   "city-manager": "Overview",
@@ -926,6 +933,242 @@ function bindMenu() {
   });
 }
 
+/* -------------------------------------------------------------------- theme
+
+G-90. The toggle, and ONLY the toggle.
+
+The theme is RESOLVED in the inline head script in web/index.html, before the
+parser reaches the body, because CSS cannot read storage and a module cannot run
+before first paint. Resolving it here instead would paint the default palette on
+every navigation and then repaint the chosen one, which is the G-89 defect one
+attribute over.
+
+So this file is the WRITER and the head script is the READER. The split is the
+whole design: one place decides what paints, one place records what the staff
+member chose, and src/theme.mjs holds the vocabulary both of them use so the two
+copies of the rule can be compared rather than trusted.
+
+Reading the current theme off the root rather than out of storage is deliberate.
+The root is what the head script actually resolved, including the case where
+storage was unreadable and it fell back; toggling from storage would toggle from
+a value the screen is not showing.
+*/
+
+function currentTheme() {
+  return resolveTheme(document.documentElement.getAttribute("data-theme"));
+}
+
+function applyTheme(theme) {
+  const resolved = resolveTheme(theme);
+  document.documentElement.setAttribute("data-theme", resolved);
+  setText("theme-toggle-label", themeToggleLabel(resolved));
+  const btn = document.getElementById("theme-toggle");
+  if (btn) btn.title = themeToggleTitle(resolved);
+  return resolved;
+}
+
+function bindTheme() {
+  const btn = document.getElementById("theme-toggle");
+  if (!btn) return;
+  // The label describes where the control GOES, not where it is, so it is
+  // rendered from the theme the head script resolved rather than from markup.
+  applyTheme(currentTheme());
+  btn.addEventListener("click", () => {
+    const resolved = applyTheme(nextTheme(currentTheme()));
+    /**
+     * A blocked or partitioned storage context throws on setItem exactly as it
+     * throws on getItem. The theme still changes for this page; only the
+     * persistence is lost, and losing it silently is better than an exception
+     * that stops the rest of the handler.
+     */
+    try {
+      window.localStorage.setItem(THEME_STORAGE_KEY, resolved);
+    } catch (err) {
+      /* persistence unavailable in this context */
+    }
+  });
+}
+
+/* --------------------------------------------------------------- top menus
+
+Notifications and the account menu. Two disclosure buttons, one behaviour: at
+most one open at a time, dismissed by Escape or by a click outside, and
+aria-expanded kept in step with what is actually shown.
+*/
+
+const TOP_MENU_IDS = ["notif", "account"];
+
+function closeTopMenus(exceptName) {
+  for (const name of TOP_MENU_IDS) {
+    if (name === exceptName) continue;
+    const btn = document.getElementById(`${name}-btn`);
+    const pop = document.getElementById(`${name}-pop`);
+    if (!btn || !pop) continue;
+    show(pop, false);
+    btn.setAttribute("aria-expanded", "false");
+  }
+}
+
+function bindTopMenus() {
+  for (const name of TOP_MENU_IDS) {
+    const btn = document.getElementById(`${name}-btn`);
+    const pop = document.getElementById(`${name}-pop`);
+    if (!btn || !pop) continue;
+    show(pop, false);
+    btn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      const open = btn.getAttribute("aria-expanded") === "true";
+      closeTopMenus(name);
+      show(pop, !open);
+      btn.setAttribute("aria-expanded", open ? "false" : "true");
+    });
+    pop.addEventListener("click", (event) => event.stopPropagation());
+  }
+  document.addEventListener("click", () => closeTopMenus(""));
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") closeTopMenus("");
+  });
+}
+
+/* ------------------------------------------------------------- shell state
+
+Every control the shell grew this card has a dependency that does not exist yet,
+and the honest rendering of that is a disabled control with a stated reason. The
+failure mode of a stated reason is that it is written by hand in markup, is true
+on the day it is typed, and is never checked again.
+
+So the state and the sentence both come from GET /api/shell, which derives them
+from the deployment's configuration and from the caller the request actually
+resolved to. The static markup ships every entry disabled with "not read", which
+is what is true before the answer arrives and what stays true if it never does.
+*/
+
+function applyCapability(id, capability) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const available = capability && capability.available === true;
+  el.disabled = !available;
+  // The reason is on the control as well as in the group's basis line, so a
+  // pointer user gets it without reading the whole menu.
+  el.title = available ? "" : String((capability && capability.basis) || "");
+}
+
+function applyShellState(state) {
+  const session = state.session || {};
+  const caps = state.capabilities || {};
+  const notifications = state.notifications || {};
+
+  setText("session-label", session.label || "");
+  setText("session-pill", session.staffUser === true ? "Staff session" : "No staff session");
+  setText("session-basis", `Basis: ${session.basis || ""}`);
+
+  applyCapability("acct-account", caps.account);
+  applyCapability("acct-profile", caps.account);
+  applyCapability("acct-settings", caps.account);
+  applyCapability("acct-support", caps.support);
+  applyCapability("acct-feedback", caps.feedback);
+  applyCapability("acct-signin", caps.signIn);
+  applyCapability("acct-signout", caps.signOut);
+
+  setText("acct-account-basis", `Basis: ${(caps.account || {}).basis || ""}`);
+  setText("acct-support-basis", `Basis: ${(caps.support || {}).basis || ""}`);
+  setText("acct-feedback-basis", `Basis: ${(caps.feedback || {}).basis || ""}`);
+  setText("acct-signin-basis", `Basis: ${(caps.signIn || {}).basis || ""}`);
+  setText("acct-signout-basis", `Basis: ${(caps.signOut || {}).basis || ""}`);
+
+  /**
+   * The record-search stub is wired to the same mechanism as everything else,
+   * so it stops being a stub the day a record index exists rather than the day
+   * somebody remembers to delete the sentence.
+   */
+  const search = document.getElementById("record-search");
+  const searchCap = caps.recordSearch || {};
+  if (search) {
+    search.disabled = searchCap.available !== true;
+    search.title = searchCap.available === true ? "" : String(searchCap.basis || "");
+  }
+  setText("record-search-note", searchCap.basis || "");
+
+  /**
+   * NO COUNT. The server sends no count field and this renders none: not a
+   * number, not a dot, not a badge. What it renders is the positive
+   * determination of why the tray is empty, and the counting rule behind it.
+   */
+  setText("notif-basis", `Basis: ${notifications.basis || ""}`);
+  setText("notif-rule", `Counting rule: ${notifications.rule || ""}`);
+  const items = Array.isArray(notifications.items) ? notifications.items : [];
+  setText("notif-empty", items.length === 0 ? "No notifications." : `${items.length} notifications.`);
+}
+
+async function loadShellState(cityKey) {
+  const key = String(cityKey || "").trim();
+  let state = null;
+  try {
+    const q = key ? `?cityKey=${encodeURIComponent(key)}` : "";
+    const res = await fetch(`/api/shell${q}`);
+    state = res.ok ? await res.json() : null;
+  } catch {
+    state = null;
+  }
+  /**
+   * A failed read leaves every control disabled and every basis line saying it
+   * was not read, then states the failure with its cause. An empty result is
+   * not an absence, so nothing here writes "no notifications" off a fetch that
+   * never answered.
+   */
+  if (!state) {
+    setText("session-basis", `Basis: the shell state did not read for ${key || "the default pack"}`);
+    setText("notif-basis", `Basis: the shell state did not read for ${key || "the default pack"}`);
+    return;
+  }
+  applyShellState(state);
+}
+
+/* ---------------------------------------------------------------- feedback
+
+`accepted` means DELIVERED. The server is the only thing that can say so, and
+this renders its answer verbatim rather than a thank-you of its own. The typed
+text is left in the box on every non-delivery, because a report that vanishes
+into a failed send is worse than one that was never offered.
+*/
+
+function bindFeedback() {
+  const entry = document.getElementById("acct-feedback");
+  const form = document.getElementById("feedback-form");
+  const send = document.getElementById("feedback-send");
+  const text = document.getElementById("feedback-text");
+  const result = document.getElementById("feedback-result");
+  if (!entry || !form || !send || !text || !result) return;
+  show(form, false);
+  entry.addEventListener("click", () => {
+    show(form, true);
+    text.focus();
+  });
+  send.addEventListener("click", async () => {
+    const message = text.value.trim();
+    if (!message) {
+      result.textContent = "Basis: nothing was typed, so nothing was sent";
+      return;
+    }
+    send.disabled = true;
+    result.textContent = "Basis: sending";
+    let answer = null;
+    try {
+      const res = await fetch("/api/feedback", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ message, surface: location.search || "/" }),
+      });
+      answer = await res.json();
+    } catch (err) {
+      answer = { accepted: false, basis: `the request failed: ${String(err.message || err)}` };
+    }
+    send.disabled = false;
+    result.textContent = `Basis: ${answer.basis || "the server gave no basis"}`;
+    if (answer.accepted === true) text.value = "";
+  });
+}
+
 /* ------------------------------------------------------------------- boot */
 
 const staffLens = resolveStaffLensQuery(window.location.search);
@@ -935,6 +1178,10 @@ applyLens(staffLens);
 const resettle = bindStages();
 bindCompass();
 bindMenu();
+bindTheme();
+bindTopMenus();
+bindFeedback();
+loadShellState(staffMap.cityKey);
 loadIdentity(staffMap.cityKey);
 composeGoldMap(staffMap.parcelNodeId, staffMap.cityKey);
 loadPipeline(staffMap.cityKey);
