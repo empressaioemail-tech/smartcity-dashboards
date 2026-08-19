@@ -104,3 +104,105 @@ export function planReviewIframeSrc(origin) {
 export function smartFilesIframeSrc(origin) {
   return withEmbedQuery(origin, DEFAULT_SMART_FILES_ORIGIN);
 }
+
+/* ------------------------------------------------------------------ titles
+
+G-95. 2.4.2 Page Titled, and the one place the answer is computed.
+
+Every nav item and every tab in this product is a real <a href> full
+navigation, so each of them IS A DISTINCT PAGE, and a distinct page owes the
+reader a title that says which one it is. The product shipped
+<title>SmartCity Dashboards</title> on all twenty-three of them, and axe cannot
+see it: axe scans one page at a time, a title was present on every page it
+scanned, and `document-title` passed everywhere. Only a comparison ACROSS
+surfaces finds it, which is why scripts/a11y-scan.mjs holds them all at once.
+
+The resolver is here rather than in web/app.js because three readers need the
+same answer and they must not each carry their own: web/app.js, the inline head
+script in web/index.html (which cannot import - an importing script is a module,
+a module is deferred, and that is the G-89 defect), and the CI gate. The head
+script's copy is held equal by src/first-paint.test.mjs, textually and
+behaviourally, exactly as the lens ids and the theme vocabulary already are.
+
+The labels are the ones the nav and the page headings already use. They are
+moved here rather than copied: web/app.js imports them from this module, so the
+chrome and the title cannot disagree about what a surface is called.
+*/
+
+export const PRODUCT_TITLE = "SmartCity Dashboards";
+
+/** The separator, one literal, so the head script's copy has something to be
+ *  compared against rather than a punctuation choice made twice. */
+export const TITLE_SEP = " · ";
+
+export const LENS_LABELS = {
+  "city-manager": "Overview",
+  "development-services": "Development services",
+  finance: "Finance",
+  citizen: "Citizen",
+  "public-works": "Public works",
+  parks: "Parks",
+  police: "Police",
+  "fire-ems": "Fire and EMS",
+  fleet: "Fleet",
+};
+
+export const TAB_LABELS = {
+  pipeline: "Pipeline",
+  place: "Place",
+  review: "Review",
+  inspections: "Inspections",
+  "code-enforcement": "Code enforcement",
+  licenses: "Licenses",
+};
+
+export const WORK_LABELS = {
+  files: "Files",
+  review: "Plan review",
+  records: "Records search",
+  assets: "Assets",
+  connections: "Connections",
+  people: "People and access",
+};
+
+export const ASSET_TAB_LABELS = {
+  inventory: "Inventory",
+  map: "Map",
+  fixture: "Demo fixture record",
+};
+
+/**
+ * The surface's own name, most specific part first, as a path.
+ *
+ * Most specific first because a title is read left to right and a screen reader
+ * announces it on load; "Licenses, Development services" tells the listener
+ * where they are in two words, and "Development services, Licenses" makes them
+ * wait for it.
+ */
+export function surfaceLabelPath(model) {
+  if (model.work) {
+    const parts = [];
+    if (model.work === ASSETS_WORK && model.assetTab) parts.push(ASSET_TAB_LABELS[model.assetTab]);
+    parts.push(WORK_LABELS[model.work] || model.work);
+    return parts.filter(Boolean);
+  }
+  const parts = [];
+  if (model.lens === DEVELOPMENT_SERVICES_LENS && model.tab) parts.push(TAB_LABELS[model.tab]);
+  parts.push(LENS_LABELS[model.lens] || model.lens);
+  return parts.filter(Boolean);
+}
+
+/**
+ * The document title for a resolved surface.
+ *
+ * `tail` is what follows the surface name. It defaults to the product name
+ * alone, which is what the inline head script can know AT FIRST PAINT: the pack
+ * has not been read yet and this product does not name a city it has not read.
+ * web/app.js passes the identity's own pack-level title once it resolves, so
+ * the title gains the city and never loses the surface. The discriminator -
+ * the part 2.4.2 is actually about - is present from the first paint and never
+ * changes.
+ */
+export function surfaceTitle(model, tail = PRODUCT_TITLE) {
+  return [...surfaceLabelPath(model), tail].join(TITLE_SEP);
+}

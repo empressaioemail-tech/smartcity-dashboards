@@ -16,3 +16,25 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+
+  # G-95. The accessibility gate. A REQUIRED job of its own rather than a step
+  # inside `test`, because it needs a browser and `test` must stay runnable on a
+  # bare Node image - that constraint is why src/hidden-rule.test.mjs and
+  # src/first-paint.test.mjs both keep their rendered proofs out of the suite.
+  #
+  # There is NO SKIP PATH. If Chromium is missing, scripts/a11y-scan.mjs exits 2
+  # and says so; it never passes because it could not run. `npm ci` alone does
+  # not fetch a browser - the devDependency is playwright-core, which downloads
+  # nothing on install - so the install step below is what makes this job able to
+  # run at all, and removing it turns the job red rather than green.
+  a11y:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npx playwright-core install --with-deps chromium
+      - run: npm run test:a11y
