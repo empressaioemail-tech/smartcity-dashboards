@@ -132,12 +132,19 @@ function applyIdentity(identity) {
   }
 
   /**
-   * The footer figure is about the pack being viewed, and its counting rule
-   * travels beside it. The register's product-wide figure stays on Connections.
+   * The footer figures are about the pack being viewed, and each counting rule
+   * travels beside its own figure. The register's product-wide figure stays on
+   * Connections.
+   *
+   * G-93: granted and demonstrated are separate claims and are rendered
+   * separately. Neither number is computed here - both arrive resolved from
+   * src/city-identity.mjs, so there is one implementation of each rule.
    */
   const sources = identity.sources || {};
   if (sources.label) setText("nav-sources", sources.label);
   if (sources.rule) setText("nav-sources-rule", sources.rule);
+  if (sources.demonstratedLabel) setText("nav-demonstrated", sources.demonstratedLabel);
+  if (sources.demonstratedRule) setText("nav-demonstrated-rule", sources.demonstratedRule);
 
   if (identity.documentTitle) document.title = identity.documentTitle;
   renderScope();
@@ -159,6 +166,7 @@ async function loadIdentity(cityKey) {
    */
   if (!identity) {
     setText("nav-sources-rule", `pack identity did not read for ${key || "the default pack"}`);
+    setText("nav-demonstrated-rule", `pack identity did not read for ${key || "the default pack"}`);
     return;
   }
   applyIdentity(identity);

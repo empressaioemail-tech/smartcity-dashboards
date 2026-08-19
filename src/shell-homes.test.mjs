@@ -10,24 +10,56 @@ import {
   SHELL_HOMES,
   SHELL_HOMES_ADDENDA,
   SHELL_HOMES_COUNTING_RULE,
+  SPLIT_SOURCE_ROWS,
+  addendaLabel,
+  addendaRule,
   bakeConnectionsInto,
   connectionsRegisterHtml,
+  countingRuleCaption,
+  homeRowsLabel,
+  homeRowsRule,
+  sourceRowCount,
   sourcesConnected,
   sourcesConnectedLabel,
+  tableCounts,
 } from "./shell-homes.mjs";
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const html = fs.readFileSync(path.join(root, "web", "index.html"), "utf8");
 
 describe("G-73 shell homes register", () => {
-  it("counts 67 Homes-table rows and names the denominator", () => {
-    assert.equal(SHELL_HOMES.length, 67);
+  it("counts 70 register rows against 67 source rows, both measured", () => {
+    /**
+     * G-93 MOVED THIS GATE, and it moved because the counting rule moved.
+     *
+     * Two figures now, and NEITHER is the other minus something (DEV_PROCESS
+     * 1.3). Register rows are counted by counting rows; source rows are counted
+     * as the distinct values of (splitFrom ?? job), which is a measurement of
+     * the same population under a different key rather than a subtraction of
+     * the splits. The per-table breakdown is asserted on BOTH so a future split
+     * cannot hide inside a total that still happens to add up.
+     */
+    assert.equal(SHELL_HOMES.length, 70, "register rows");
+    assert.equal(sourceRowCount(SHELL_HOMES), 67, "Homes-table source rows");
     assert.match(SHELL_HOMES_COUNTING_RULE, /67/);
-    assert.equal(SHELL_HOMES.filter((r) => r.table === "primary").length, 31);
-    assert.equal(SHELL_HOMES.filter((r) => r.table === "review-product").length, 7);
-    assert.equal(SHELL_HOMES.filter((r) => r.table === "products").length, 6);
-    assert.equal(SHELL_HOMES.filter((r) => r.table === "feeds").length, 12);
-    assert.equal(SHELL_HOMES.filter((r) => r.table === "other").length, 11);
+    assert.match(SHELL_HOMES_COUNTING_RULE, /splitFrom/);
+
+    const byTable = new Map(tableCounts(SHELL_HOMES).map((t) => [t.table, t]));
+    assert.deepEqual(
+      [...byTable.values()].map((t) => [t.table, t.sourceRows, t.rows]),
+      [
+        ["primary", 31, 31],
+        ["review-product", 7, 7],
+        ["products", 6, 6],
+        ["feeds", 12, 12],
+        ["other", 11, 14],
+      ],
+      "the source breakdown is the G-18 file's; only `other` renders more rows than it has source rows",
+    );
+    // The two totals reconcile, and the reconciliation is asserted rather than assumed.
+    assert.equal([...byTable.values()].reduce((n, t) => n + t.rows, 0), SHELL_HOMES.length);
+    assert.equal([...byTable.values()].reduce((n, t) => n + t.sourceRows, 0), sourceRowCount(SHELL_HOMES));
+
     for (const row of SHELL_HOMES) {
       assert.ok(row.job);
       assert.ok(row.home);
@@ -35,11 +67,84 @@ describe("G-73 shell homes register", () => {
     }
   });
 
+  it("splits only rows that were genuinely bundled, and says which", () => {
+    /**
+     * TESTED FOR ITS ABILITY TO FIRE (DEV_PROCESS 2.2). `splitFrom` is a new
+     * field and nothing structural forces a future split to carry it, so the
+     * failure modes are asserted directly: a splitFrom naming a row that is
+     * itself in the register, a splitFrom with only one member (a rename
+     * wearing a split's clothes), and a split group whose dispositions are all
+     * identical (which would mean the bundle never needed splitting).
+     */
+    const jobs = new Set(ALL_HOME_ROWS.map((r) => r.job));
+    const groups = new Map();
+    for (const row of ALL_HOME_ROWS) {
+      if (!row.splitFrom) continue;
+      assert.equal(jobs.has(row.splitFrom), false, `${row.splitFrom} is both a source row and a register row`);
+      groups.set(row.splitFrom, [...(groups.get(row.splitFrom) || []), row]);
+    }
+    assert.deepEqual([...groups.keys()].sort(), [...SPLIT_SOURCE_ROWS].sort());
+    for (const [source, rows] of groups) {
+      assert.ok(rows.length > 1, `${source} was "split" into one row, which is a rename`);
+      assert.ok(
+        new Set(rows.map((r) => r.disposition)).size > 1,
+        `${source} split into rows that all carry one disposition, so the bundle never needed splitting`,
+      );
+    }
+
+    // The two bundles the operator ruled on, and what each job now says.
+    const auth = groups.get("Auth / session / notifications / theme / sign out");
+    assert.deepEqual(
+      auth.map((r) => [r.job, r.disposition]),
+      [
+        ["Auth and session actions", "Not built"],
+        ["Notifications", "Empty"],
+        ["Theme, light and dark", "Mounted"],
+        ["Sign out", "Not built"],
+      ],
+    );
+    const feedback = groups.get("Feedback with screenshot and category");
+    assert.deepEqual(
+      feedback.map((r) => [r.job, r.disposition]),
+      [
+        ["Feedback", "Mounted"],
+        ["Feedback screenshot attachment", "Not built"],
+        ["Feedback category", "Not built"],
+      ],
+    );
+
+    /**
+     * The home text on every split row states a STRUCTURAL fact, never a
+     * deployment fact. "SHELL_IDENTITY_PROVIDER is unset" would be true the day
+     * it was typed and silently false the day a variable is set, which is the
+     * stale-claim shape G-90's own capability resolver exists to avoid.
+     */
+    for (const row of ALL_HOME_ROWS) {
+      assert.equal(/is unset|unconfigured|not configured|503/.test(row.home), false, row.job);
+    }
+  });
+
   it("bakes every register row into Connections HTML with no invented sync times", () => {
     const baked = html.match(/data-home-row="/g) || [];
     assert.equal(baked.length, ALL_HOME_ROWS.length);
     assert.match(html, /id="work-connections"/);
-    assert.match(html, /67 of 67/);
+    /**
+     * G-93. The panel-head figures and the counting-rule caption are BAKED from
+     * the generator now, so they are asserted against the computed values rather
+     * than against a literal. They were hand-typed "67 of 67", "3" and a prose
+     * restatement of the rule while the rule lived in src/shell-homes.mjs -
+     * three copies of one number on the page whose whole job is to be countable,
+     * and the split that changed the row count is exactly the edit that would
+     * have left all three stale.
+     */
+    assert.ok(html.includes(`<b id="connections-rows">${homeRowsLabel()}</b>`), homeRowsLabel());
+    assert.ok(html.includes(`<span id="connections-rows-rule">${homeRowsRule()}</span>`), homeRowsRule());
+    assert.ok(html.includes(`<b id="connections-addenda">${addendaLabel()}</b>`), addendaLabel());
+    assert.ok(html.includes(`<span id="connections-addenda-rule">${addendaRule()}</span>`), addendaRule());
+    assert.ok(html.includes(countingRuleCaption()), "the counting-rule caption is a stale bake");
+    // Both measured figures reach the page, and the source figure did not move.
+    assert.match(html, /70 of 70/);
+    assert.match(html, /from 67 Homes-table rows/);
     assert.match(html, /Homes-table row/);
     assert.equal(html.includes("last synced"), false);
     assert.equal(html.includes("Last sync"), false);
@@ -107,8 +212,10 @@ describe("G-75 register vocabulary", () => {
   });
 
   it("names a home for every job the layout inventory left homeless", () => {
-    assert.equal(SHELL_HOMES.length, 67);
-    assert.equal(SHELL_HOMES_ADDENDA.length, 3);
+    assert.equal(SHELL_HOMES.length, 70);
+    assert.equal(sourceRowCount(SHELL_HOMES), 67);
+    assert.equal(SHELL_HOMES_ADDENDA.length, 5);
+    assert.equal(sourceRowCount(SHELL_HOMES_ADDENDA), 3);
     const jobs = SHELL_HOMES_ADDENDA.map((r) => r.job);
     assert.ok(jobs.some((j) => /Print \/ PDF export/.test(j)));
     assert.ok(jobs.some((j) => /Feedback/.test(j)));

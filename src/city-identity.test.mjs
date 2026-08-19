@@ -125,6 +125,135 @@ describe("G-80 identity resolves from the pack", () => {
     assert.ok(bogus.granted <= bogus.total);
   });
 
+  it("counts demonstrated separately from granted, and never adds them", () => {
+    /**
+     * G-93. THE TWO CLAIMS, AND THE PROOF THEY CANNOT MERGE.
+     *
+     * template-city renders three populated regions and grants nothing. Both
+     * figures must be true at once and neither may absorb the other: a single
+     * merged number beside a city name would be a sources-granted claim inflated
+     * by generated data, which is exactly the false-connection reading the
+     * operator ruled against.
+     */
+    const t = cityIdentity(TEMPLATE_CITY).sources;
+    assert.equal(t.granted, 0, "template-city grants nothing");
+    assert.equal(t.demonstrated, 2, "template-city demonstrates mygov and samsara");
+    assert.equal(t.label, `0 of ${ADAPTER_KINDS.length} sources granted`);
+    assert.equal(t.demonstratedLabel, `2 of ${ADAPTER_KINDS.length} demonstrated with fixture records`);
+    assert.match(t.demonstratedRule, /a demonstration connects no source/);
+    assert.match(t.demonstratedRule, new RegExp(`of ${ADAPTER_KINDS.length} in the catalog`));
+    // The two figures share a denominator and NOTHING adds their numerators.
+    assert.equal(t.total, ADAPTER_KINDS.length);
+    assert.ok(t.granted + t.demonstrated <= t.total * 2);
+    assert.equal(/granted \+|\+ demonstrated|demonstrated \+/.test(identitySrc), false, "the two numerators must never be summed");
+
+    /**
+     * The non-generating packs, which are the ones the honest-absence rule is
+     * measured on. A bare 0 would be an empty result; this is a positive
+     * determination naming its cause.
+     */
+    for (const pack of [EMPTY_CITY, FIXTURE_CITY]) {
+      const s = cityIdentity(pack).sources;
+      assert.equal(s.demonstrated, 0, pack.cityKey);
+      assert.equal(s.demonstratedLabel, `0 of ${ADAPTER_KINDS.length} demonstrated with fixture records`, pack.cityKey);
+      assert.equal(s.demonstratedRule, "this pack generates no records, so no adapter kind is demonstrated on it", pack.cityKey);
+      assert.equal(s.generatesFixtures, false, pack.cityKey);
+    }
+
+    /**
+     * THE GATE PROVEN ABLE TO FIRE IN BOTH DIRECTIONS (DEV_PROCESS 2.2).
+     *
+     * A declaration a pack cannot honour is not a demonstration: fixtureGrants
+     * on a pack that generates nothing counts zero, and it does not vanish
+     * silently either - fixtureGrantCount still reports the raw declaration, so
+     * the two figures stay reconcilable rather than merged.
+     */
+    const declaresButDoesNotGenerate = packSources({
+      generatesFixtures: false,
+      fixtureGrants: ["mygov", "samsara"],
+    });
+    assert.equal(declaresButDoesNotGenerate.demonstrated, 0);
+    assert.equal(declaresButDoesNotGenerate.fixtureGrantCount, 2);
+
+    // Distinct kinds: two declarations of one kind is one demonstration.
+    const twice = packSources({ generatesFixtures: true, fixtureGrants: ["municode", "municode"] });
+    assert.equal(twice.demonstrated, 1);
+    assert.equal(twice.fixtureGrantCount, 2);
+
+    // A kind outside the catalog cannot inflate the numerator, and is named.
+    const bogus = packSources({ generatesFixtures: true, fixtureGrants: ["not-a-kind"] });
+    assert.equal(bogus.demonstrated, 0);
+    assert.deepEqual(bogus.unknownFixtureKinds, ["not-a-kind"]);
+    assert.ok(bogus.demonstrated <= bogus.total);
+  });
+
+  it("derives both footer figures rather than carrying either as a string", () => {
+    /**
+     * G-93, THE DISPATCH'S OWN REQUIREMENT: the counts must stay DERIVED and
+     * never hardcoded. The "0 of 7" that was short by three for weeks corrected
+     * itself the moment the catalog grew, and that property has to survive.
+     *
+     * Proven by moving the INPUTS and watching the OUTPUT move, with no edit to
+     * src/city-identity.mjs: the catalog is a parameter, the pack is a
+     * parameter, and both numerator and denominator follow them.
+     */
+    const grown = [...ADAPTER_KINDS, { id: "probe-kind", displayName: "Probe" }];
+    const wider = packSources(TEMPLATE_CITY, grown);
+    assert.equal(wider.total, ADAPTER_KINDS.length + 1);
+    assert.equal(wider.label, `0 of ${ADAPTER_KINDS.length + 1} sources granted`);
+    assert.equal(wider.demonstratedLabel, `2 of ${ADAPTER_KINDS.length + 1} demonstrated with fixture records`);
+    assert.match(wider.demonstratedRule, new RegExp(`of ${ADAPTER_KINDS.length + 1} in the catalog`));
+
+    const shrunk = packSources(TEMPLATE_CITY, ADAPTER_KINDS.filter((k) => k.id !== "samsara"));
+    assert.equal(shrunk.total, ADAPTER_KINDS.length - 1);
+    assert.equal(shrunk.demonstrated, 1, "samsara left the catalog, so it is no longer demonstrable");
+
+    // The numerator follows the pack's own declaration, not a list in here.
+    const three = packSources({ ...TEMPLATE_CITY, fixtureGrants: ["mygov", "samsara", "opengov"] });
+    assert.equal(three.demonstrated, 3);
+    assert.equal(three.demonstratedLabel, `3 of ${ADAPTER_KINDS.length} demonstrated with fixture records`);
+
+    /**
+     * And no digit is typed into either label or either rule. A literal
+     * numerator or denominator anywhere in this resolver is the defect this
+     * assertion exists to make impossible, so the source is read for one.
+     */
+    const labelLines = identitySrc
+      .split("\n")
+      .filter((line) => /sources granted|demonstrated with fixture records|in the catalog/.test(line))
+      .filter((line) => !/^\s*\*/.test(line));
+    assert.ok(labelLines.length >= 4, `expected the label and rule expressions, found ${labelLines.length}`);
+    for (const line of labelLines) {
+      assert.equal(/\d/.test(line), false, `a figure is hardcoded: ${line.trim()}`);
+    }
+  });
+
+  it("ships the two footer figures as two addressable claims in the markup", () => {
+    /**
+     * The static document is the fallback, and it names no pack. Both figures
+     * and both rules ship pre-resolution, so a browser that never hears from the
+     * server shows an honest "not read" rather than a stale number.
+     */
+    assert.match(html, /<b id="nav-sources">Sources not read<\/b>/);
+    assert.match(html, /<b id="nav-demonstrated">Demonstration not read<\/b>/);
+    assert.match(html, /id="nav-sources-rule">no grant count has been read for this pack</);
+    assert.match(html, /id="nav-demonstrated-rule">no demonstration count has been read for this pack</);
+    // The markup's fallback strings and the module's are one rule, not two.
+    assert.ok(html.includes(`>${IDENTITY_FALLBACK.demonstratedLabel}<`));
+    assert.ok(html.includes(`>${IDENTITY_FALLBACK.demonstratedRule}<`));
+    assert.ok(html.includes(`>${IDENTITY_FALLBACK.sourcesLabel}<`));
+    assert.ok(html.includes(`>${IDENTITY_FALLBACK.sourcesRule}<`));
+    // Both are written from the resolved payload, and the chrome computes neither.
+    assert.match(app, /setText\("nav-demonstrated", sources\.demonstratedLabel\)/);
+    assert.match(app, /setText\("nav-demonstrated-rule", sources\.demonstratedRule\)/);
+    assert.equal(/demonstrated with fixture records/.test(app), false, "app.js must not carry a second copy of the label");
+    // The two figures sit in ONE provenance chip so a reader compares them.
+    const foot = html.match(/<div class="nav-foot">[\s\S]*?<\/div>/)?.[0] || "";
+    assert.ok(foot.includes('id="nav-sources"'), "the footer lost the granted figure");
+    assert.ok(foot.includes('id="nav-demonstrated"'), "the footer lost the demonstrated figure");
+    assert.equal((foot.match(/class="prov"/g) || []).length, 1);
+  });
+
   it("keeps the product register figure off the per-city footer", () => {
     // The two ratios are different classes measured different ways. Different
     // verbs, and each carries its own rule where it is read.

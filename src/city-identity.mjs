@@ -33,6 +33,8 @@ export const IDENTITY_FALLBACK = Object.freeze({
   environmentBadge: "Demo",
   sourcesLabel: "Sources not read",
   sourcesRule: "no grant count has been read for this pack",
+  demonstratedLabel: "Demonstration not read",
+  demonstratedRule: "no demonstration count has been read for this pack",
 });
 
 export const FALLBACK_VOCABULARY = Object.freeze([
@@ -118,6 +120,27 @@ export function packState(pack) {
  * past the denominator; intersected with the catalog, so a grant naming a kind
  * that does not exist cannot inflate it either. grantCount travels beside it so
  * the raw and the distinct figure stay reconcilable instead of silently merged.
+ *
+ * G-93. A SECOND FIGURE, BECAUSE GRANTED AND DEMONSTRATED ARE DIFFERENT CLAIMS.
+ *
+ * template-city rendered three populated regions beside "0 of 10 sources
+ * granted". Every word of that was true - fixtureGrants names adapter KINDS,
+ * carries no sourceUrl, and connects nothing - and a prospect read a
+ * contradiction. The operator's ruling is to distinguish the two states rather
+ * than collapse them, so the footer now carries both figures and neither one
+ * absorbs the other. grantedAdapters stays empty on every pack and
+ * assertCityPackShape still refuses a grant on a generating pack.
+ *
+ * The two numerators are deliberately measured in the SAME UNIT against the SAME
+ * denominator - distinct adapter kinds, of the catalog - because two figures a
+ * reader is meant to compare must be comparable. A regions-populated numerator
+ * would have been three different counting rules sharing one chip.
+ *
+ * Both stay DERIVED. Growing the catalog moves both denominators and adding a
+ * fixture grant moves the demonstrated numerator, with no edit here: the "0 of
+ * 7" that was short by three for weeks corrected itself the moment the catalog
+ * grew, and that property is the whole reason this is a computation and not a
+ * string.
  */
 export function packSources(pack, kinds = ADAPTER_KINDS) {
   const catalog = new Set(kinds.map((k) => k.id));
@@ -127,6 +150,23 @@ export function packSources(pack, kinds = ADAPTER_KINDS) {
   const granted = distinct.filter((id) => catalog.has(id));
   const unknownKinds = distinct.filter((id) => !catalog.has(id));
   const total = catalog.size;
+
+  /**
+   * The demonstration axis. Read defensively, gated on the pack actually
+   * generating: a declaration a pack cannot honour is not a demonstration.
+   * assertCityPackShape already refuses fixtureGrants on a non-generating pack,
+   * so this gate is a second reader agreeing with that rule rather than a
+   * tolerance for one breaking it - and empty-city exercises the branch on
+   * every run.
+   */
+  const generates = pack?.generatesFixtures === true;
+  const fixtureNamed = (Array.isArray(pack?.fixtureGrants) ? pack.fixtureGrants : [])
+    .map((k) => String(k || "").trim())
+    .filter(Boolean);
+  const fixtureDistinct = [...new Set(fixtureNamed)];
+  const demonstrated = generates ? fixtureDistinct.filter((id) => catalog.has(id)) : [];
+  const unknownFixtureKinds = fixtureDistinct.filter((id) => !catalog.has(id));
+
   return {
     granted: granted.length,
     total,
@@ -134,6 +174,19 @@ export function packSources(pack, kinds = ADAPTER_KINDS) {
     unknownKinds,
     label: `${granted.length} of ${total} sources granted`,
     rule: `distinct adapter kinds granted on this pack, of ${total} in the catalog`,
+    demonstrated: demonstrated.length,
+    generatesFixtures: generates,
+    fixtureGrantCount: fixtureNamed.length,
+    unknownFixtureKinds,
+    demonstratedLabel: `${demonstrated.length} of ${total} demonstrated with fixture records`,
+    /**
+     * A pack that generates nothing gets a POSITIVE DETERMINATION rather than a
+     * bare zero. An empty result is not an absence, and empty-city is the
+     * regression target for every honest-empty state on this product.
+     */
+    demonstratedRule: generates
+      ? `distinct adapter kinds this pack generates fixture records for, of ${total} in the catalog; a demonstration connects no source`
+      : "this pack generates no records, so no adapter kind is demonstrated on it",
   };
 }
 
