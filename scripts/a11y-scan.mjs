@@ -88,6 +88,7 @@ import { THEMES, THEME_STORAGE_KEY } from "../src/theme.mjs";
 import {
   CONFORMANCE_TAGS,
   GATED_BEST_PRACTICE,
+  REVIEW_ITEMS,
   WAIVERS,
   summarize,
   verdict,
@@ -639,8 +640,18 @@ function report(summary, out = process.stdout) {
     `UNRESOLVED conformance checks (axe could not settle these; not a pass): ${summary.incompleteConformance.length} rule(s), ${summary.incompleteConformance.reduce((n, x) => n + x.nodes, 0)} node(s)`,
   );
   for (const inc of summary.incompleteConformance) {
-    w(`  ${inc.id.padEnd(30)} ${String(inc.nodes).padStart(4)} nodes  sample ${JSON.stringify(inc.sample)}  reason ${JSON.stringify(inc.reasons)}`);
+    const item = REVIEW_ITEMS.find((r) => r.rule === inc.id && inc.reasons.includes(r.reason));
+    w(
+      `  ${inc.id.padEnd(30)} ${String(inc.nodes).padStart(4)} nodes  sample ${JSON.stringify(inc.sample)}  reason ${JSON.stringify(inc.reasons)}${
+        item ? "  ADJUDICATED" : "  NOT ADJUDICATED"
+      }`,
+    );
     w(`      on: ${[...new Set(inc.surfaces)].slice(0, 6).join(", ")}${inc.surfaces.length > 6 ? " ..." : ""}`);
+    if (item) {
+      w(`      ${item.adjudication}`);
+      w(`      routed to: ${item.routedTo}`);
+      w(`      remove when: ${item.remove}`);
+    }
   }
   w(`best-practice rules failing: ${summary.bestPracticeViolations.length}`);
   for (const v of summary.bestPracticeViolations) {

@@ -113,6 +113,49 @@ export const GATED_BEST_PRACTICE = {
  */
 export const WAIVERS = [];
 
+/**
+ * ---------------------------------------------------------------------------
+ * ADJUDICATED REVIEW ITEMS: axe's incomplete bucket, resolved by a human.
+ *
+ * An incomplete result is not a violation and it is not a pass. It is axe
+ * saying it could not settle the check, which is precisely the population wave
+ * 3's manual protocol exists for. So the contract splits the way DEV_PROCESS
+ * 2.0 asks: an unresolved check FAILS the build unless it has been adjudicated
+ * here, by rule and by the reason axe gave, with the adjudication written down.
+ * A new one, a different reason, or more nodes than were adjudicated all fail.
+ *
+ * It is a RATCHET on the same terms as a waiver, for the same reason: above the
+ * pin fails, below prints STALE, and zero fails with an instruction to delete
+ * the entry, so an adjudication cannot outlive its cause.
+ *
+ * What an entry is NOT: permission to ignore the rule. Every node of that rule
+ * whose reason is not listed here still fails.
+ * ---------------------------------------------------------------------------
+ */
+export const REVIEW_ITEMS = [
+  {
+    rule: "color-contrast",
+    reason: "elmPartiallyObscuring",
+    element: "#nav-demonstrated, the demonstrated-sources figure in the nav footer",
+    surfaces: ["empty-city-overview"],
+    nodesByTheme: { light: 1, dark: 1 },
+    countingRule: "failing DOM elements per theme, over the 23 scanned surfaces",
+    owner: "G-95",
+    adjudication:
+      "SUPPORTS. web/shell.css gives .nav-foot position: sticky with an OPAQUE background (var(--sc-surface)), so the nav list scrolls underneath it and a person reads the footer text against a solid ground. axe cannot composite a background through a sticky overlap and says so rather than guessing, which is the correct behaviour for a tool and the reason this bucket exists.",
+    basis:
+      "it fires on empty-city-overview alone, in both themes, because that pack's footer sentence is the longest in the product ('this pack generates no records, so no adapter kind is demonstrated on it'), so .prov wraps to more lines, the sticky footer grows and overlaps more of the list. Environment-dependent: 2 nodes on a Linux CI runner, 0 on the author's Windows machine, same axe and same Chromium build. That difference is itself the argument for adjudicating rather than chasing - the geometry is a layout detail, not a colour decision.",
+    remove:
+      "when .nav-foot stops overlapping the nav list, or when the footer's figures move somewhere that does not need a sticky bar. Both are UI decisions and neither is this lane's to take.",
+    routedTo:
+      "the wave 3 manual protocol, which is where 'the three axe cannot settle' already belong. This is a fourth: a contrast pair a human must read rather than a tool.",
+  },
+];
+
+const reviewFor = (id, reason) =>
+  REVIEW_ITEMS.find((r) => r.rule === id && r.reason === reason) || null;
+
+
 export const waivedTotal = (w) => Object.values(w.nodesByTheme).reduce((a, b) => a + b, 0);
 
 export const waiverFor = (id) => WAIVERS.find((w) => w.rule === id) || null;
@@ -312,6 +355,20 @@ export function summarize(results, axe, base) {
       return { theme: t, witness: row ? row.painted.witness : null };
     }),
     incompleteConformance: incompleteConformance(results),
+    incompleteNodesByThemeRule: Object.fromEntries(
+      THEMES.map((theme) => [
+        theme,
+        results
+          .filter((r) => r.ok && r.theme === theme)
+          .reduce((acc, r) => {
+            for (const v of r.incomplete || []) {
+              if (!isConformance(v)) continue;
+              acc[v.id] = (acc[v.id] || 0) + v.nodes;
+            }
+            return acc;
+          }, {}),
+      ]),
+    ),
     conformanceNodesByThemeRule: byThemeRule,
     themeLeverFinding: themeLeverFinding(results),
     conformanceViolations: [...conformance.values()].sort((a, b) => b.nodes - a.nodes),
@@ -366,7 +423,7 @@ export function summarize(results, axe, base) {
  * last one because a surface that errored is an unmeasured surface, and an
  * empty result is not an absence (DEV_PROCESS 4.3).
  */
-export function verdict(summary, waivers = WAIVERS) {
+export function verdict(summary, waivers = WAIVERS, reviewItems = REVIEW_ITEMS) {
   const reasons = [];
   const stale = [];
   const found = new Map(summary.conformanceViolations.map((v) => [v.id, v.nodes]));
@@ -404,9 +461,42 @@ export function verdict(summary, waivers = WAIVERS) {
   }
 
   for (const inc of summary.incompleteConformance || []) {
-    reasons.push(
-      `${inc.id}: ${inc.nodes} node(s) axe could NOT SETTLE across ${new Set(inc.surfaces).size} scan(s). An unresolved conformance check is not a pass; sample ${JSON.stringify(inc.sample)}; reason ${JSON.stringify(inc.reasons)}; on ${JSON.stringify([...new Set(inc.surfaces)].slice(0, 4))}`,
-    );
+    const context = `sample ${JSON.stringify(inc.sample)}; reason ${JSON.stringify(inc.reasons)}; on ${JSON.stringify([...new Set(inc.surfaces)].slice(0, 4))}`;
+    /**
+     * Adjudicated only when EVERY reason axe gave is one that has been
+     * adjudicated. One unrecognised reason in the set and the whole rule fails,
+     * because the counts are aggregated per rule and cannot be split between an
+     * adjudicated reason and a new one without pretending to a precision this
+     * aggregation does not have.
+     */
+    const items = inc.reasons.map((r) => reviewItems.find((x) => x.rule === inc.id && x.reason === r) || null);
+    if (!inc.reasons.length || items.some((x) => !x)) {
+      reasons.push(
+        `${inc.id}: ${inc.nodes} node(s) axe could NOT SETTLE across ${new Set(inc.surfaces).size} scan(s), and no adjudication covers ${JSON.stringify(inc.reasons.filter((r, i) => !items[i]))}. An unresolved conformance check is not a pass; ${context}`,
+      );
+      continue;
+    }
+    for (const item of new Set(items)) {
+      for (const [theme, pinned] of Object.entries(item.nodesByTheme)) {
+        const actual = (summary.incompleteNodesByThemeRule?.[theme] || {})[inc.id] || 0;
+        if (actual > pinned) {
+          reasons.push(
+            `${inc.id} [${theme}]: ${actual} unresolved node(s) exceeds the ${pinned} adjudicated as ${item.reason} (${item.countingRule}); an adjudication is a ceiling, not permission. ${context}`,
+          );
+        } else if (actual < pinned) {
+          stale.push(
+            `${inc.id} [${theme}]: ${actual} unresolved node(s) is below the ${pinned} adjudicated; re-pin the REVIEW_ITEMS entry to ${actual} or remove it (${item.remove})`,
+          );
+        }
+      }
+    }
+  }
+  for (const item of reviewItems) {
+    if (!(summary.incompleteConformance || []).some((inc) => inc.id === item.rule)) {
+      reasons.push(
+        `${item.rule}: 0 unresolved node(s) on every theme. The adjudication's cause is gone - delete its entry from REVIEW_ITEMS in src/a11y-gate.mjs. An adjudication that no longer applies is a judgement outliving its subject.`,
+      );
+    }
   }
   for (const v of summary.bestPracticeViolations) {
     const why = GATED_BEST_PRACTICE[v.id];

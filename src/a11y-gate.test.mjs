@@ -31,7 +31,15 @@ import {
   SCANNED_PACKS,
   expectedTitle,
 } from "./a11y-surfaces.mjs";
-import { CONFORMANCE_TAGS, GATED_BEST_PRACTICE, WAIVERS, summarize, verdict, waivedTotal } from "./a11y-gate.mjs";
+import {
+  CONFORMANCE_TAGS,
+  GATED_BEST_PRACTICE,
+  REVIEW_ITEMS,
+  WAIVERS,
+  summarize,
+  verdict,
+  waivedTotal,
+} from "./a11y-gate.mjs";
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = (rel) => fs.readFileSync(path.join(root, rel), "utf8").replace(/\r\n/g, "\n");
@@ -156,8 +164,15 @@ function cleanResults() {
   );
 }
 
-const judge = (results, waivers = TEST_WAIVERS) =>
-  verdict(summarize(results, AXE, "http://test"), waivers);
+/**
+ * Arms drive the verdict with FIXTURE ledgers, never the live ones, for the
+ * reason the fixture waiver exists: a firing proof that reads the live ledger
+ * disappears the moment that ledger is emptied, and both of this repo's ledgers
+ * are meant to be emptied when their causes go. The live ones get their own
+ * arms.
+ */
+const judge = (results, waivers = TEST_WAIVERS, reviewItems = []) =>
+  verdict(summarize(results, AXE, "http://test"), waivers, reviewItems);
 
 /* --------------------------------------------------------------- the verdict */
 
@@ -313,9 +328,75 @@ describe("G-95 the gate is proven able to fire", () => {
     // Only the conformance one counts. A best-practice incomplete is not a
     // conformance failure, and merging them would make this gate cry wolf.
     assert.deepEqual(s.incompleteConformance.map((x) => [x.id, x.nodes]), [["color-contrast", 37]]);
-    const v = verdict(s);
+    const v = judge(results);
     assert.equal(v.pass, false);
     assert.ok(v.reasons.some((r) => r.includes("could NOT SETTLE")), v.reasons.join("; "));
+  });
+
+  it("accepts an unresolved check that has been ADJUDICATED, and only at its pinned count", () => {
+    /**
+     * axe's incomplete bucket is a needs-review, and wave 3 already has a home
+     * for those. So the contract splits rather than choosing between "fail
+     * forever" and "ignore": an unresolved check fails unless a human has
+     * adjudicated it BY RULE AND BY REASON, and the adjudication is a ratchet on
+     * the same terms as a waiver.
+     */
+    const item = {
+      rule: "color-contrast",
+      reason: "elmPartiallyObscuring",
+      element: "#fixture",
+      surfaces: ["s1"],
+      nodesByTheme: { light: 1, dark: 1 },
+      countingRule: "fixture",
+      owner: "a fixture",
+      adjudication: "fixture adjudication",
+      basis: "fixture basis",
+      remove: "never; this entry exists only inside this test file",
+      routedTo: "nowhere; fixture",
+    };
+    const incomplete = (reason, nodes) => [
+      {
+        id: "color-contrast",
+        impact: "serious",
+        tags: ["cat.color", "wcag2aa"],
+        help: "contrast",
+        nodes,
+        sample: ["#fixture"],
+        reasons: [reason],
+      },
+    ];
+    const at = THEMES.map((t) => scan("s1", t, { incomplete: incomplete("elmPartiallyObscuring", 1) }));
+    assert.equal(judge(at, [], [item]).pass, true, "the adjudicated count must pass");
+
+    const above = THEMES.map((t) => scan("s1", t, { incomplete: incomplete("elmPartiallyObscuring", 2) }));
+    const vAbove = judge(above, [], [item]);
+    assert.equal(vAbove.pass, false, "more nodes than were adjudicated must fail");
+    assert.ok(vAbove.reasons.some((r) => r.includes("ceiling, not permission")), vAbove.reasons.join("; "));
+
+    // A DIFFERENT reason is a different finding and is not covered.
+    const other = THEMES.map((t) => scan("s1", t, { incomplete: incomplete("bgImage", 1) }));
+    const vOther = judge(other, [], [item]);
+    assert.equal(vOther.pass, false, "an unadjudicated reason must fail");
+    assert.ok(vOther.reasons.some((r) => r.includes("no adjudication covers")), vOther.reasons.join("; "));
+
+    // And an adjudication cannot outlive its subject.
+    const none = THEMES.map((t) => scan("s1", t));
+    const vNone = judge(none, [], [item]);
+    assert.equal(vNone.pass, false);
+    assert.ok(vNone.reasons.some((r) => r.includes("delete its entry from REVIEW_ITEMS")), vNone.reasons.join("; "));
+  });
+
+  it("holds the LIVE adjudications to a shape that makes them readable by a stranger", () => {
+    for (const r of REVIEW_ITEMS) {
+      assert.match(r.rule, /\S/);
+      assert.match(r.reason, /\S/, `${r.rule} is adjudicated without naming the reason axe gave`);
+      assert.deepEqual(Object.keys(r.nodesByTheme).sort(), [...THEMES].sort(), `${r.rule} is not pinned per theme`);
+      assert.match(r.owner, /\S/, `${r.rule} is adjudicated and nobody owns it`);
+      assert.match(r.adjudication, /\S/, `${r.rule} has no adjudication, only a pin`);
+      assert.match(r.basis, /\S/, `${r.rule} is adjudicated with no basis`);
+      assert.match(r.remove, /\S/, `${r.rule} has no removal condition, which is amnesty`);
+      assert.match(r.routedTo, /\S/, `${r.rule} is not routed anywhere, so no human will ever see it`);
+    }
   });
 
   it("fires on a shared title, which is the 2.4.2 defect this card was opened for", () => {
@@ -371,7 +452,7 @@ describe("G-95 the gate is proven able to fire", () => {
     );
     const s = summarize(results, AXE, "http://test");
     assert.match(s.themeLeverFinding, /did not move|identically/);
-    assert.equal(verdict(s).pass, false);
+    assert.equal(verdict(s, TEST_WAIVERS, []).pass, false);
   });
 
   it("counts every theme in the denominator and says so where the number is read", () => {
@@ -497,7 +578,7 @@ describe("G-95 the gate is wired and cannot skip", () => {
      * assertion that actually matters here: every conformance node fails.
      */
     const results = THEMES.map((t) => scan("s1", t, { violations: [contrast(1)] }));
-    const v = verdict(summarize(results, AXE, "http://test"), WAIVERS);
+    const v = verdict(summarize(results, AXE, "http://test"), WAIVERS, []);
     assert.equal(v.pass, false);
     assert.ok(v.reasons.some((r) => r.includes("no waiver")), v.reasons.join("; "));
   });
