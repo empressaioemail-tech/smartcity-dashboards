@@ -8,12 +8,29 @@ import { FORBIDDEN_PRODUCT_STRINGS, MCP_TOOL_NAMES } from "./catalog.mjs";
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SURFACE = ["src", "web"].map((d) => path.join(root, d));
 
+/**
+ * The extensions the forbidden-string gate walks.
+ *
+ * CSS was added at G-88 item 7. Until then the walk was mjs, js and html only,
+ * so a vendor name written into a web/shell.css comment shipped green - on the
+ * exact file G-88 item 2 had just grown by roughly 270 lines of heavily
+ * commented CSS. That is a hole on a live surface, not a hypothetical.
+ *
+ * EXCLUSION SET, stated here where the gate's output is read (DEV_PROCESS 2.1):
+ * every *.test.mjs, because a test that asserts the guard fires must be able to
+ * name the string it fires on; and src/catalog.mjs, because it IS the refusal
+ * list. Nothing else is excused, and both exclusions are asserted below rather
+ * than trusted.
+ */
+const SCANNED_EXTENSIONS = ["mjs", "js", "html", "css"];
+const SCANNED_RE = new RegExp(`\\.(${SCANNED_EXTENSIONS.join("|")})$`);
+
 function walk(dir, acc = []) {
   for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
     const p = path.join(dir, ent.name);
     if (ent.isDirectory()) walk(p, acc);
     else if (
-      /\.(mjs|js|html)$/.test(ent.name) &&
+      SCANNED_RE.test(ent.name) &&
       !ent.name.endsWith(".test.mjs") &&
       ent.name !== "catalog.mjs"
     ) {
@@ -21,6 +38,23 @@ function walk(dir, acc = []) {
     }
   }
   return acc;
+}
+
+const rel = (p) => path.relative(root, p).split(path.sep).join("/");
+
+function scannedSources() {
+  const out = {};
+  for (const p of SURFACE.flatMap((d) => walk(d))) out[rel(p)] = fs.readFileSync(p, "utf8");
+  return out;
+}
+
+/** Every forbidden string found, named with the file that carries it. */
+function forbiddenHits(sources) {
+  const hits = [];
+  for (const [name, text] of Object.entries(sources)) {
+    for (const s of FORBIDDEN_PRODUCT_STRINGS) if (text.includes(s)) hits.push(`${name}: ${s}`);
+  }
+  return hits.sort();
 }
 
 describe("product shape", () => {
@@ -37,13 +71,56 @@ describe("product shape", () => {
   });
 
   it("does not ship forbidden product strings outside tests", () => {
-    const files = SURFACE.flatMap((d) => walk(d));
-    for (const file of files) {
-      const text = fs.readFileSync(file, "utf8");
+    /**
+     * ARM A, the real sources. Counting rule, stated where the number is read:
+     * every file under src/ and web/ whose extension is one of
+     * SCANNED_EXTENSIONS, minus the exclusion set named beside that constant.
+     */
+    const sources = scannedSources();
+    assert.deepEqual(forbiddenHits(sources), []);
+
+    /**
+     * ARM B, and this gate had NO firing arm at all before G-88 item 7, which
+     * means nobody had ever seen it work. Every forbidden string is injected
+     * into one real file of EVERY scanned extension, and the gate must fire and
+     * name that file. Running it per extension rather than once is the point:
+     * the .css leg is red the moment the walk narrows again, which is exactly
+     * how this shipped broken.
+     */
+    const byExtension = {};
+    for (const name of Object.keys(sources)) {
+      const ext = name.slice(name.lastIndexOf(".") + 1);
+      if (!byExtension[ext]) byExtension[ext] = name;
+    }
+    assert.deepEqual(
+      Object.keys(byExtension).sort(),
+      [...SCANNED_EXTENSIONS].sort(),
+      "an extension this gate claims to scan has no file to prove it on",
+    );
+    for (const [ext, name] of Object.entries(byExtension)) {
       for (const s of FORBIDDEN_PRODUCT_STRINGS) {
-        assert.equal(text.includes(s), false, `${path.relative(root, file)} contains ${s}`);
+        const injected = { ...sources, [name]: `${sources[name]}\n/* ${s} */\n` };
+        assert.deepEqual(
+          forbiddenHits(injected),
+          [`${name}: ${s}`],
+          `injecting ${s} into the ${ext} source ${name} did not fire the gate naming that file`,
+        );
       }
     }
+
+    /**
+     * The exclusion set is asserted rather than trusted. src/catalog.mjs holds
+     * the refusal list itself and would be a permanent red; every *.test.mjs
+     * names the strings it proves the guard fires on.
+     */
+    assert.equal(Object.keys(sources).includes("src/catalog.mjs"), false);
+    assert.equal(
+      Object.keys(sources).some((name) => name.endsWith(".test.mjs")),
+      false,
+    );
+    // And the CSS the card added IS in the scanned set, not merely allowed to be.
+    assert.ok(Object.keys(sources).includes("web/shell.css"));
+    assert.ok(Object.keys(sources).includes("web/sc-kit.css"));
   });
 
   it("CI is Node 22 plus npm test, with no deploy, gcloud, or vercel", () => {

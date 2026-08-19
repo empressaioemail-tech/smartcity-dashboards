@@ -12,6 +12,13 @@ import {
   getCityPack,
 } from "./city-pack.mjs";
 import { ADAPTER_KINDS } from "./adapters.mjs";
+import {
+  KNOWN_UNSTYLED,
+  readMarkupSources,
+  readSource,
+  stylesheetClasses,
+  strayClasses,
+} from "./served-surface.mjs";
 import { composePipeline } from "./fixtures.mjs";
 import {
   FALLBACK_VOCABULARY,
@@ -182,16 +189,26 @@ describe("G-80 static markup names no city", () => {
   });
 
   it("adds no CSS class and edits no stylesheet to do it", () => {
-    const shell = fs.readFileSync(path.join(root, "web", "shell.css"), "utf8");
-    const kit = fs.readFileSync(path.join(root, "web", "sc-kit.css"), "utf8");
-    const defined = new Set([...(shell + kit).matchAll(/\.([a-zA-Z][a-zA-Z0-9_-]*)/g)].map((m) => m[1]));
-    const used = new Set();
-    for (const m of html.matchAll(/class="([^"]+)"/g)) {
-      for (const c of m[1].split(/\s+/)) if (c) used.add(c);
-    }
-    for (const m of app.matchAll(/classList\.(add|remove|toggle)\("([^"]+)"/g)) used.add(m[2]);
-    const KNOWN_UNSTYLED = new Set(["roster-lens"]);
-    assert.deepEqual([...used].filter((c) => !defined.has(c) && !KNOWN_UNSTYLED.has(c)), []);
+    /**
+     * ONE RULE, ONE IMPLEMENTATION (G-88 item 7, fold A).
+     *
+     * This assertion used to re-implement the shipped-class rule locally, and
+     * the copy was weaker than the one src/ui.test.mjs hardened at G-88 item 3
+     * on all three axes: no CSS comment strip, two markup sources instead of
+     * five, and only the classList extractor. It was not a near-miss. An
+     * injected class="hidden" PASSED here while FAILING there, because the word
+     * hidden appears inside a CSS comment and the loose rule counted it as a
+     * shipped class - measured both ways before this edit.
+     *
+     * Two implementations of one rule is the CTRL-1 shape and would need a
+     * divergence test forever. Both callers now call src/served-surface.mjs, so
+     * there is nothing left to diverge (DEV_PROCESS 2.4).
+     */
+    const shell = readSource("web/shell.css");
+    assert.deepEqual(
+      strayClasses(readMarkupSources(), stylesheetClasses(), KNOWN_UNSTYLED),
+      [],
+    );
     /**
      * .brandcity span is a real rule (weight 400, ink-3), so the city name
      * cannot be a span without rendering as the quiet state suffix, and <b>
