@@ -479,6 +479,82 @@ a.prov:hover { border-color: var(--sc-line-strong); background: var(--sc-surface
 .shell-top .grow { flex: 1; min-width: 0; }
 .shell-top .searchwrap { max-width: 420px; }
 
+/* ---------- top-bar menus (G-90 shell function parity) ----------
+
+   Four new class names, and they are the smallest set that a dropdown needs:
+   an anchor that a panel can be positioned against, the panel itself, a group
+   inside it, and a row. Everything else composes classes this file already
+   defines - .panel for the frame, .panel-head for the header, .basis for the
+   reason line, .btn for the controls, .pill for the session state.
+
+   NO TOKEN IS ADDED OR OVERRIDDEN. Every value below is an existing var(--sc-*)
+   or a layout number. web/sc-kit.css stays byte-identical across the three
+   repos that vendor it; a new colour or type step is a product-line decision
+   and not this card's to make.
+
+   The type floor holds: 13px on a row, 12px on a caption, which are the steps
+   already used by .t-caption and .prov. */
+
+.topmenu { position: relative; flex: none; }
+.pop {
+  position: absolute;
+  top: calc(100% + var(--sc-2));
+  right: 0;
+  z-index: 12;
+  width: 320px;
+  max-width: calc(100vw - var(--sc-6));
+  box-shadow: var(--sc-e3);
+  /* The account menu can outgrow a short viewport once every group states its
+     basis, so the panel scrolls rather than running off the bottom of the
+     screen with the sign-in row unreachable. */
+  max-height: calc(100vh - var(--sc-topbar) - var(--sc-6));
+  overflow-y: auto;
+}
+/* .panel sets overflow:hidden for its rounded corners, and .pop needs to scroll.
+   Stated here rather than in .panel, so no other panel in the product changes. */
+.panel.pop { overflow-y: auto; }
+.pop-group {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--sc-1);
+  padding: var(--sc-2) var(--sc-3) var(--sc-3);
+  border-bottom: 1px solid var(--sc-line-faint);
+}
+.pop-group:last-child { border-bottom: 0; }
+.pop-group > .basis { margin-top: var(--sc-2); }
+.pop-group > .actionbar { margin-top: var(--sc-2); }
+.pop-group > textarea.inp {
+  height: auto;
+  padding: var(--sc-2) 10px;
+  line-height: 18px;
+  resize: vertical;
+}
+.pop-item {
+  display: flex;
+  align-items: center;
+  gap: var(--sc-2);
+  width: 100%;
+  min-height: var(--sc-row-compact);
+  padding: 0 var(--sc-2);
+  border: 1px solid transparent;
+  border-radius: var(--sc-r-control);
+  background: transparent;
+  color: var(--sc-ink);
+  font: 400 13px/18px var(--sc-font-ui);
+  text-align: left;
+  cursor: pointer;
+}
+.pop-item:hover { background: var(--sc-surface-3); }
+/* An unavailable entry reads as unavailable rather than merely unresponsive.
+   Its reason is the .basis line its group carries, filled from the server. */
+.pop-item[disabled] {
+  color: var(--sc-ink-3);
+  cursor: not-allowed;
+  background: transparent;
+}
+.pop-item[disabled]:hover { background: transparent; }
+
 .shell-body {
   display: grid;
   grid-template-columns: var(--sc-nav) minmax(0, 1fr);
@@ -1138,6 +1214,11 @@ html[data-atab="fixture"] #atab-fixture {
   .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .cp-sheet { width: 100vw; }
   .shell-top .searchwrap { display: none; }
+  /* The top bar gained three controls at G-90. On a phone the theme toggle
+     keeps its icon and drops its word, which is the only one of the three that
+     carries a text label at all. The control itself does not hide: losing a
+     capability on a narrow screen is the thing this card was opened about. */
+  #theme-toggle-label { display: none; }
   .pagehead { padding: var(--sc-3) var(--sc-4); }
 }
 

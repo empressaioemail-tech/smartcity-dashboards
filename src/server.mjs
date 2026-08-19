@@ -16,6 +16,7 @@ import { loadDotenv } from "./load-env.mjs";
 import { pingDb } from "./db.mjs";
 import { MCP_TOOL_NAMES } from "./catalog.mjs";
 import { canReadPack, packContentReadStatus, packReadStatus, resolveCaller, isServiceBearer } from "./tenancy.mjs";
+import { deliverFeedback, shellState } from "./shell-state.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const WEB = path.join(__dirname, "..", "web");
@@ -84,6 +85,53 @@ export function sendFile(req, res, filePath, contentType) {
       etag,
     });
     res.end(buf);
+  });
+}
+
+/**
+ * A bounded JSON body read. Bounded on purpose: an unbounded read on a public
+ * POST is a memory exhaustion seam, and the one POST this product accepts
+ * carries at most a couple of kilobytes of typed text. Returns null for
+ * anything that is not readable JSON, so the caller answers with a stated
+ * reason rather than a stack trace.
+ */
+export const MAX_BODY_BYTES = 16 * 1024;
+
+export function readJsonBody(req, limit = MAX_BODY_BYTES) {
+  return new Promise((resolve) => {
+    let size = 0;
+    let over = false;
+    const chunks = [];
+    req.on("data", (chunk) => {
+      size += chunk.length;
+      if (size > limit) {
+        /**
+         * Drain and discard rather than req.destroy(). Destroying the request
+         * tears down the socket the response still has to be written to, so the
+         * caller's honest 400 would be written to a dead socket and the client
+         * would see a connection reset instead of a stated reason. Resuming
+         * keeps the request flowing to its end, the body is dropped, and the
+         * answer gets out.
+         */
+        over = true;
+        chunks.length = 0;
+        req.resume();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on("end", () => {
+      if (over) {
+        resolve(null);
+        return;
+      }
+      try {
+        resolve(JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}"));
+      } catch {
+        resolve(null);
+      }
+    });
+    req.on("error", () => resolve(null));
   });
 }
 
@@ -267,6 +315,51 @@ async function handle(req, res) {
     return;
   }
 
+  /**
+   * G-90. What the top bar is allowed to say about itself.
+   *
+   * Gated exactly as /api/city-identity is, and for the same reason: the
+   * notification basis is derived from the pack's grants, which is CONTENT.
+   * Reusing packContentReadStatus rather than writing a second policy here
+   * means there is one access rule for pack content and not two that can drift.
+   *
+   * The session half is the caller this request actually resolved to, read
+   * through the existing tenancy resolver. Nothing new authenticates anything.
+   */
+  if (req.method === "GET" && url.pathname === "/api/shell") {
+    const caller = await resolveCaller(req);
+    const cityKey = url.searchParams.get("cityKey") || "template-city";
+    const pack = await getCityPack(cityKey);
+    const status = packContentReadStatus(pack, caller);
+    if (status === 404) {
+      json(res, 404, { error: "unknown city pack" });
+      return;
+    }
+    if (status !== 200) {
+      json(res, status, { error: status === 401 ? "unauthorized" : "forbidden" });
+      return;
+    }
+    json(res, 200, shellState({ caller, pack, env: process.env }));
+    return;
+  }
+
+  /**
+   * Feedback, and it answers truthfully rather than politely. `accepted` is
+   * true only when a configured destination confirmed delivery; with no
+   * destination configured this is a 503 naming the missing variable, which is
+   * the correct answer and not a placeholder for a future one.
+   */
+  if (req.method === "POST" && url.pathname === "/api/feedback") {
+    const body = await readJsonBody(req);
+    if (body === null) {
+      json(res, 400, { accepted: false, basis: "the request body was not readable JSON, so nothing was sent" });
+      return;
+    }
+    const answer = await deliverFeedback({ body, env: process.env });
+    json(res, answer.status, { accepted: answer.accepted, basis: answer.basis });
+    return;
+  }
+
   if (req.method === "GET" && url.pathname.startsWith("/api/lenses/")) {
     const id = url.pathname.slice("/api/lenses/".length);
     const lens = getLens(id);
@@ -359,6 +452,11 @@ async function handle(req, res) {
 
   if (req.method === "GET" && url.pathname === "/staff-review.mjs") {
     sendFile(req, res, path.join(__dirname, "staff-review.mjs"), "text/javascript; charset=utf-8");
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/theme.mjs") {
+    sendFile(req, res, path.join(__dirname, "theme.mjs"), "text/javascript; charset=utf-8");
     return;
   }
 

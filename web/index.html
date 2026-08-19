@@ -31,6 +31,9 @@
         as it did before, so a scripting-disabled browser is not regressed.
       */
       (function () {
+        var THEMES = ["light", "dark"];
+        var FALLBACK_THEME = "dark";
+        var THEME_KEY = "theme";
         var LENS = [
           "city-manager",
           "development-services",
@@ -78,6 +81,38 @@
           "data-atab",
           work === "assets" ? pick(ASSET_TABS, params.get("atab"), "inventory") : "",
         );
+        /*
+          G-90. Theme, resolved here for exactly the reason the surface is.
+
+          A staff member's light/dark choice is stored on their device, and CSS
+          cannot read storage. If the toggle lived only in app.js the browser
+          would paint the DEFAULT palette on every navigation and then repaint
+          the chosen one - a full-page flash of the wrong theme, which is the
+          G-89 defect one attribute over. So it is resolved in this same script,
+          before the parser reaches the body, and stamped on the ROOT and on
+          nothing else.
+
+          It runs LAST on purpose. The surface stamps above are the G-89 fix and
+          must not be able to fail because of anything added after them.
+
+          The storage read is guarded because getItem THROWS - not returns null -
+          in a partitioned or blocked storage context, and an unguarded throw
+          here would abort the whole script and leave the surface unstamped. The
+          fix opened for one flash would have reintroduced it for another.
+
+          Nothing is written here. Writing on load would overwrite a preference
+          this build could not parse; the toggle in app.js is the only writer.
+
+          The static document already carries the fallback theme, so a browser
+          with scripting off keeps exactly the palette it had before this change.
+        */
+        var storedTheme = "";
+        try {
+          storedTheme = window.localStorage.getItem(THEME_KEY) || "";
+        } catch (err) {
+          storedTheme = "";
+        }
+        root.setAttribute("data-theme", pick(THEMES, storedTheme, FALLBACK_THEME));
       })();
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -105,6 +140,78 @@
             <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"/><path d="M10.4 5.6L9 9 5.6 10.4 7 7z"/></svg>
             <span class="cp-src-l"><b>Compass</b><em id="cp-source-scope">This city · Overview</em></span>
           </button>
+
+          <!-- G-90 shell function parity. Theme, notifications and the account
+               menu. Every entry below ships DISABLED with the basis line reading
+               "not read": the static document is the fallback, exactly as it is
+               for the pack identity, and a control that has not yet heard from
+               the server must not look available. web/app.js replaces both the
+               state and the sentence from GET /api/shell, so nothing here is a
+               hand-written claim that can go stale. -->
+          <button type="button" class="btn btn-ghost btn-sm" id="theme-toggle" title="Switch to the light theme">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="8" r="3.2"/><path d="M8 1v1.6M8 13.4V15M15 8h-1.6M2.6 8H1M12.9 3.1l-1.1 1.1M4.2 11.8l-1.1 1.1M12.9 12.9l-1.1-1.1M4.2 4.2L3.1 3.1"/></svg>
+            <span id="theme-toggle-label">Light</span>
+          </button>
+
+          <div class="topmenu">
+            <button type="button" class="btn btn-ghost btn-sm" id="notif-btn" aria-label="Notifications" aria-expanded="false" aria-controls="notif-pop">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M4 6.6a4 4 0 018 0c0 3 1 3.9 1 3.9H3s1-.9 1-3.9z"/><path d="M6.6 12.8a1.6 1.6 0 002.8 0"/></svg>
+            </button>
+            <div class="panel pop" id="notif-pop" role="group" aria-label="Notifications" hidden>
+              <div class="panel-head">
+                <span class="t">Notifications</span>
+              </div>
+              <div class="panel-body">
+                <p class="t-caption" id="notif-empty">No notifications.</p>
+                <span class="basis" id="notif-basis">Basis: not read</span>
+                <p class="t-caption" id="notif-rule">Counting rule: not read</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="topmenu">
+            <button type="button" class="btn btn-ghost btn-sm" id="account-btn" aria-label="Account" aria-expanded="false" aria-controls="account-pop">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="8" cy="5.6" r="2.6"/><path d="M2.9 13.4a5.4 5.4 0 0110.2 0"/></svg>
+            </button>
+            <div class="panel pop" id="account-pop" role="group" aria-label="Account" hidden>
+              <div class="panel-head">
+                <span class="t" id="session-label">Session not read</span>
+                <span class="grow"></span>
+                <span class="pill p-quiet" id="session-pill">Anonymous</span>
+              </div>
+              <div class="panel-body flush">
+                <div class="pop-group">
+                  <span class="basis" id="session-basis">Basis: not read</span>
+                </div>
+                <div class="pop-group">
+                  <button type="button" class="pop-item" id="acct-account" disabled>My account</button>
+                  <button type="button" class="pop-item" id="acct-profile" disabled>My profile</button>
+                  <button type="button" class="pop-item" id="acct-settings" disabled>Account settings</button>
+                  <span class="basis" id="acct-account-basis">Basis: not read</span>
+                </div>
+                <div class="pop-group">
+                  <button type="button" class="pop-item" id="acct-support" disabled>Support</button>
+                  <span class="basis" id="acct-support-basis">Basis: not read</span>
+                  <button type="button" class="pop-item" id="acct-feedback" disabled>Feedback</button>
+                  <span class="basis" id="acct-feedback-basis">Basis: not read</span>
+                </div>
+                <div class="pop-group" id="feedback-form" hidden>
+                  <label class="t-label" for="feedback-text">Feedback</label>
+                  <textarea class="inp" id="feedback-text" rows="3" placeholder="What is wrong, or missing?"></textarea>
+                  <div class="actionbar">
+                    <button type="button" class="btn btn-primary btn-sm" id="feedback-send">Send</button>
+                  </div>
+                  <span class="basis" id="feedback-result">Basis: nothing has been sent from this session</span>
+                </div>
+                <div class="pop-group">
+                  <button type="button" class="pop-item" id="acct-signin" disabled>Sign in</button>
+                  <span class="basis" id="acct-signin-basis">Basis: not read</span>
+                  <button type="button" class="pop-item" id="acct-signout" disabled>Sign out</button>
+                  <span class="basis" id="acct-signout-basis">Basis: not read</span>
+                </div>
+              </div>
+            </div>
+          </div>
         </header>
 
         <div class="shell-body">
