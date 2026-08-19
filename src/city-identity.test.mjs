@@ -137,9 +137,35 @@ describe("G-80 identity resolves from the pack", () => {
      */
     const t = cityIdentity(TEMPLATE_CITY).sources;
     assert.equal(t.granted, 0, "template-city grants nothing");
-    assert.equal(t.demonstrated, 2, "template-city demonstrates mygov and samsara");
+    /**
+     * ASSERTED AS AN INVARIANT, NOT AS A LITERAL, and that is a correction
+     * rather than a softening.
+     *
+     * The first draft pinned `demonstrated === 2`. A sibling wave-2 lane grows
+     * TEMPLATE_CITY.fixtureGrants from two kinds to six in the same wave, so the
+     * literal would have gone red on their merge and the number this gate exists
+     * to protect would have been "fixed" by retyping it - which is how a derived
+     * figure quietly becomes a maintained one. What must hold across any pack
+     * edit is the SHAPE: template-city demonstrates some kinds, demonstrates
+     * fewer than the whole catalog so the ungranted state stays reachable on the
+     * shipped demo, and demonstrates exactly what its own declaration says.
+     *
+     * Non-vacuity does not rest on this assertion. The concrete numbers are
+     * proven below on throwaway packs, where the input is written in this file
+     * and cannot move under a sibling lane.
+     */
+    const declared = new Set(TEMPLATE_CITY.fixtureGrants.filter((k) => ADAPTER_KINDS.some((a) => a.id === k)));
+    assert.equal(t.demonstrated, declared.size, "the figure is the pack's own declaration, intersected with the catalog");
+    assert.ok(t.demonstrated > 0, "template-city must demonstrate something, or the demo shows nothing");
+    assert.ok(
+      t.demonstrated < t.total,
+      "template-city must demonstrate fewer kinds than the catalog holds, or the ungranted state is unreachable on the shipped demo",
+    );
     assert.equal(t.label, `0 of ${ADAPTER_KINDS.length} sources granted`);
-    assert.equal(t.demonstratedLabel, `2 of ${ADAPTER_KINDS.length} demonstrated with fixture records`);
+    assert.equal(
+      t.demonstratedLabel,
+      `${declared.size} of ${ADAPTER_KINDS.length} demonstrated with fixture records`,
+    );
     assert.match(t.demonstratedRule, /a demonstration connects no source/);
     assert.match(t.demonstratedRule, new RegExp(`of ${ADAPTER_KINDS.length} in the catalog`));
     // The two figures share a denominator and NOTHING adds their numerators.
@@ -197,21 +223,38 @@ describe("G-80 identity resolves from the pack", () => {
      * src/city-identity.mjs: the catalog is a parameter, the pack is a
      * parameter, and both numerator and denominator follow them.
      */
+    /**
+     * The probe pack is declared HERE rather than being TEMPLATE_CITY, and that
+     * is deliberate. A derivation proof whose input lives in another lane's file
+     * is a proof that goes red when that lane edits its own pack, and the repair
+     * for a red literal is always to retype the literal - which is precisely how
+     * a derived figure decays into a maintained one. The shipped packs are
+     * asserted by INVARIANT in the test above; the concrete arithmetic is
+     * asserted here, on an input nothing outside this file can move.
+     */
+    const probe = { cityKey: "probe-city", generatesFixtures: true, fixtureGrants: ["mygov", "samsara"], grantedAdapters: [] };
+
     const grown = [...ADAPTER_KINDS, { id: "probe-kind", displayName: "Probe" }];
-    const wider = packSources(TEMPLATE_CITY, grown);
+    const wider = packSources(probe, grown);
     assert.equal(wider.total, ADAPTER_KINDS.length + 1);
     assert.equal(wider.label, `0 of ${ADAPTER_KINDS.length + 1} sources granted`);
     assert.equal(wider.demonstratedLabel, `2 of ${ADAPTER_KINDS.length + 1} demonstrated with fixture records`);
     assert.match(wider.demonstratedRule, new RegExp(`of ${ADAPTER_KINDS.length + 1} in the catalog`));
 
-    const shrunk = packSources(TEMPLATE_CITY, ADAPTER_KINDS.filter((k) => k.id !== "samsara"));
+    const shrunk = packSources(probe, ADAPTER_KINDS.filter((k) => k.id !== "samsara"));
     assert.equal(shrunk.total, ADAPTER_KINDS.length - 1);
     assert.equal(shrunk.demonstrated, 1, "samsara left the catalog, so it is no longer demonstrable");
 
     // The numerator follows the pack's own declaration, not a list in here.
-    const three = packSources({ ...TEMPLATE_CITY, fixtureGrants: ["mygov", "samsara", "opengov"] });
+    const three = packSources({ ...probe, fixtureGrants: ["mygov", "samsara", "opengov"] });
     assert.equal(three.demonstrated, 3);
     assert.equal(three.demonstratedLabel, `3 of ${ADAPTER_KINDS.length} demonstrated with fixture records`);
+
+    // And the shipped demo pack tracks its own declaration under a moved catalog
+    // too, stated as the relation rather than as a number.
+    const declared = new Set(TEMPLATE_CITY.fixtureGrants.filter((k) => ADAPTER_KINDS.some((a) => a.id === k)));
+    assert.equal(packSources(TEMPLATE_CITY, grown).demonstrated, declared.size);
+    assert.equal(packSources(TEMPLATE_CITY, grown).total, ADAPTER_KINDS.length + 1);
 
     /**
      * And no digit is typed into either label or either rule. A literal
