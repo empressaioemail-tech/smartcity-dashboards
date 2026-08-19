@@ -78,11 +78,21 @@ function probePack(fixtureGrants, over = {}) {
 }
 
 describe("G-91 the domain registry", () => {
-  it("registers four domains, each gated by a catalogued kind, and names which pack generates each", () => {
+  it("registers every domain, each gated by a catalogued kind, and names which pack generates each", () => {
     const domains = listDomains();
+    // G-92 wave 2 appended four department domains after the G-91 four.
     assert.deepEqual(
       domains.map((d) => d.id),
-      ["permits-pipeline", "work-orders", "fleet-vehicles", "patrol-vehicles"],
+      [
+        "permits-pipeline",
+        "work-orders",
+        "fleet-vehicles",
+        "patrol-vehicles",
+        "police-cameras",
+        "fire-apparatus",
+        "cip-projects",
+        "call-analytics",
+      ],
     );
     for (const d of domains) {
       assert.ok(adapterKindById(d.gatedBy), `${d.id} is gated by an uncatalogued kind ${d.gatedBy}`);
@@ -97,12 +107,21 @@ describe("G-91 the domain registry", () => {
      *
      * Counting rule: a domain carries records on a pack when the pack generates
      * fixtures AND the domain's gating kind is in that pack's fixtureGrants.
-     * Three of four on template-city; zero of four on empty-city and on
-     * fixture-city, neither of which generates.
+     * Seven of eight on template-city after G-92; zero of eight on empty-city
+     * and on fixture-city, neither of which generates. The one that does not
+     * carry is patrol-vehicles, and it is the same one as at G-91.
      */
     const carries = (pack) =>
       DOMAIN_REGISTRY.filter((d) => composeDomain(pack, d).recordCount > 0).map((d) => d.id);
-    assert.deepEqual(carries(TEMPLATE_CITY), ["permits-pipeline", "work-orders", "fleet-vehicles"]);
+    assert.deepEqual(carries(TEMPLATE_CITY), [
+      "permits-pipeline",
+      "work-orders",
+      "fleet-vehicles",
+      "police-cameras",
+      "fire-apparatus",
+      "cip-projects",
+      "call-analytics",
+    ]);
     assert.deepEqual(carries(EMPTY_CITY), []);
     assert.deepEqual(carries(FIXTURE_CITY), []);
   });
@@ -113,7 +132,16 @@ describe("G-91 the domain registry", () => {
       // No feed is connected by this card, on any pack.
       assert.deepEqual(pack.grantedAdapters, [], pack.cityKey);
     }
-    assert.deepEqual(TEMPLATE_CITY.fixtureGrants, ["mygov", "samsara"]);
+    assert.deepEqual(TEMPLATE_CITY.fixtureGrants, [
+      "mygov",
+      "samsara",
+      "verkada",
+      "firstdue",
+      "powerbi",
+      "goto",
+    ]);
+    // spireon is STILL not demonstrated, which is what keeps ungranted reachable.
+    assert.equal(TEMPLATE_CITY.fixtureGrants.includes("spireon"), false);
     assert.deepEqual(EMPTY_CITY.fixtureGrants, []);
     assert.deepEqual(FIXTURE_CITY.fixtureGrants, []);
     // Paired control: two readers of one field must not drift (DEV_PROCESS 2.4).
@@ -361,7 +389,10 @@ describe("G-91 ungranted is not empty, and neither is not-built", () => {
     }
     const map = composeDomainMap(EMPTY_CITY);
     assert.equal(map.withRecords, 0);
-    assert.match(map.countingRule, /0 of 4 registered domains carry records on empty-city/);
+    assert.match(
+      map.countingRule,
+      new RegExp(`0 of ${DOMAIN_REGISTRY.length} registered domains carry records on empty-city`),
+    );
   });
 });
 
@@ -509,6 +540,6 @@ describe("G-91 the catalog and what it counts", () => {
      * move, because no feed was connected.
      */
     assert.equal(TEMPLATE_CITY.grantedAdapters.length, 0);
-    assert.equal(packFixtureGrantsFromSeam(TEMPLATE_CITY).length, 2);
+    assert.equal(packFixtureGrantsFromSeam(TEMPLATE_CITY).length, 6);
   });
 });

@@ -196,7 +196,14 @@ describe("city packs", () => {
     assert.equal(template.environment, "demo");
     // And so does the demonstration axis, which is the failure generatesFixtures
     // itself had before G-79: written, never selected, silently false on Neon.
-    assert.deepEqual(template.fixtureGrants, ["mygov", "samsara"]);
+    assert.deepEqual(template.fixtureGrants, [
+      "mygov",
+      "samsara",
+      "verkada",
+      "firstdue",
+      "powerbi",
+      "goto",
+    ]);
     assert.deepEqual(empty.fixtureGrants, []);
     assert.deepEqual(fixture.fixtureGrants, []);
     assertCityPackShape(fixture);

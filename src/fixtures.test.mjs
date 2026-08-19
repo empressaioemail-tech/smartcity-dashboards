@@ -63,11 +63,16 @@ describe("adapter record shapes", () => {
     const fromRegistry = DOMAIN_REGISTRY.map((d) => `${d.gatedBy}:${d.recordType}`).sort();
     const fromShapes = declaredRecordShapes().map((d) => `${d.kind}:${d.recordType}`).sort();
     assert.deepEqual(fromRegistry, fromShapes);
+    // G-92 wave 2 declared four more shapes, one per department domain.
     assert.deepEqual(fromShapes, [
+      "firstdue:fire-apparatus",
+      "goto:call-volume",
       "mygov:permit-case",
       "mygov:work-order",
+      "powerbi:capital-project",
       "samsara:fleet-vehicle",
       "spireon:patrol-vehicle",
+      "verkada:camera-device",
     ]);
     for (const domain of DOMAIN_REGISTRY) {
       const shape = recordShapeFor(domain.gatedBy, domain.recordType);
