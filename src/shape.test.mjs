@@ -143,4 +143,33 @@ describe("product shape", () => {
     assert.match(infra, /DASHBOARDS_API_KEY/);
     assert.equal(infra.includes("v0 has no Neon"), false);
   });
+
+  it("reads the serving revision from a command rather than pinning it in prose", () => {
+    /**
+     * G-89. This line carried `revision smartcity-dashboards-00001-92j @100%`
+     * for EIGHTEEN revisions after it stopped being true. Writing the new
+     * number in would have bought another eighteen. A number in a doc is a
+     * control that depends on someone remembering, so the claim is replaced by
+     * the command that reads the truth, and the dated observation beside it is
+     * evidence rather than a pin.
+     *
+     * Both halves are asserted, and both can fire: delete the command and the
+     * first fails; write the claim back in the old form and the second fails.
+     */
+    const infra = fs.readFileSync(path.join(root, "infra.md"), "utf8");
+    assert.match(infra, /gcloud run services describe smartcity-dashboards/);
+    assert.match(infra, /--format="value\(status\.traffic\)"/);
+    assert.equal(
+      /revision `?smartcity-dashboards-\d{5}-\w+`? @\s*100%/.test(infra),
+      false,
+      "infra.md is asserting a serving revision again; read it with the command instead",
+    );
+    // Proven able to fire: the claim shape is caught wherever it comes back.
+    assert.equal(
+      /revision `?smartcity-dashboards-\d{5}-\w+`? @\s*100%/.test(
+        "- Cloud Run: revision `smartcity-dashboards-00018-kiw` @100%.",
+      ),
+      true,
+    );
+  });
 });
