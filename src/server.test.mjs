@@ -4,6 +4,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { server, cityPackAuthorized, sendFile, etagFor } from "./server.mjs";
+import { ADAPTER_KINDS } from "./adapters.mjs";
+import { DOMAIN_REGISTRY } from "./domains.mjs";
 
 let port;
 const saved = {};
@@ -89,9 +91,27 @@ describe("HTTP surface", () => {
     assert.equal(fixtureAnon.status, 401);
 
     const kinds = await (await fetch(`${base}/api/adapter-kinds`)).json();
+    // RE-SCOPED AT G-91, 7 to 10. The list stays explicit here and in
+    // src/adapters.test.mjs, and a divergence between the route and the catalog
+    // is the finding: the route must serve the catalog, not a copy of it.
     assert.deepEqual(
       kinds.kinds.map((k) => k.id),
-      ["mygov", "samsara", "opengov", "esri", "municode", "firstdue", "verkada"],
+      ADAPTER_KINDS.map((k) => k.id),
+    );
+    assert.deepEqual(
+      kinds.kinds.map((k) => k.id),
+      [
+        "mygov",
+        "samsara",
+        "opengov",
+        "esri",
+        "municode",
+        "firstdue",
+        "verkada",
+        "spireon",
+        "goto",
+        "powerbi",
+      ],
     );
     const samsara = kinds.kinds.find((k) => k.id === "samsara");
     assert.equal(samsara.writesTo, "files");
@@ -352,7 +372,22 @@ describe("HTTP surface", () => {
       assert.equal(t.seal, "TC");
       assert.equal(t.environmentBadge, "Demo");
       assert.equal(t.stateCode, null);
-      assert.equal(t.sources.label, "0 of 7 sources granted");
+      /**
+       * RE-SCOPED AT G-91, derived rather than pinned. This read "0 of 7 sources
+       * granted" as a literal; the catalog is 10 now and will grow again, and a
+       * literal here re-breaks on every growth while asserting nothing about the
+       * rule. Deriving it from the catalog holds the ratio to its counting rule
+       * instead of to a number.
+       *
+       * The NUMERATOR is the load-bearing half and it stays zero: no pack grants
+       * a live adapter, and template-city's fixtureGrants are a demonstration
+       * axis that deliberately does not count here. A demonstrated shape is not
+       * a connected source, and adding it to this figure would put a false
+       * sources-granted number beside a city name.
+       */
+      assert.equal(t.sources.label, `0 of ${ADAPTER_KINDS.length} sources granted`);
+      assert.equal(t.sources.granted, 0);
+      assert.equal(ADAPTER_KINDS.length, 10);
       assert.match(t.sources.rule, /distinct adapter kinds granted on this pack/);
       assert.equal(t.documentTitle, "Template city · SmartCity Dashboards");
 
@@ -492,6 +527,51 @@ describe("HTTP surface", () => {
     assert.equal(body.includes("$"), false);
     assert.equal(/bastrop/i.test(body), false);
     assert.equal(/\b\d{5}:[A-Za-z0-9._-]+\b/.test(body), false);
+  });
+
+  it("serves the domain map and every registered domain, with ungranted distinct from empty", async () => {
+    const base = `http://127.0.0.1:${port}`;
+
+    const map = await (await fetch(`${base}/api/city-domains?cityKey=template-city`)).json();
+    assert.equal(map.regionCount, DOMAIN_REGISTRY.length);
+    assert.match(map.countingRule, /registered domains carry records on template-city/);
+    const byId = Object.fromEntries(map.regions.map((r) => [r.domainId, r]));
+
+    // Ruling 1 over HTTP: three regions have a source, one is built and has none,
+    // and the fourth state is what empty-city returns below. Four states, four
+    // sentences, none of them "not built".
+    assert.equal(byId["permits-pipeline"].status, "ok");
+    assert.equal(byId["work-orders"].status, "ok");
+    assert.equal(byId["fleet-vehicles"].status, "ok");
+    assert.equal(byId["patrol-vehicles"].status, "ungranted");
+    assert.match(byId["patrol-vehicles"].basis, /Spireon is not granted on template-city/);
+    assert.match(byId["patrol-vehicles"].basis, /region is built and has no source/);
+    assert.equal(/not built/i.test(byId["patrol-vehicles"].basis), false);
+
+    const wo = await (await fetch(`${base}/api/domains/work-orders?cityKey=template-city`)).json();
+    assert.equal(wo.status, "ok");
+    assert.ok(wo.recordCount > 0);
+    assert.equal(wo.extras.sla.targetHours, 72);
+    assert.equal(wo.extras.dailyQueue.length, 5);
+
+    const emptyMap = await (await fetch(`${base}/api/city-domains?cityKey=empty-city`)).json();
+    for (const region of emptyMap.regions) {
+      assert.equal(region.status, "no-fixture-source", region.domainId);
+      assert.equal(region.recordCount, 0, region.domainId);
+      assert.match(region.basis, /empty-city generates no records/);
+    }
+
+    // A domain id that is not registered is the ONE surviving "not built".
+    const missing = await fetch(`${base}/api/domains/parks-facilities?cityKey=template-city`);
+    assert.equal(missing.status, 404);
+    const missingBody = await missing.json();
+    assert.match(missingBody.basis, /not a registered domain, so this surface is not built/);
+
+    // tenant-private stays gated on the new routes exactly as on the old ones.
+    const priv = await fetch(`${base}/api/city-domains?cityKey=fixture-city`);
+    assert.equal(priv.status, 401);
+    const unknown = await fetch(`${base}/api/city-domains?cityKey=no-such-city`);
+    assert.equal(unknown.status, 404);
   });
 
   it("keeps empty-city honest-empty and gates fixture-city and an unknown pack", async () => {
