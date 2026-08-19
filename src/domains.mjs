@@ -3,6 +3,10 @@ import { PERMITS_PIPELINE_DOMAIN } from "./domains/permits-pipeline.mjs";
 import { WORK_ORDERS_DOMAIN } from "./domains/work-orders.mjs";
 import { FLEET_VEHICLES_DOMAIN } from "./domains/fleet-vehicles.mjs";
 import { PATROL_VEHICLES_DOMAIN } from "./domains/patrol-vehicles.mjs";
+/* G-92, Development services. Appended as a contiguous block. */
+import { INSPECTIONS_DOMAIN } from "./domains/inspections.mjs";
+import { CODE_VIOLATIONS_DOMAIN } from "./domains/code-violations.mjs";
+import { BUSINESS_LICENSES_DOMAIN } from "./domains/business-licenses.mjs";
 
 /* ----------------------------------------------------------- the registry
 
@@ -17,9 +21,15 @@ built, and its emptiness on a given pack is a statement about SOURCES with a
 basis attached (ruling 1, operator-approved 2026-08-19). Those are different
 sentences to a customer and this list is the line between them.
 
-Four domains, three adapter kinds, and one of them deliberately ungranted on
-template-city so the ungranted state stays reachable and testable rather than
-becoming unreachable code.
+Four domains at G-91, three adapter kinds, and one of them deliberately
+ungranted on template-city so the ungranted state stays reachable and testable
+rather than becoming unreachable code.
+
+G-92 appends the three Development services domains that close the gap against
+the MyGov system live Bastrop already runs. Additions to this list are
+CONTIGUOUS AND APPEND-ONLY, because two wave-2 lanes edit this file at once and
+an append rebases where an insertion conflicts. Order in this array is registry
+order and nothing reads it as priority.
 */
 
 export const DOMAIN_REGISTRY = Object.freeze([
@@ -27,6 +37,12 @@ export const DOMAIN_REGISTRY = Object.freeze([
   WORK_ORDERS_DOMAIN,
   FLEET_VEHICLES_DOMAIN,
   PATROL_VEHICLES_DOMAIN,
+  /* G-92 Development services: the three MyGov endpoints that were modelled
+     nowhere. All gated by mygov, which template-city already demonstrates, so
+     they populate on the shipped demo pack rather than needing a new grant. */
+  INSPECTIONS_DOMAIN,
+  CODE_VIOLATIONS_DOMAIN,
+  BUSINESS_LICENSES_DOMAIN,
 ]);
 
 export function listDomains(registry = DOMAIN_REGISTRY) {
