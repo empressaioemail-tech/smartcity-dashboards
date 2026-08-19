@@ -379,11 +379,23 @@ describe("G-95 the gate is proven able to fire", () => {
     assert.equal(vOther.pass, false, "an unadjudicated reason must fail");
     assert.ok(vOther.reasons.some((r) => r.includes("no adjudication covers")), vOther.reasons.join("; "));
 
-    // And an adjudication cannot outlive its subject.
+    /**
+     * And here the adjudication ledger is deliberately NOT a waiver. A waived
+     * rule reaching zero FAILS, because the exception has outlived its cause.
+     * An adjudication reaching zero is a NOTE, because it hides an unknown
+     * rather than a violation - and because this particular finding is
+     * environment dependent, so a both-directions ratchet would make the gate
+     * unrunnable on whichever machine does not reproduce it.
+     */
     const none = THEMES.map((t) => scan("s1", t));
     const vNone = judge(none, [], [item]);
-    assert.equal(vNone.pass, false);
-    assert.ok(vNone.reasons.some((r) => r.includes("delete its entry from REVIEW_ITEMS")), vNone.reasons.join("; "));
+    assert.equal(vNone.pass, true, vNone.reasons.join("; "));
+    assert.ok(vNone.stale.some((r) => r.includes("0 unresolved node(s) here")), vNone.stale.join("; "));
+    // The waiver's zero arm still FAILS, so the asymmetry is deliberate rather
+    // than one of them having been forgotten.
+    const waived = judge(none, TEST_WAIVERS, []);
+    assert.equal(waived.pass, false);
+    assert.ok(waived.reasons.some((r) => r.includes("delete its entry from WAIVERS")), waived.reasons.join("; "));
   });
 
   it("holds the LIVE adjudications to a shape that makes them readable by a stranger", () => {

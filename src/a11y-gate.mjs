@@ -485,16 +485,32 @@ export function verdict(summary, waivers = WAIVERS, reviewItems = REVIEW_ITEMS) 
           );
         } else if (actual < pinned) {
           stale.push(
-            `${inc.id} [${theme}]: ${actual} unresolved node(s) is below the ${pinned} adjudicated; re-pin the REVIEW_ITEMS entry to ${actual} or remove it (${item.remove})`,
+            `${inc.id} [${theme}]: ${actual} unresolved node(s) is below the ${pinned} adjudicated; re-pin the REVIEW_ITEMS entry to ${actual}, or remove it (${item.remove}). Below the pin is a NOTE rather than a failure because an adjudication hides an unknown, not a violation.`,
           );
         }
       }
     }
   }
+  /**
+   * AND HERE THE ADJUDICATION LEDGER IS DELIBERATELY NOT A WAIVER, which is the
+   * one asymmetry between them and it is worth its paragraph.
+   *
+   * A waiver hides a VIOLATION, so a waived rule reaching zero must FAIL: the
+   * exception has outlived its cause and is now masking nothing while looking
+   * like it masks something. An adjudication hides an UNKNOWN. If it stops
+   * appearing, nothing is being concealed, and the honest report is a note.
+   *
+   * It also has to be a note, because this exact finding is environment
+   * dependent: elmPartiallyObscuring fires twice on a Linux CI runner and zero
+   * times on the author's Windows machine, same axe build and same Chromium.
+   * A both-directions ratchet on a figure the two environments disagree about
+   * would make the gate unrunnable on one of them, which is a dead gate in the
+   * most literal sense.
+   */
   for (const item of reviewItems) {
     if (!(summary.incompleteConformance || []).some((inc) => inc.id === item.rule)) {
-      reasons.push(
-        `${item.rule}: 0 unresolved node(s) on every theme. The adjudication's cause is gone - delete its entry from REVIEW_ITEMS in src/a11y-gate.mjs. An adjudication that no longer applies is a judgement outliving its subject.`,
+      stale.push(
+        `${item.rule}: 0 unresolved node(s) here, against ${JSON.stringify(item.nodesByTheme)} adjudicated. Either the cause is gone, in which case delete the REVIEW_ITEMS entry, or this environment simply renders it differently - which is what this particular entry records (${item.remove}).`,
       );
     }
   }
