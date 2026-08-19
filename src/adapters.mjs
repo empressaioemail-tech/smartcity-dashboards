@@ -60,6 +60,41 @@ export const ADAPTER_KINDS = [
     defaultAccessPolicy: "tenant-private",
     notes: "Camera and door ops records onto files.",
   },
+  /**
+   * G-91 additions. Live Bastrop integrates these three vendor families and the
+   * catalog did not name them, so the nav footer's denominator was short against
+   * reality and every one of these regions could only read as "not built".
+   *
+   * Counting rule for the figure this changes: DISTINCT adapter kinds granted on
+   * a pack, over the kinds in this array. The array goes 7 to 10, so the footer
+   * denominator goes 7 to 10.
+   *
+   * It does NOT go to 11. The eleventh vendor family on the live surface is
+   * Anthropic, which the G-18 register dispositions as chrome only and
+   * explicitly not a city feed; cataloguing it would declare an adapter kind
+   * that writes no records anywhere.
+   */
+  {
+    id: "spireon",
+    displayName: "Spireon",
+    writesTo: "files",
+    defaultAccessPolicy: "tenant-private",
+    notes: "Police vehicle telemetry records onto files. Not Asset Management Tier 1 nodes.",
+  },
+  {
+    id: "goto",
+    displayName: "GoTo",
+    writesTo: "files",
+    defaultAccessPolicy: "tenant-private",
+    notes: "Phone and call-handling records onto files.",
+  },
+  {
+    id: "powerbi",
+    displayName: "Power BI",
+    writesTo: "files",
+    defaultAccessPolicy: "tenant-private",
+    notes: "CIP and reporting records onto files. An embed is not a record.",
+  },
 ];
 
 /* --------------------------------------------------------------- record shapes
@@ -116,6 +151,34 @@ export const CASE_STATUS_VALUES = [
 
 export const CASE_STAGE_VALUES = ["intake", "routing", "review", "revisions", "issuance"];
 
+/**
+ * Work orders, G-91. A SECOND record type under the mygov kind, which is why
+ * RECORD_SHAPES grew variants: one adapter kind emits several record types on
+ * the live surface (permits, work orders, inspections, code violations and
+ * business licenses all arrive from MyGov), and a shape table keyed by kind
+ * alone can express exactly one of them.
+ *
+ * The SLA dimension is stated in whole hours against a declared target rather
+ * than as a percentage, because a percentage with no denominator beside it is
+ * the figure DEV_PROCESS 1.1 exists to stop.
+ */
+export const WORK_ORDER_STATUS_VALUES = [
+  { id: "past-sla", label: "Past SLA", severity: "crit", resolved: false },
+  { id: "at-risk", label: "At risk", severity: "warn", resolved: false },
+  { id: "scheduled", label: "Scheduled", severity: "info", resolved: false },
+  { id: "closed", label: "Closed", severity: "ok", resolved: true },
+];
+
+export const WORK_ORDER_STAGE_VALUES = ["reported", "triaged", "scheduled", "in-field", "closed"];
+
+/** Fleet, G-91. Vendor telemetry, and explicitly not a city-owned asset node. */
+export const VEHICLE_STATUS_VALUES = [
+  { id: "out-of-service", label: "Out of service", severity: "crit", resolved: false },
+  { id: "inspection-due", label: "Inspection due", severity: "warn", resolved: false },
+  { id: "in-shop", label: "In shop", severity: "info", resolved: false },
+  { id: "in-service", label: "In service", severity: "ok", resolved: true },
+];
+
 export const RECORD_SHAPES = {
   mygov: {
     declared: true,
@@ -142,19 +205,117 @@ export const RECORD_SHAPES = {
       },
     ],
   },
-  samsara: { declared: false, basis: "fleet ops record shape is not declared on G-77" },
-  opengov: { declared: false, basis: "budget record shape is not declared on G-77" },
-  esri: { declared: false, basis: "place geometry record shape is not declared on G-77" },
+  samsara: {
+    declared: true,
+    recordType: "fleet-vehicle",
+    writesTo: "files",
+    statusValues: VEHICLE_STATUS_VALUES,
+    fields: [
+      { name: "unitLabel", type: "text", required: true },
+      {
+        name: "status",
+        type: "enum",
+        required: true,
+        values: VEHICLE_STATUS_VALUES.map((s) => s.id),
+      },
+      { name: "operatorRef", type: "text", required: true },
+      { name: "odometerBand", type: "text", required: true },
+      {
+        name: "operatorName",
+        type: "text",
+        required: false,
+        basis:
+          "a granted feed carries the driver name; a generated record carries an opaque operator reference only, because a fixture must not name a person",
+      },
+    ],
+  },
+  spireon: {
+    declared: true,
+    recordType: "patrol-vehicle",
+    writesTo: "files",
+    statusValues: VEHICLE_STATUS_VALUES,
+    fields: [
+      { name: "unitLabel", type: "text", required: true },
+      {
+        name: "status",
+        type: "enum",
+        required: true,
+        values: VEHICLE_STATUS_VALUES.map((s) => s.id),
+      },
+      { name: "operatorRef", type: "text", required: true },
+    ],
+  },
+  opengov: { declared: false, basis: "budget record shape is not declared on G-91" },
+  esri: { declared: false, basis: "place geometry record shape is not declared on G-91" },
   municode: {
     declared: false,
     basis: "meeting record shape ships in municode-calendar.mjs and is not restated here",
   },
-  firstdue: { declared: false, basis: "incident record shape is not declared on G-77" },
-  verkada: { declared: false, basis: "camera and door record shape is not declared on G-77" },
+  firstdue: { declared: false, basis: "incident record shape is not declared on G-91" },
+  verkada: { declared: false, basis: "camera and door record shape is not declared on G-91" },
+  goto: { declared: false, basis: "call-handling record shape is not declared on G-91" },
+  powerbi: { declared: false, basis: "CIP and reporting record shape is not declared on G-91" },
 };
 
-export function recordShapeFor(kindId) {
-  return RECORD_SHAPES[kindId] || null;
+/**
+ * The work-order variant, attached after the object literal so the table above
+ * stays one readable declaration. Variants live UNDER their kind so there is one
+ * shape table and not two: two tables for one rule is the CTRL-1 shape
+ * (DEV_PROCESS 2.4).
+ */
+RECORD_SHAPES.mygov.variants = {
+  "work-order": {
+    declared: true,
+    recordType: "work-order",
+    writesTo: "spine",
+    statusValues: WORK_ORDER_STATUS_VALUES,
+    fields: [
+      { name: "subject", type: "text", required: true },
+      { name: "stage", type: "enum", required: true, values: WORK_ORDER_STAGE_VALUES },
+      { name: "place", type: "place", required: true },
+      {
+        name: "status",
+        type: "enum",
+        required: true,
+        values: WORK_ORDER_STATUS_VALUES.map((s) => s.id),
+      },
+      { name: "dueOffsetDays", type: "integer", required: true },
+      { name: "dayOffset", type: "integer", required: true },
+      { name: "slaTargetHours", type: "integer", required: true },
+      { name: "slaElapsedHours", type: "integer", required: true },
+    ],
+  },
+};
+
+/**
+ * Resolves a shape for a kind, and for a specific record type within that kind.
+ *
+ * One argument returns the kind PRIMARY shape, which is what every pre-G-91
+ * caller wants and gets unchanged. Two arguments resolve a variant, and return
+ * null when the kind exists but declares nothing of that record type - which
+ * assertRecordShape reports as its own error rather than folding into
+ * "undeclared kind", because the two are different findings.
+ */
+export function recordShapeFor(kindId, recordType) {
+  const primary = RECORD_SHAPES[kindId] || null;
+  if (!primary) return null;
+  if (recordType === undefined || recordType === null) return primary;
+  if (primary.recordType === recordType) return primary;
+  return primary.variants?.[recordType] || null;
+}
+
+/** Every declared shape in the table, kind and record type, flattened. */
+export function declaredRecordShapes() {
+  const out = [];
+  for (const [kindId, shape] of Object.entries(RECORD_SHAPES)) {
+    if (shape.declared) out.push({ kind: kindId, recordType: shape.recordType });
+    for (const [recordType, variant] of Object.entries(shape.variants || {})) {
+      if (variant.declared) out.push({ kind: kindId, recordType });
+    }
+  }
+  return out.sort((a, b) =>
+    (a.kind + ":" + a.recordType).localeCompare(b.kind + ":" + b.recordType),
+  );
 }
 
 export function caseStatusValue(statusId) {
@@ -177,13 +338,22 @@ export function assertRecordShape(record) {
   if (!record || typeof record !== "object") {
     throw new Error("record requires an object");
   }
-  const shape = recordShapeFor(record.kind);
-  if (!shape) throw new Error(`no record shape declared for kind ${record.kind}`);
-  if (!shape.declared) {
-    throw new Error(`record shape for ${record.kind} is undeclared: ${shape.basis}`);
+  const kindEntry = RECORD_SHAPES[record.kind];
+  if (!kindEntry) throw new Error(`no record shape declared for kind ${record.kind}`);
+  if (!kindEntry.declared) {
+    throw new Error(`record shape for ${record.kind} is undeclared: ${kindEntry.basis}`);
   }
-  if (record.recordType !== shape.recordType) {
-    throw new Error(`record type must be ${shape.recordType}`);
+  const shape = recordShapeFor(record.kind, record.recordType);
+  if (!shape) {
+    const known = [kindEntry.recordType, ...Object.keys(kindEntry.variants || {})].join(", ");
+    throw new Error(
+      `${record.kind} declares no ${record.recordType} record type; it declares ${known}`,
+    );
+  }
+  if (!shape.declared) {
+    throw new Error(
+      `record shape for ${record.kind} ${record.recordType} is undeclared: ${shape.basis}`,
+    );
   }
   for (const field of RECORD_ENVELOPE_FIELDS) {
     if (field.required && !fieldPresent(record, field)) {

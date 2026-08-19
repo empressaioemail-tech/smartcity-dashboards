@@ -9,6 +9,7 @@ import { readMounts, smartsiteEmbedUrl, planReviewEmbedUrl, smartFilesEmbedUrl, 
 import { composeCityManager } from "./compose.mjs";
 import { listAdapterKinds } from "./adapters.mjs";
 import { composePipeline } from "./fixtures.mjs";
+import { composeDomainById, composeDomainMap } from "./domains.mjs";
 import { cityIdentity } from "./city-identity.mjs";
 import { runMunicodeCalendar } from "./municode-calendar.mjs";
 import { loadDotenv } from "./load-env.mjs";
@@ -228,6 +229,61 @@ async function handle(req, res) {
       return;
     }
     json(res, 200, composePipeline(pack));
+    return;
+  }
+
+  /**
+   * The honest source map for a pack, G-91.
+   *
+   * Every region this product can render, and for THIS pack whether it has a
+   * source and why not. It exists because "we did not build Parks" and "your
+   * city has no Parks data" were the same sentence on this product until ruling
+   * 1, and a customer needs to be able to tell them apart. Records are not on
+   * this response: the map is about sources, and a caller that wants records
+   * asks for the domain.
+   *
+   * Gated on packContentReadStatus and not canReadPack, for the same reason the
+   * pipeline route is: this is CONTENT about a pack, and a public-free pack must
+   * answer an anonymous visitor whether or not a service key is configured.
+   */
+  if (req.method === "GET" && url.pathname === "/api/city-domains") {
+    const caller = await resolveCaller(req);
+    const cityKey = url.searchParams.get("cityKey") || "template-city";
+    const pack = await getCityPack(cityKey);
+    const status = packContentReadStatus(pack, caller);
+    if (status === 404) {
+      json(res, 404, { error: "unknown city pack" });
+      return;
+    }
+    if (status !== 200) {
+      json(res, status, { error: status === 401 ? "unauthorized" : "forbidden" });
+      return;
+    }
+    json(res, 200, composeDomainMap(pack));
+    return;
+  }
+
+  /**
+   * One registered domain, in full, for a pack. An unregistered domain id is a
+   * 404 that STATES its basis rather than a bare status code: not-built is a
+   * real determination and it has to be able to say so.
+   */
+  if (req.method === "GET" && url.pathname.startsWith("/api/domains/")) {
+    const caller = await resolveCaller(req);
+    const cityKey = url.searchParams.get("cityKey") || "template-city";
+    const domainId = decodeURIComponent(url.pathname.slice("/api/domains/".length));
+    const pack = await getCityPack(cityKey);
+    const status = packContentReadStatus(pack, caller);
+    if (status === 404) {
+      json(res, 404, { error: "unknown city pack" });
+      return;
+    }
+    if (status !== 200) {
+      json(res, status, { error: status === 401 ? "unauthorized" : "forbidden" });
+      return;
+    }
+    const composed = composeDomainById(pack, domainId);
+    json(res, composed.status === "not-registered" ? 404 : 200, composed);
     return;
   }
 
