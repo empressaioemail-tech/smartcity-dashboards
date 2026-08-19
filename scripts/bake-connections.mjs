@@ -3,40 +3,21 @@ import {
   ALL_HOME_ROWS,
   SHELL_HOMES,
   SHELL_HOMES_ADDENDA,
-  connectionsRegisterHtml,
+  bakeConnectionsInto,
   sourcesConnectedLabel,
 } from "../src/shell-homes.mjs";
 
-const p = new URL("../web/index.html", import.meta.url);
-let html = fs.readFileSync(p, "utf8");
-
-const start = html.indexOf('id="connections-register"');
-if (start < 0) throw new Error("connections-register missing");
-const open = html.indexOf(">", start) + 1;
-const end = html.indexOf("</div>\n                </div>", open);
-if (end < 0) throw new Error("connections-register close missing");
-html = `${html.slice(0, open)}\n                    ${connectionsRegisterHtml()}\n                  ${html.slice(end)}`;
-
 /**
- * The Connections header states how many feed integrations are connected
- * product-wide, derived from the register here so it cannot drift into a
- * hand-typed count the way the old "7 integrations" and "0 of 4" did.
- *
- * The nav footer is deliberately NOT baked from this register any more. It is a
- * per-pack figure resolved at runtime from the active pack's grants (G-80): the
- * register's numerator counts Esri as Mounted through the SmartSite embed,
- * which is granted on no pack, so beside a city name that figure was false for
- * the city. If this script ever bakes nav-sources again the footer silently
- * reverts to a product-level count wearing a city's name.
+ * The transform itself lives in src/shell-homes.mjs so that this script and the
+ * freshness test call ONE implementation. Before that split there was no way to
+ * assert web/index.html was in sync with the generator short of running this and
+ * reading the diff, so a stale bake shipped green in either direction.
  */
-const label = sourcesConnectedLabel();
-html = html.replace(
-  /(<b id="connections-sources">)[^<]*(<\/b>)/,
-  (_m, a, b) => `${a}${label}${b}`,
-);
-
+const p = new URL("../web/index.html", import.meta.url);
+const html = bakeConnectionsInto(fs.readFileSync(p, "utf8"));
 fs.writeFileSync(p, html);
 
+const label = sourcesConnectedLabel();
 const count = (html.match(/data-home-row="/g) || []).length;
 if (count !== ALL_HOME_ROWS.length) {
   throw new Error(`expected ${ALL_HOME_ROWS.length} rows, got ${count}`);
