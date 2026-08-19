@@ -80,7 +80,13 @@ function probePack(fixtureGrants, over = {}) {
 describe("G-91 the domain registry", () => {
   it("registers every domain, each gated by a catalogued kind, and names which pack generates each", () => {
     const domains = listDomains();
-    // G-92 wave 2 appended four department domains after the G-91 four.
+    /**
+     * RE-SCOPED AT G-92, four to eleven across two concurrent lanes. The list stays EXPLICIT rather than
+     * becoming a length check for the same reason the adapter catalog does: a
+     * domain arriving or leaving unnoticed is exactly what this assertion is
+     * for. Additions are appended, never inserted, so the diff a concurrent lane
+     * has to rebase is one contiguous block.
+     */
     assert.deepEqual(
       domains.map((d) => d.id),
       [
@@ -92,6 +98,9 @@ describe("G-91 the domain registry", () => {
         "fire-apparatus",
         "cip-projects",
         "call-analytics",
+        "inspections",
+        "code-violations",
+        "business-licenses",
       ],
     );
     for (const d of domains) {
@@ -107,9 +116,12 @@ describe("G-91 the domain registry", () => {
      *
      * Counting rule: a domain carries records on a pack when the pack generates
      * fixtures AND the domain's gating kind is in that pack's fixtureGrants.
-     * Seven of eight on template-city after G-92; zero of eight on empty-city
-     * and on fixture-city, neither of which generates. The one that does not
-     * carry is patrol-vehicles, and it is the same one as at G-91.
+     * Ten of eleven on template-city; zero of eleven on empty-city and on
+     * fixture-city, neither of which generates. The one that does not carry is
+     * patrol-vehicles, unchanged since G-91: spireon is deliberately left off
+     * the demonstration axis so the ungranted state stays reachable on the
+     * shipped demo pack. A wave that grants everything deletes the state that
+     * proves ruling 1.
      */
     const carries = (pack) =>
       DOMAIN_REGISTRY.filter((d) => composeDomain(pack, d).recordCount > 0).map((d) => d.id);
@@ -121,6 +133,9 @@ describe("G-91 the domain registry", () => {
       "fire-apparatus",
       "cip-projects",
       "call-analytics",
+      "inspections",
+      "code-violations",
+      "business-licenses",
     ]);
     assert.deepEqual(carries(EMPTY_CITY), []);
     assert.deepEqual(carries(FIXTURE_CITY), []);
@@ -389,10 +404,18 @@ describe("G-91 ungranted is not empty, and neither is not-built", () => {
     }
     const map = composeDomainMap(EMPTY_CITY);
     assert.equal(map.withRecords, 0);
+    /**
+     * The denominator is DERIVED from the registry at G-92 rather than written
+     * as a literal 4. The numerator stays literal, because zero records on the
+     * unconnected city is the claim this test exists to make and it must not be
+     * able to move quietly; the denominator is just how many regions exist, and
+     * every wave-2 lane moves it.
+     */
     assert.match(
       map.countingRule,
       new RegExp(`0 of ${DOMAIN_REGISTRY.length} registered domains carry records on empty-city`),
     );
+    assert.equal(map.regionCount, DOMAIN_REGISTRY.length);
   });
 });
 

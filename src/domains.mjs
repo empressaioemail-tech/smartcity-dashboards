@@ -8,6 +8,10 @@ import { POLICE_CAMERAS_DOMAIN } from "./domains/police-cameras.mjs";
 import { FIRE_APPARATUS_DOMAIN } from "./domains/fire-apparatus.mjs";
 import { CIP_PROJECTS_DOMAIN } from "./domains/cip-projects.mjs";
 import { CALL_ANALYTICS_DOMAIN } from "./domains/call-analytics.mjs";
+/* G-92, Development services. Appended as a contiguous block. */
+import { INSPECTIONS_DOMAIN } from "./domains/inspections.mjs";
+import { CODE_VIOLATIONS_DOMAIN } from "./domains/code-violations.mjs";
+import { BUSINESS_LICENSES_DOMAIN } from "./domains/business-licenses.mjs";
 
 /* ----------------------------------------------------------- the registry
 
@@ -42,6 +46,11 @@ registered here and neither is faked with an invented kind. Both therefore read
 not-registered, which is the honest state today and the wrong one tomorrow;
 src/department-domains.test.mjs pins the finding so the next lane inherits it
 measured rather than re-deriving it.
+G-92 appends the three Development services domains that close the gap against
+the MyGov system live Bastrop already runs. Additions to this list are
+CONTIGUOUS AND APPEND-ONLY, because two wave-2 lanes edit this file at once and
+an append rebases where an insertion conflicts. Order in this array is registry
+order and nothing reads it as priority.
 */
 
 export const DOMAIN_REGISTRY = Object.freeze([
@@ -53,6 +62,12 @@ export const DOMAIN_REGISTRY = Object.freeze([
   FIRE_APPARATUS_DOMAIN,
   CIP_PROJECTS_DOMAIN,
   CALL_ANALYTICS_DOMAIN,
+  /* G-92 Development services: the three MyGov endpoints that were modelled
+     nowhere. All gated by mygov, which template-city already demonstrates, so
+     they populate on the shipped demo pack rather than needing a new grant. */
+  INSPECTIONS_DOMAIN,
+  CODE_VIOLATIONS_DOMAIN,
+  BUSINESS_LICENSES_DOMAIN,
 ]);
 
 export function listDomains(registry = DOMAIN_REGISTRY) {

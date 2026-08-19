@@ -63,10 +63,21 @@ describe("adapter record shapes", () => {
     const fromRegistry = DOMAIN_REGISTRY.map((d) => `${d.gatedBy}:${d.recordType}`).sort();
     const fromShapes = declaredRecordShapes().map((d) => `${d.kind}:${d.recordType}`).sort();
     assert.deepEqual(fromRegistry, fromShapes);
-    // G-92 wave 2 declared four more shapes, one per department domain.
+    /**
+     * RE-SCOPED AT G-92, four to eleven across two concurrent lanes. Seven of
+     * the additions are department domains and three are mygov variants,
+     * because the live Development services surface reads five record types
+     * out of one adapter kind and a shape table keyed by kind alone can
+     * express one of them. This literal is SORTED, so a new entry lands where
+     * its name sorts rather than at the end; a union of two lanes' appends is
+     * therefore a syntax error, which is how this hunk was resolved by hand.
+     */
     assert.deepEqual(fromShapes, [
       "firstdue:fire-apparatus",
       "goto:call-volume",
+      "mygov:business-license",
+      "mygov:code-violation",
+      "mygov:inspection",
       "mygov:permit-case",
       "mygov:work-order",
       "powerbi:capital-project",
