@@ -152,3 +152,51 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;");
 }
+
+/**
+ * THE BAKE, as a pure function (G-88 item 7, round 3).
+ *
+ * scripts/bake-connections.mjs used to carry this transform inline, which made
+ * it unassertable: the only way to know whether web/index.html was in sync with
+ * this generator was to run the script and look at the diff. The
+ * translation-boundary investigation recorded the consequence - the bake's
+ * output is never byte-asserted, so a class or an attribute changed here and not
+ * re-baked ships stale and passes every test in the repo, in either direction.
+ *
+ * Extracted here so the script and src/shell-homes.test.mjs call ONE
+ * implementation. The test asserts web/index.html is a FIXED POINT of this
+ * function: baking it again changes nothing. That is freshness in both
+ * directions, byte-exact, and it needs nobody to remember to run anything.
+ *
+ * CRLF-normalized in and out. The region sentinels below are literal newlines,
+ * so on a Windows checkout with autocrlf the raw file would match nothing and
+ * this would throw - which is the shape where a Windows-local failure and a
+ * green CI disagree.
+ */
+export function bakeConnectionsInto(rawHtml) {
+  let html = String(rawHtml).replace(/\r\n/g, "\n");
+
+  const start = html.indexOf('id="connections-register"');
+  if (start < 0) throw new Error("connections-register missing");
+  const open = html.indexOf(">", start) + 1;
+  const end = html.indexOf("</div>\n                </div>", open);
+  if (end < 0) throw new Error("connections-register close missing");
+  html = `${html.slice(0, open)}\n                    ${connectionsRegisterHtml()}\n                  ${html.slice(end)}`;
+
+  /**
+   * The Connections header states how many feed integrations are connected
+   * product-wide, derived from the register so it cannot drift into a hand-typed
+   * count the way the old "7 integrations" and "0 of 4" did.
+   *
+   * The nav footer is deliberately NOT baked from this register. It is a
+   * per-pack figure resolved at runtime from the active pack's grants (G-80):
+   * the register's numerator counts Esri as Mounted through the SmartSite embed,
+   * which is granted on no pack, so beside a city name that figure was false for
+   * the city. If this ever bakes nav-sources again the footer silently reverts to
+   * a product-level count wearing a city's name.
+   */
+  const label = sourcesConnectedLabel();
+  html = html.replace(/(<b id="connections-sources">)[^<]*(<\/b>)/, (_m, a, b) => `${a}${label}${b}`);
+
+  return html;
+}

@@ -39,6 +39,7 @@ import {
   MARKUP_SOURCES,
   SCRIPT_SOURCES,
   SERVED_ASSETS,
+  SERVED_DOCUMENTS,
   readSource,
   root,
   sourceForServedPath,
@@ -86,7 +87,7 @@ function scriptTexts(overrides = {}) {
   for (const rel of SCRIPT_SOURCES) {
     out[rel] = stripJsComments(overrides[rel] ?? readSource(rel));
   }
-  for (const rel of MARKUP_SOURCES) {
+  for (const rel of SERVED_DOCUMENTS) {
     if (SCRIPT_SOURCES.includes(rel)) continue;
     const raw = overrides[rel] ?? readSource(rel);
     let n = 0;
@@ -109,9 +110,9 @@ const SCRIPT_KEYS = Object.keys(scriptText);
  * and only the quote character in front of it keeps that out of the attached
  * set. Depending on a quote is not a rule.
  */
-function readMarkupForScan(overrides = {}) {
+function readServedDocuments(overrides = {}) {
   const out = {};
-  for (const rel of MARKUP_SOURCES) {
+  for (const rel of SERVED_DOCUMENTS) {
     const raw = overrides[rel] ?? readSource(rel);
     out[rel] = /\.m?js$/.test(rel) ? stripJsComments(raw) : stripInlineScripts(raw);
   }
@@ -625,7 +626,7 @@ for (const rel of SCRIPT_KEYS) {
   for (const id of idsFromSelectors(rel)) ADDRESSED_IDS.add(id);
   for (const id of idsFromComparisons(rel)) ADDRESSED_IDS.add(id);
 }
-for (const id of idsFromIdrefs(readMarkupForScan())) ADDRESSED_IDS.add(id);
+for (const id of idsFromIdrefs(readServedDocuments())) ADDRESSED_IDS.add(id);
 
 const CREATED = idsCreatedByScripts();
 const REQUIRED_IDS = [...ADDRESSED_IDS].filter((id) => !CREATED.ids.has(id)).sort();
@@ -758,7 +759,7 @@ const HOOKS_READ = [...new Set([...HOOKS_BY_SCRIPT, ...HOOKS_BY_CSS])].sort();
  * go quiet. The pin below fails when the membership changes, in either
  * direction, which turns that silence into a decision somebody has to make.
  */
-const HOOKS_ATTACHED_NOW = attachedHooks(readMarkupForScan());
+const HOOKS_ATTACHED_NOW = attachedHooks(readServedDocuments());
 const HOOKS_EXCUSED = HOOKS_READ.filter(
   (h) => HOOKS_WRITTEN.has(h) && !HOOKS_ATTACHED_NOW.has(h),
 );
@@ -827,6 +828,13 @@ describe("G-88 addressability: a screen that renders can also be driven", () => 
      * el.id comparison (F3), plus every id the served markup points at through
      * an ARIA or form IDREF attribute (F4). Comments are stripped from every
      * script first. REQUIRED = ADDRESSED minus the ids a served script creates.
+     *
+     * POPULATION: SERVED_DOCUMENTS - web/index.html, web/app.js,
+     * src/staff-map.mjs, src/staff-review.mjs. NOT the union that the class rule
+     * scans: src/shell-homes.mjs is a generator and is served to nobody, so it
+     * cannot answer whether an id reaches a browser. It emits zero ids today,
+     * which is the only reason this arm was not already blind, and "zero today"
+     * is luck rather than a rule.
      */
     assert.ok(REQUIRED_IDS.length >= 60, `addressed id set collapsed to ${REQUIRED_IDS.length}`);
 
@@ -892,7 +900,7 @@ describe("G-88 addressability: a screen that renders can also be driven", () => 
      * correctly and drops an id fails here and names it, where the kit's parity
      * proof normalizes ids away before comparing and the class gate never looks.
      */
-    const sources = readMarkupForScan();
+    const sources = readServedDocuments();
     assert.deepEqual(missingIds(sources), []);
 
     // Every prefix an el.id.startsWith() guard depends on is populated.
@@ -913,7 +921,7 @@ describe("G-88 addressability: a screen that renders can also be driven", () => 
      * the gate is proven able to fire on each member rather than on the one
      * somebody remembered to test.
      */
-    const sources = readMarkupForScan();
+    const sources = readServedDocuments();
     const served = servedIds(sources);
     for (const id of REQUIRED_IDS) {
       // The probe target is asserted real BEFORE it is used, the way the class
@@ -935,12 +943,17 @@ describe("G-88 addressability: a screen that renders can also be driven", () => 
      * pin: losing one is the defect this gate is for, and adding one is a design
      * decision the reachability rule below still governs.
      */
-    const sources = readMarkupForScan();
+    const sources = readServedDocuments();
     const hidden = hiddenElements(sources);
     /**
      * The baseline, measured 2026-08-19 on main at 6a4580d. Counting rule:
-     * elements carrying a bare `hidden` attribute across all five scanned markup
-     * sources; 14 of 14 are in web/index.html and every one carries an id.
+     * elements carrying a bare `hidden` attribute across the SERVED DOCUMENTS,
+     * inline script bodies blanked; 14 of 14 are in web/index.html and every one
+     * carries an id.
+     *
+     * POPULATION: SERVED_DOCUMENTS, not the class rule's union. The bake source
+     * emits zero hidden elements today, so this arm fired anyway - by luck, not
+     * by rule, exactly as the id arm did.
      * SUPERSET, not exact: losing one is the defect this gate is for, and adding
      * one is a design decision the reachability rule below already governs.
      */
@@ -982,7 +995,7 @@ describe("G-88 addressability: a screen that renders can also be driven", () => 
   });
 
   it("fires on every hidden branch, one at a time, and names the one dropped", () => {
-    const sources = readMarkupForScan();
+    const sources = readServedDocuments();
     const before = hiddenElements(sources);
     for (const id of before) {
       const after = hiddenElements(withoutHiddenOn(sources, id));
@@ -1003,11 +1016,22 @@ describe("G-88 addressability: a screen that renders can also be driven", () => 
      * querySelector/querySelectorAll/closest strings, plus .dataset property
      * reads with camelCase mapped to kebab) UNION the data-* attribute selectors
      * in the served stylesheets, MINUS the EXCUSED set - the hooks a script
-     * provably writes AND that are attached nowhere in static markup. The
+     * provably writes AND that are attached nowhere in the served documents. The
      * scripts scanned are the served scripts plus every inline <script> block in
-     * a served markup source, because G-89's first-paint stamp lives inline in
-     * the head of web/index.html and a served-files-only derivation cannot see
-     * the earliest writer in the product.
+     * a served document, because G-89's first-paint stamp lives inline in the
+     * head of web/index.html and a files-only derivation cannot see the earliest
+     * writer in the product.
+     *
+     * POPULATION: SERVED_DOCUMENTS, and this category is where getting it wrong
+     * cost a real defect. Attached-ness used to diff against the union of the
+     * served documents AND src/shell-homes.mjs. Stripping data-disposition from
+     * all 70 of its occurrences in web/index.html - which takes the entire
+     * severity colouring off the 446-element connections register, the precise
+     * failure this population was added to catch - left the union satisfied by
+     * the generator alone and the gate passed 10 of 10. The generator is served
+     * to nobody, so it cannot answer a question about what the browser received.
+     * The class rule keeps the union deliberately, because a class renamed in the
+     * template without a re-bake ships stale and only the union sees that.
      *
      * The dispatch's eight names were a grep and are not authoritative. This
      * derivation adds data-metric, data-stage-max and data-theme, and reclassifies
@@ -1020,7 +1044,7 @@ describe("G-88 addressability: a screen that renders can also be driven", () => 
      * translation actually loses, since a kit composition emits no data-*
      * attribute of any value.
      */
-    assert.deepEqual(missingHooks(readMarkupForScan()), []);
+    assert.deepEqual(missingHooks(readServedDocuments()), []);
 
     // The two reader populations, named separately so neither can quietly vanish.
     assert.ok(HOOKS_BY_SCRIPT.size >= 10, `script-read hooks collapsed to ${HOOKS_BY_SCRIPT.size}`);
@@ -1064,7 +1088,7 @@ describe("G-88 addressability: a screen that renders can also be driven", () => 
   });
 
   it("fires on every behaviour hook, one at a time, and names the one detached", () => {
-    const sources = readMarkupForScan();
+    const sources = readServedDocuments();
     const attached = attachedHooks(sources);
     for (const hook of REQUIRED_HOOKS) {
       assert.ok(attached.has(hook), `${hook} is required but not attached; arm A should have caught this`);
@@ -1092,6 +1116,28 @@ describe("G-88 addressability: a screen that renders can also be driven", () => 
       "web/index.html",
     ]);
     assert.deepEqual(BAKE_SOURCES, ["src/shell-homes.mjs"]);
+
+    /**
+     * THE POPULATION SPLIT, asserted rather than described. The class rule reads
+     * the UNION so it can see a template that drifted from the document; the
+     * three addressability arms read the SERVED DOCUMENTS, because attached-ness
+     * is a claim about what the browser received and a generator is served to
+     * nobody. The two lists must differ by exactly the bake sources, or one of
+     * the two questions is being answered with the other one's population.
+     */
+    assert.deepEqual(SERVED_DOCUMENTS, [
+      "src/staff-map.mjs",
+      "src/staff-review.mjs",
+      "web/app.js",
+      "web/index.html",
+    ]);
+    assert.deepEqual(
+      MARKUP_SOURCES.filter((rel) => !SERVED_DOCUMENTS.includes(rel)),
+      BAKE_SOURCES,
+    );
+    for (const rel of SERVED_DOCUMENTS) {
+      assert.equal(BAKE_SOURCES.includes(rel), false, `${rel} cannot be both served and a bake source`);
+    }
     for (const rel of MARKUP_SOURCES) assert.ok(fs.existsSync(path.join(root, rel)), rel);
 
     /**

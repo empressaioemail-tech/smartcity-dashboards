@@ -86,6 +86,32 @@ export const MARKUP_SOURCES = [
   ...BAKE_SOURCES,
 ].sort();
 
+/**
+ * THE SERVED DOCUMENTS: what the browser actually receives.
+ *
+ * MARKUP_SOURCES above is a UNION - the served documents plus the bake source -
+ * and that union is right for the CLASS question. A class renamed in
+ * src/shell-homes.mjs without a re-bake ships stale, so the class rule must read
+ * the generator too or it cannot see the drift.
+ *
+ * It is WRONG for the ATTACHED question, and that cost a real defect. Attached-
+ * ness is a claim about the document the browser receives, and
+ * src/shell-homes.mjs is served to nobody. Removing data-disposition from every
+ * one of its 70 occurrences in web/index.html - which strips the entire severity
+ * colouring off the 446-element connections register - left the union satisfied
+ * by the generator alone, and the addressability gate passed 10 of 10. That is
+ * the exact failure the gate was built to catch, and it was blind to it.
+ *
+ * Two of the three categories were safe only by luck: the bake source happens to
+ * emit zero ids and zero hidden elements today, so those arms fired. The first id
+ * emitted from a template would have acquired the same blindness silently, which
+ * is the same shape as data-tab passing by luck one round earlier.
+ *
+ * So: attached-ness diffs against SERVED_DOCUMENTS, the class rule keeps
+ * MARKUP_SOURCES, and the asymmetry is stated where each output is read.
+ */
+export const SERVED_DOCUMENTS = MARKUP_SOURCES.filter((rel) => !BAKE_SOURCES.includes(rel));
+
 export function readMarkupSources() {
   const out = {};
   for (const rel of MARKUP_SOURCES) out[rel] = readSource(rel);

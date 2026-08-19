@@ -10,6 +10,7 @@ import {
   SHELL_HOMES,
   SHELL_HOMES_ADDENDA,
   SHELL_HOMES_COUNTING_RULE,
+  bakeConnectionsInto,
   connectionsRegisterHtml,
   sourcesConnected,
   sourcesConnectedLabel,
@@ -135,5 +136,52 @@ describe("G-75 register vocabulary", () => {
     assert.equal(html.includes("0 of 4 sources read"), false);
     assert.equal(html.includes("0 of 4 read"), false);
     assert.equal(html.includes("7 integrations"), false);
+  });
+});
+
+describe("G-88 the bake is fresh", () => {
+  it("leaves web/index.html unchanged when the bake is run again", () => {
+    /**
+     * BAKE FRESHNESS, and nothing in this repo asserted it until now.
+     *
+     * src/shell-homes.mjs generates the connections register as a server
+     * template and it reaches the browser only through
+     * scripts/bake-connections.mjs. That script's output was never byte-asserted,
+     * so a class, an id or an attribute changed on either side and not re-baked
+     * shipped stale and passed every test - in EITHER direction, a stale document
+     * against a fresh generator or a fresh document against a stale generator.
+     * The translation-boundary investigation recorded the hole; this closes it.
+     *
+     * Stated as a FIXED POINT rather than as a region comparison: baking the
+     * shipped document again must change nothing. That form needs no second copy
+     * of the region boundaries, so there is one implementation of the bake and
+     * nothing to diverge (DEV_PROCESS 2.4). It covers the register rows and the
+     * connections-sources label together, because both are what the bake writes.
+     *
+     * CRLF-normalized on both sides. The bake's region sentinels are literal
+     * newlines, so a raw comparison would fail on a Windows checkout while CI
+     * stayed green, which is a disagreement this repo has paid for before.
+     */
+    const lf = (text) => text.replace(/\r\n/g, "\n");
+    const shipped = lf(fs.readFileSync(path.join(root, "web", "index.html"), "utf8"));
+    assert.equal(bakeConnectionsInto(shipped), shipped, "web/index.html is a stale bake; run scripts/bake-connections.mjs");
+
+    /**
+     * And the fixed point is not trivially true. Proven by injection, in this
+     * same run: a document whose register has drifted must NOT be a fixed point,
+     * or this assertion would pass on anything.
+     */
+    const drifted = shipped.replace('data-home-row="1"', 'data-home-row="999"');
+    assert.notEqual(drifted, shipped, "the probe must actually change the document");
+    assert.notEqual(bakeConnectionsInto(drifted), drifted, "a drifted register must not read as fresh");
+    assert.equal(bakeConnectionsInto(drifted), shipped, "re-baking a drifted document restores it");
+
+    // The label leg of the bake, which is a separate write and needs its own probe.
+    const stale = shipped.replace(
+      /<b id="connections-sources">[^<]*<\/b>/,
+      '<b id="connections-sources">stale figure</b>',
+    );
+    assert.notEqual(stale, shipped);
+    assert.equal(bakeConnectionsInto(stale), shipped, "a stale sources label must not read as fresh");
   });
 });
