@@ -127,13 +127,37 @@ const contrast = (nodes) => ({
   sample: [".badge"],
 });
 
+/**
+ * A FIXTURE WAIVER, not the live ledger.
+ *
+ * The live WAIVERS is empty: G-95's one entry was deleted the moment its cause
+ * landed, which is what its own ratchet demanded. Testing the mechanism against
+ * the live ledger would therefore have deleted the firing proofs along with the
+ * entry - the arms would have had nothing to exercise and would have been
+ * quietly dropped or rewritten to assert emptiness. A control that disappears
+ * when the thing it guards is temporarily absent is not a control, so every arm
+ * below drives verdict() with this fixture and the live ledger is asserted
+ * separately.
+ */
+const TEST_WAIVER = {
+  rule: "color-contrast",
+  nodesByTheme: { light: 40, dark: 12 },
+  countingRule: "fixture: failing DOM elements per theme",
+  owner: "a fixture, owned by nobody",
+  basis: "a fixture, so the ratchet has something to ratchet",
+  remove: "never; this entry exists only inside this test file",
+};
+const TEST_WAIVERS = [TEST_WAIVER];
+
 /** A clean run carrying exactly the waived contrast figure, split per theme. */
 function cleanResults() {
-  const w = WAIVERS.find((x) => x.rule === "color-contrast");
-  return THEMES.map((theme) => scan("s1", theme, { violations: [contrast(w.nodesByTheme[theme])] }));
+  return THEMES.map((theme) =>
+    scan("s1", theme, { violations: [contrast(TEST_WAIVER.nodesByTheme[theme])] }),
+  );
 }
 
-const judge = (results) => verdict(summarize(results, AXE, "http://test"));
+const judge = (results, waivers = TEST_WAIVERS) =>
+  verdict(summarize(results, AXE, "http://test"), waivers);
 
 /* --------------------------------------------------------------- the verdict */
 
@@ -203,9 +227,10 @@ describe("G-95 the gate is proven able to fire", () => {
 
   it("fires when a waived rule goes ABOVE its ceiling, on either theme alone", () => {
     for (const theme of THEMES) {
-      const w = WAIVERS.find((x) => x.rule === "color-contrast");
       const results = THEMES.map((t) =>
-        scan("s1", t, { violations: [contrast(w.nodesByTheme[t] + (t === theme ? 1 : 0))] }),
+        scan("s1", t, {
+          violations: [contrast(TEST_WAIVER.nodesByTheme[t] + (t === theme ? 1 : 0))],
+        }),
       );
       const v = judge(results);
       assert.equal(v.pass, false, `${theme} went up by one and the gate passed`);
@@ -223,21 +248,24 @@ describe("G-95 the gate is proven able to fire", () => {
      * regression ships under a figure that did not move. Two pins cannot be
      * compensated against each other.
      */
-    const w = WAIVERS.find((x) => x.rule === "color-contrast");
     const results = [
-      scan("s1", "light", { violations: [contrast(w.nodesByTheme.light - 10)] }),
-      scan("s1", "dark", { violations: [contrast(w.nodesByTheme.dark + 10)] }),
+      scan("s1", "light", { violations: [contrast(TEST_WAIVER.nodesByTheme.light - 10)] }),
+      scan("s1", "dark", { violations: [contrast(TEST_WAIVER.nodesByTheme.dark + 10)] }),
     ];
-    const before = waivedTotal(w);
-    assert.equal(w.nodesByTheme.light - 10 + (w.nodesByTheme.dark + 10), before, "the totals must match, or this arm proves nothing");
+    assert.equal(
+      TEST_WAIVER.nodesByTheme.light - 10 + (TEST_WAIVER.nodesByTheme.dark + 10),
+      waivedTotal(TEST_WAIVER),
+      "the totals must match, or this arm proves nothing",
+    );
     const v = judge(results);
     assert.equal(v.pass, false);
     assert.ok(v.reasons.some((r) => r.includes("[dark]") && r.includes("ceiling")), v.reasons.join("; "));
   });
 
   it("passes but says STALE when a waived rule improves, so the waiver cannot rot quietly", () => {
-    const w = WAIVERS.find((x) => x.rule === "color-contrast");
-    const results = THEMES.map((t) => scan("s1", t, { violations: [contrast(w.nodesByTheme[t] - 1)] }));
+    const results = THEMES.map((t) =>
+      scan("s1", t, { violations: [contrast(TEST_WAIVER.nodesByTheme[t] - 1)] }),
+    );
     const v = judge(results);
     assert.equal(v.pass, true, v.reasons.join("; "));
     assert.equal(v.stale.length, THEMES.length);
@@ -291,9 +319,8 @@ describe("G-95 the gate is proven able to fire", () => {
   });
 
   it("fires on a shared title, which is the 2.4.2 defect this card was opened for", () => {
-    const w = WAIVERS.find((x) => x.rule === "color-contrast");
     const results = [
-      ...THEMES.map((t) => scan("s1", t, { violations: [contrast(w.nodesByTheme[t])] })),
+      ...THEMES.map((t) => scan("s1", t, { violations: [contrast(TEST_WAIVER.nodesByTheme[t])] })),
       ...THEMES.map((t) => scan("s2", t, { title: "s1 title", expectedTitle: "s1 title" })),
     ];
     const v = judge(results);
@@ -336,10 +363,9 @@ describe("G-95 the gate is proven able to fire", () => {
      * media query. A run like that returns an identical figure for both themes
      * and looks exactly like coverage.
      */
-    const w = WAIVERS.find((x) => x.rule === "color-contrast");
     const results = THEMES.map((t) =>
       scan("s1", t, {
-        violations: [contrast(w.nodesByTheme[t])],
+        violations: [contrast(TEST_WAIVER.nodesByTheme[t])],
         painted: { theme: t, canvas: "rgb(12, 17, 22)", sheets: 2 },
       }),
     );
@@ -442,7 +468,14 @@ describe("G-95 the gate is wired and cannot skip", () => {
     }
   });
 
-  it("keeps the one waiver honest about who owns it and when it goes", () => {
+  it("holds the LIVE ledger to the same shape, and it is currently empty", () => {
+    /**
+     * G-95's one entry was deleted the moment its cause landed in the kit, which
+     * is exactly what its ratchet demanded. The shape check stays and applies to
+     * whatever the next lane puts here: a waiver carries five things or it is
+     * amnesty, and it is pinned PER THEME so a dark regression cannot hide
+     * behind a light improvement.
+     */
     for (const w of WAIVERS) {
       assert.match(w.rule, /\S/);
       assert.deepEqual(Object.keys(w.nodesByTheme).sort(), [...THEMES].sort(), `${w.rule} is not pinned per theme`);
@@ -451,11 +484,15 @@ describe("G-95 the gate is wired and cannot skip", () => {
       assert.match(w.remove, /\S/, `${w.rule} has no removal condition, which is amnesty`);
       assert.match(w.countingRule, /\S/, `${w.rule} pins a number with no counting rule`);
     }
-    assert.deepEqual(
-      WAIVERS.map((w) => w.rule),
-      ["color-contrast"],
-      "a second waiver is a decision, not a detail",
-    );
+    assert.deepEqual(WAIVERS, [], "a waiver is a decision, not a detail; adding one is a deliberate act");
+    /**
+     * And with an empty ledger the gate is at ZERO TOLERANCE, which is the
+     * assertion that actually matters here: every conformance node fails.
+     */
+    const results = THEMES.map((t) => scan("s1", t, { violations: [contrast(1)] }));
+    const v = verdict(summarize(results, AXE, "http://test"), WAIVERS);
+    assert.equal(v.pass, false);
+    assert.ok(v.reasons.some((r) => r.includes("no waiver")), v.reasons.join("; "));
   });
 
   it("classifies conformance by the rule's own tags rather than by a list of rule ids", () => {

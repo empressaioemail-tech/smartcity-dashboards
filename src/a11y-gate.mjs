@@ -84,39 +84,39 @@ export const GATED_BEST_PRACTICE = {
     "not a wcag tag in axe, but a skipped heading level misrepresents the document outline, which is what 1.3.1 Info and Relationships and 2.4.6 Headings and Labels are read against in a conformance report. Taken to zero by G-95 and gated so it stays there.",
 };
 
-export const WAIVERS = [
-  {
-    rule: "color-contrast",
-    /**
-     * PINNED PER THEME, not as a total, and that is the whole point of the
-     * shape. A single total passes a build where dark regresses by ten and
-     * light improves by ten, which is a real customer-facing failure arriving
-     * under an unchanged number. Two pins cannot be compensated against each
-     * other.
-     */
-    nodesByTheme: { light: 930, dark: 72 },
-    countingRule:
-      "failing DOM elements summed across the 23 scanned surfaces, per theme; the 16-surface subset the wave-3 baseline used reads light 643 / dark 54, which is what the sibling lane measured independently",
-    owner: "G-94, the product-line token pass",
-    basis:
-      "every failing node resolves to --sc-ink-3 or --sc-quiet, whose values live in web/sc-kit.css; that file is byte-identical across smartcity-dashboards, smart-files and plan-review, and a repo that edits a token value has forked the system",
-    remove: "when the contrast remediation on the --sc-quiet / --sc-ink-3 scale lands in web/sc-kit.css",
-  },
-];
+/**
+ * THE LEDGER IS EMPTY, and it was emptied by the gate itself.
+ *
+ * G-95 opened with one entry: color-contrast, pinned per theme at
+ * {light: 930, dark: 72}, owned by the product-line token pass, removable when
+ * the --sc-quiet / --sc-ink-3 remediation landed in web/sc-kit.css.
+ *
+ * That remediation landed as #30 while this branch was open, and the gate's
+ * first CI run said so before anyone noticed: the ratchet's zero arm fired with
+ * "the waiver's cause is gone - delete its entry", because CI builds a pull
+ * request against the MERGE of the branch and its base, so it was already
+ * measuring the new tokens while this clone still held the old ones. The
+ * per-scan witness named the difference exactly - --sc-quiet #576672 in CI
+ * against #6C7E8E locally - which is what turned "two machines disagree" into a
+ * one-line diagnosis instead of a theory.
+ *
+ * So the entry is deleted rather than re-pinned, which is what the message asked
+ * for. The MECHANISM stays and stays proven: every arm in src/a11y-gate.test.mjs
+ * exercises it against a FIXTURE waiver, so an empty live ledger cannot quietly
+ * take the firing proofs down with it. The next lane that needs an exception has
+ * a working ratchet to put it in, and the shape it must fill is above.
+ *
+ * A waiver carries five things or it is amnesty: the rule, a per-theme pin with
+ * its counting rule, an owner, a basis, and the condition under which it is
+ * deleted. Per theme rather than as a total, because one number lets a dark
+ * regression hide behind a light improvement.
+ */
+export const WAIVERS = [];
 
 export const waivedTotal = (w) => Object.values(w.nodesByTheme).reduce((a, b) => a + b, 0);
 
 export const waiverFor = (id) => WAIVERS.find((w) => w.rule === id) || null;
 
-/**
- * The classes this gate refuses a build on, each with the plant that proves it
- * can fire. `node scripts/a11y-scan.mjs --plant <id>` injects the named defect
- * into every surface and the run must go red naming it (DEV_PROCESS 2.2).
- *
- * The plants are DOM mutations applied in the page after load rather than edits
- * to web/index.html, so proving the gate does not require committing a broken
- * document and then remembering to revert it.
- */
 /* --------------------------------------------------------------- reporting */
 
 export const isConformance = (v) => v.tags.some((t) => CONFORMANCE_TAGS.includes(t));
