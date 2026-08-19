@@ -394,9 +394,16 @@ describe("G-95 the gate is wired and cannot skip", () => {
      */
     const ci = read(".github/workflows/ci.yml");
     assert.match(ci, /^\s{2}a11y:$/m, "the a11y job is gone from the workflow");
-    assert.match(ci, /playwright-core install --with-deps chromium/);
+    assert.match(ci, /playwright-core install (--with-deps )?chromium/, "the job no longer installs the browser it needs");
     assert.match(ci, /npm run test:a11y/);
     assert.equal(/continue-on-error/.test(ci), false, "a gate that cannot fail the build is not a gate");
+    /**
+     * A HUNG GATE MUST FAIL, not burn an hour looking like it is working. The
+     * install step ran in 21 seconds once and then hung past twenty minutes
+     * twice while it still shelled out to apt-get through --with-deps; the
+     * timeout is the backstop that makes that a red build rather than a wait.
+     */
+    assert.match(ci, /timeout-minutes: \d+/, "the a11y job has no timeout, so a hang looks like work in progress");
     const pkg = JSON.parse(read("package.json"));
     assert.equal(pkg.scripts["test:a11y"], "node scripts/a11y-scan.mjs");
     for (const dep of ["axe-core", "playwright-core"]) {

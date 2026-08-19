@@ -27,8 +27,21 @@ jobs:
   # not fetch a browser - the devDependency is playwright-core, which downloads
   # nothing on install - so the install step below is what makes this job able to
   # run at all, and removing it turns the job red rather than green.
+  #
+  # WITHOUT --with-deps, and that is measured rather than preferred. With it, this
+  # step ran in 21 seconds once and then HUNG PAST TWENTY MINUTES twice; it shells
+  # out to apt-get, which is not something this gate should have on its critical
+  # path. GitHub's ubuntu-latest image already carries the shared libraries
+  # Chromium needs, so the browser download alone is enough. If a library is ever
+  # missing the failure is loud and self-describing: chromium.launch() throws, the
+  # scanner exits 2, and its message names `--with-deps` as the fix. A slow
+  # correct path that hangs is worse than a fast one that fails legibly.
+  #
+  # timeout-minutes is the backstop for the same lesson: a hung gate must fail,
+  # not burn an hour looking like it is working.
   a11y:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -36,5 +49,5 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci
-      - run: npx playwright-core install --with-deps chromium
+      - run: npx playwright-core install chromium
       - run: npm run test:a11y
