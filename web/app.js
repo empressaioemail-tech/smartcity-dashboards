@@ -733,6 +733,20 @@ function applyLens(staffLens) {
   const { lens, tab, work, assetTab } = staffLens;
   const workOn = Boolean(work);
 
+  /**
+   * G-89. The root attributes are what decide visibility at FIRST PAINT, stamped
+   * by the inline script in the head of index.html before this module has run.
+   * They are rewritten here, from the same staffLens fields the class toggles
+   * below read, for one reason: if the attribute governed and this function only
+   * moved a class, the class would be decorative and any future JS-driven lens
+   * change would silently do nothing. One writer, one source, so the attribute
+   * and the class can never disagree - and both stay live.
+   */
+  const root = document.documentElement;
+  root.setAttribute("data-surface", workOn ? `work-${work}` : `lens-${lens}`);
+  root.setAttribute("data-tab", tab);
+  root.setAttribute("data-atab", assetTab);
+
   document.querySelectorAll(".lens").forEach((el) => {
     if (el.id.startsWith("work-")) {
       el.classList.toggle("on", workOn && el.id === `work-${work}`);
