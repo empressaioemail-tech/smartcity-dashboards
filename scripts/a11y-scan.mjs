@@ -464,6 +464,38 @@ async function scanOnce(browser, base, target, axe, plant) {
           return false;
         }
       }).length,
+      /**
+       * A NAMED WITNESS, recorded on every scan.
+       *
+       * The first CI run of this gate reported color-contrast ZERO across all 46
+       * scans while the same commit reported 1002 on the author's machine. Two
+       * numbers that should agree and did not, which is the cheapest kind of
+       * finding there is (DEV_PROCESS 1.4) - but nothing in the output could
+       * say WHICH of the two candidate explanations it was: a different palette,
+       * or a rule that ran and could not resolve a background. So one element
+       * that is known to fail carries its own resolved colours into the log, and
+       * the next run answers the question instead of inviting a theory.
+       */
+      witness: (() => {
+        const el = document.querySelector(".navitem.roster") || document.querySelector(".p-quiet");
+        if (!el) return null;
+        const cs = getComputedStyle(el);
+        const root = getComputedStyle(document.documentElement);
+        return {
+          selector: el.getAttribute("class"),
+          color: cs.color,
+          background: cs.backgroundColor,
+          fontSize: cs.fontSize,
+          fontFamily: cs.fontFamily.split(",")[0],
+          quiet: root.getPropertyValue("--sc-quiet").trim(),
+          ink3: root.getPropertyValue("--sc-ink-3").trim(),
+          behindIt: (() => {
+            const r = el.getBoundingClientRect();
+            const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+            return hit ? hit.tagName.toLowerCase() + (hit.id ? "#" + hit.id : "") : "nothing";
+          })(),
+        };
+      })(),
     }));
     if (painted.theme !== target.theme) {
       throw new Error(
@@ -488,20 +520,23 @@ async function scanOnce(browser, base, target, axe, plant) {
     }
     const title = await page.title();
     await page.addScriptTag({ content: axe.source });
-    const violations = await page.evaluate(async (tags) => {
+    const axed = await page.evaluate(async (tags) => {
       const run = await window.axe.run(document, {
-        resultTypes: ["violations"],
+        resultTypes: ["violations", "incomplete"],
         runOnly: { type: "tag", values: [...tags, "best-practice"] },
       });
-      return run.violations.map((v) => ({
+      const shape = (v) => ({
         id: v.id,
         impact: v.impact,
         tags: v.tags,
         help: v.help,
         nodes: v.nodes.length,
         sample: v.nodes.slice(0, 3).map((n) => String(n.target)),
-      }));
+      });
+      return { violations: run.violations.map(shape), incomplete: run.incomplete.map(shape) };
     }, CONFORMANCE_TAGS);
+    const violations = axed.violations;
+    const incomplete = axed.incomplete;
     const visible = await page.evaluate(() =>
       [...document.querySelectorAll(".lens")]
         .filter((e) => getComputedStyle(e).display !== "none")
@@ -515,6 +550,7 @@ async function scanOnce(browser, base, target, axe, plant) {
       painted,
       visibleLens: visible,
       violations,
+      incomplete,
       focus: walk.stops,
       focusNotes: walk.notes,
       focusCrossings: walk.crossings,
@@ -553,6 +589,7 @@ function report(summary, out = process.stdout) {
     `theme lever: ${summary.themeLeverFinding ? "DID NOT MOVE - " + summary.themeLeverFinding : "proven, the palette differs between themes"}`,
   );
   w(`conformance nodes by theme: ${Object.entries(summary.conformanceNodesByTheme).map(([t, n]) => `${t} ${n}`).join(", ")}`);
+  for (const wit of summary.witnesses) w(`witness [${wit.theme}] ${JSON.stringify(wit.witness)}`);
   w("");
   w(`CONFORMANCE (WCAG A/AA) rules failing: ${summary.conformanceViolations.length}, nodes: ${summary.conformanceNodes}`);
   for (const v of summary.conformanceViolations) {
@@ -566,6 +603,13 @@ function report(summary, out = process.stdout) {
     );
     w(`      on: ${[...new Set(v.surfaces)].join(", ")}`);
     if (waived) w(`      remove when: ${waived.remove}`);
+  }
+  w(
+    `UNRESOLVED conformance checks (axe could not settle these; not a pass): ${summary.incompleteConformance.length} rule(s), ${summary.incompleteConformance.reduce((n, x) => n + x.nodes, 0)} node(s)`,
+  );
+  for (const inc of summary.incompleteConformance) {
+    w(`  ${inc.id.padEnd(30)} ${String(inc.nodes).padStart(4)} nodes  sample ${JSON.stringify(inc.sample)}`);
+    w(`      on: ${[...new Set(inc.surfaces)].slice(0, 6).join(", ")}${inc.surfaces.length > 6 ? " ..." : ""}`);
   }
   w(`best-practice rules failing: ${summary.bestPracticeViolations.length}`);
   for (const v of summary.bestPracticeViolations) {

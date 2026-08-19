@@ -196,6 +196,34 @@ export function themeLeverFinding(results) {
   return `the palette painted identically under all ${THEMES.length} themes on all ${bySurface.size} surfaces; the theme lever did not move and this run measured one palette ${THEMES.length} times`;
 }
 
+/**
+ * AXE'S THIRD BUCKET, and dropping it is how a gate scores an unknown as a pass.
+ *
+ * axe returns violations, passes and INCOMPLETE - the checks it could not
+ * settle. color-contrast lands there whenever the background cannot be
+ * resolved, which is a "needs review", never a "fine".
+ *
+ * This scanner read only `violations` on its first CI run and reported
+ * color-contrast ZERO over all 46 scans while the same commit reported 1002
+ * locally. A gate that answers "clean" because it could not measure is the exact
+ * defect class this program hunts (DEV_PROCESS 4.3: an empty result is not an
+ * absence), so unresolved conformance checks are counted, reported by rule, and
+ * fail the build.
+ */
+export function incompleteConformance(results) {
+  const out = new Map();
+  for (const r of results.filter((x) => x.ok)) {
+    for (const v of r.incomplete || []) {
+      if (!isConformance(v)) continue;
+      const prev = out.get(v.id) || { id: v.id, nodes: 0, surfaces: [], sample: v.sample };
+      prev.nodes += v.nodes;
+      prev.surfaces.push(`${r.surface} [${r.theme}]`);
+      out.set(v.id, prev);
+    }
+  }
+  return [...out.values()].sort((a, b) => b.nodes - a.nodes);
+}
+
 export function summarize(results, axe, base) {
   const conformance = new Map();
   const bestPractice = new Map();
@@ -251,6 +279,13 @@ export function summarize(results, axe, base) {
       .filter((r) => r.retried)
       .map((r) => ({ surface: `${r.surface} [${r.theme}]`, reason: r.retried })),
     conformanceNodesByTheme: byTheme,
+    /** One resolved witness per theme, so a disagreement between two machines
+     *  can be diagnosed from the log rather than reproduced. */
+    witnesses: THEMES.map((t) => {
+      const row = results.find((r) => r.ok && r.theme === t && r.painted?.witness);
+      return { theme: t, witness: row ? row.painted.witness : null };
+    }),
+    incompleteConformance: incompleteConformance(results),
     conformanceNodesByThemeRule: byThemeRule,
     themeLeverFinding: themeLeverFinding(results),
     conformanceViolations: [...conformance.values()].sort((a, b) => b.nodes - a.nodes),
@@ -342,6 +377,11 @@ export function verdict(summary, waivers = WAIVERS) {
     }
   }
 
+  for (const inc of summary.incompleteConformance || []) {
+    reasons.push(
+      `${inc.id}: ${inc.nodes} node(s) axe could NOT SETTLE across ${new Set(inc.surfaces).size} scan(s). An unresolved conformance check is not a pass; sample ${JSON.stringify(inc.sample)}`,
+    );
+  }
   if (summary.titleFindings.length) reasons.push(`${summary.titleFindings.length} 2.4.2 finding(s)`);
   if (summary.focusFindings.length) reasons.push(`${summary.focusFindings.length} 2.4.7 finding(s)`);
   if (summary.surfacesFailed.length) reasons.push(`${summary.surfacesFailed.length} scan(s) did not run`);
