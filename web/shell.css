@@ -788,6 +788,237 @@ a.prov:hover { border-color: var(--sc-line-strong); background: var(--sc-surface
 .roster-list { display: flex; flex-wrap: wrap; gap: var(--sc-2); }
 .roster-list .prov { background: var(--sc-surface); }
 
+/* ---------- code citation, evidence chip, applicability matrix, finding row ----------
+
+   G-88 item 2. Four families ported from the design system's own style block
+   (30b_smartcity_design_system.html lines 236-253 and 316-344) into this file's
+   formatting. Nothing below was designed. Every rule is the spec's, re-laid-out
+   one declaration per line, and every colour is a var(--sc-*) that already
+   ships. Zero tokens are declared here; sc-kit.css is untouched.
+
+   G1, the type floor holds. The spec sets .cite em at 11px, and .cite.model
+   .corpus, .mxgroup .lic and .basisline below the floor. All four ship at 12px.
+   The product had already made this call once, shipping .prov at 13px where the
+   spec says 11px. The consequence is named and accepted: the spec's own
+   specimens no longer match what ships, and the spec is the looser document.
+   The port principle was to change only the size number, so every line-height,
+   weight, tracking and geometry below is exactly what the spec drew.
+
+   The evidence chip label is the ONE exception and it is taken. The type law
+   grants it in one sentence, quoted here because a carve-out whose reason lives
+   only in a review thread does not survive:
+
+     12px is the floor and nothing renders below it, with one named exception:
+     the evidence chip label may set at 10px, because the chip has to read as a
+     citation mark rather than a button and SmartSite sets it near 9.5px. The
+     exception is the chip label only. The body of BRIEF and FULL, and every
+     other string in the system, stays at the 12px floor. Nothing else inherits
+     this.
+
+   So .atomchip and .atomchip .did set 10px and nothing else in this file does.
+   The gate at src/type-conformance.test.mjs had hardcoded the floor as absolute
+   and justified it in its own error string with the words 'the evidence chip,
+   which does not exist in this product'. That was true when it was written and
+   this card falsified it, so the gate was amended to carry the exception by
+   name rather than left to assert something untrue. .basisline is NOT covered:
+   the exception is the chip label only, so the basis line stays at 12px even
+   though the spec draws it at 11px.
+
+   G2, the design system governs the CSS wherever it and the platform IA
+   document disagree. Five divergences, each marked DIV-n at the rule.
+
+   Markup contract for .atomchip comes from the platform IA section 6.3, because
+   the design system carries no atomchip specimen: the openable form is a
+   button with aria-expanded, and the unverified .web form is a plain span. */
+
+.cite {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 2px 7px;
+  border-radius: var(--sc-r-control);
+  border: 1px solid var(--sc-line);
+  background: var(--sc-surface-2);
+  font: 500 12px/16px var(--sc-font-data);
+  color: var(--sc-ink);
+  text-decoration: none;
+  white-space: nowrap;
+}
+/* G1: the spec sets 11px here. */
+.cite em { font-style: normal; font-weight: 400; font-size: 12px; color: var(--sc-ink-3); }
+.cite:hover { border-color: var(--sc-accent); color: var(--sc-accent); }
+
+/* The licensed form. Full canonical corpus title above the section identifier,
+   two lines inside one chip, and no slot for body copy anywhere in this family.
+   That absence is the enforcement mechanism, not a styling choice: licensed
+   model-code text cannot leak into a screenshot or an export through a
+   component that does not exist. */
+.cite.model { flex-direction: column; align-items: flex-start; gap: 1px; padding: 3px 8px; }
+/* G1: the spec sets 10px here. DIV-2: the IA document drops the tracking. */
+.cite.model .corpus {
+  font: 400 12px/13px var(--sc-font-data);
+  letter-spacing: 0.01em;
+  color: var(--sc-ink-3);
+}
+.cite.model .sect { font: 500 12px/16px var(--sc-font-data); color: var(--sc-ink); }
+/* DIV-3: absent from the IA document, so the licensed form would lose its hover
+   affordance there. Kept. */
+.cite.model:hover .sect { color: var(--sc-accent); }
+
+/* The evidence chip. Wears the reserved atom accent, which marks a thing you
+   can open and read the record of. Not chrome, not emphasis, not a link colour.
+   .dead is an unservable record; .web is an unverified source and drops the
+   accent entirely for a neutral, differently-shaped chip, so the reservation
+   holds structurally rather than by convention. */
+/* 10px is the type law's one named exception, carved into the gate by name.
+   At 14px line the chip stays 20px tall, the same height as .pill and .prov. */
+.atomchip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 7px;
+  border-radius: var(--sc-r-control);
+  border: 1px solid color-mix(in srgb, var(--sc-atom) 45%, transparent);
+  background: var(--sc-atom-wash);
+  font: 500 10px/14px var(--sc-font-ui);
+  color: var(--sc-atom);
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+  vertical-align: 2px;
+}
+/* The record identifier is part of the chip label, so the same exception covers
+   it. These two selectors are the entire exception; the gate names both. */
+.atomchip .did { font: 400 10px/14px var(--sc-font-data); opacity: 0.75; }
+.atomchip:hover { border-color: var(--sc-atom); }
+/* DIV-4: the IA document states cursor: pointer, which this rule already
+   inherits from .atomchip, so the two agree in effect. */
+.atomchip.dead {
+  color: var(--sc-quiet);
+  background: var(--sc-quiet-wash);
+  border-color: color-mix(in srgb, var(--sc-quiet) 40%, transparent);
+  border-style: dashed;
+}
+/* DIV-5: the IA document sets cursor: default here and this one is a real
+   disagreement, not a restatement. Its own specimen is a non-interactive span.
+   Resolved to the design system per G2, so the chip inherits cursor: pointer.
+   Named in the close. */
+.atomchip.web {
+  color: var(--sc-ink-3);
+  background: var(--sc-surface-2);
+  border-color: var(--sc-line);
+  border-radius: var(--sc-r-full);
+}
+
+/* The applicability matrix, inverted. Pass is the quietest row on the page:
+   grey text, no fill, no rail. Fail takes the critical rail and wash, Uncertain
+   the warn rail and wash, and Unchecked a diagonal hatch, the plat-drawing
+   convention for nobody has been here yet, because unreviewed is more dangerous
+   than failed and must never read as clean. Rows group under a corpus header
+   that prints the full canonical title once, which is how the matrix stays
+   dense without ever printing an abbreviation alone. */
+.mx {
+  border: 1px solid var(--sc-line);
+  border-radius: var(--sc-r);
+  background: var(--sc-surface);
+  overflow: hidden;
+}
+.mxgroup {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px var(--sc-3);
+  background: var(--sc-surface-2);
+  border-bottom: 1px solid var(--sc-line);
+  flex-wrap: wrap;
+}
+.mxgroup .c { font: 500 12px/16px var(--sc-font-data); color: var(--sc-ink); }
+/* G1: the spec sets 10px here. */
+.mxgroup .lic {
+  font: 500 12px/1 var(--sc-font-data);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--sc-ink-3);
+  border: 1px solid var(--sc-line);
+  border-radius: 3px;
+  padding: 3px 6px;
+}
+/* DIV-1: the IA document narrows the section-identifier column to 108px. Kept
+   at 132px, which is also the column the raised type needs. */
+.mxrow {
+  display: grid;
+  grid-template-columns: 3px 132px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sc-3);
+  border-bottom: 1px solid var(--sc-line-faint);
+  padding-right: var(--sc-3);
+  min-height: 42px;
+}
+.mxrow:last-child { border-bottom: 0; }
+.mxrow > .rail { align-self: stretch; background: transparent; min-height: 42px; }
+.mxrow .sec { font: 500 12px/1 var(--sc-font-data); color: var(--sc-ink-2); padding-left: var(--sc-3); }
+.mxrow .txt { font: 400 13px/18px var(--sc-font-ui); color: var(--sc-ink-2); padding: 8px 0; }
+/* Pass declares no background and no rail colour. Adding a green wash here is
+   the one edit that reverses the ruling this component exists to express. */
+.mx-pass .sec { color: var(--sc-ink-3); }
+.mx-pass .txt { color: var(--sc-ink-3); }
+.mx-fail { background: var(--sc-crit-wash); }
+.mx-fail > .rail { background: var(--sc-crit); }
+.mx-fail .txt { color: var(--sc-ink); }
+.mx-unc { background: var(--sc-warn-wash); }
+.mx-unc > .rail { background: var(--sc-warn); }
+.mx-unc .txt { color: var(--sc-ink); }
+.mx-unchecked {
+  background: repeating-linear-gradient(135deg, transparent 0 6px, var(--sc-quiet-wash) 6px 13px);
+}
+.mx-unchecked > .rail { background: var(--sc-line-strong); }
+.mx-unchecked .txt { color: var(--sc-ink); }
+
+/* The finding row, the unit of a comment letter. Composes .cite and .prov in
+   its .fmeta slot and carries its basis line underneath, so a confidence value
+   cannot render without the state, source count and timestamp that earn it. */
+.finding {
+  display: grid;
+  grid-template-columns: 3px auto minmax(0, 1fr) auto;
+  gap: var(--sc-3);
+  /* The spec writes the grid-relative start keyword here. flex-start behaves
+     identically on a grid container and keeps the G-75 mount guard, which
+     greps this whole file for that literal string, able to fire. */
+  align-items: flex-start;
+  border: 1px solid var(--sc-line);
+  border-radius: var(--sc-r);
+  background: var(--sc-surface);
+  padding-right: var(--sc-3);
+  overflow: hidden;
+}
+.finding > .rail { align-self: stretch; background: var(--sc-warn); }
+.finding.crit > .rail { background: var(--sc-crit); }
+.finding .fid {
+  font: 500 12px/18px var(--sc-font-data);
+  color: var(--sc-ink-3);
+  padding: 13px 0 13px var(--sc-3);
+  white-space: nowrap;
+}
+.finding .fbody { padding: 12px 0; min-width: 0; display: flex; flex-direction: column; gap: 7px; }
+.finding .ftitle { font: 600 13px/19px var(--sc-font-ui); color: var(--sc-ink); }
+.finding .fmeta { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.finding .fact { padding: 11px 0; display: flex; gap: 6px; align-items: center; }
+
+/* G1: the spec sets 11px here. Not covered by the chip-label exception, which is
+   the chip label only, so it goes to the floor. */
+.basisline {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font: 400 12px/16px var(--sc-font-data);
+  color: var(--sc-ink-3);
+}
+.basisline .conf { display: inline-flex; align-items: center; gap: 6px; color: var(--sc-ink-2); }
+.meter { display: inline-flex; gap: 2px; }
+.meter i { width: 11px; height: 4px; border-radius: 1px; background: var(--sc-line-strong); }
+.meter i.f { background: var(--sc-accent); }
+
 /* ---------- responsive ---------- */
 
 @media (max-width: 1180px) {
