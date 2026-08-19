@@ -14,6 +14,153 @@ const shell = fs.readFileSync(path.join(root, "web", "shell.css"), "utf8");
 const kit = fs.readFileSync(path.join(root, "web", "sc-kit.css"), "utf8");
 const surface = html + "\n" + app;
 
+const serverSrc = fs.readFileSync(path.join(root, "src", "server.mjs"), "utf8");
+
+/**
+ * ---------------------------------------------------------------------------
+ * THE CLASS GATE'S INSTRUMENTS (G-88 item 3)
+ *
+ * Everything below serves one assertion: every class this product puts in front
+ * of a browser is defined in a stylesheet this product serves. The assertion
+ * existed before G-88 and passed; it had three measured defects and all three
+ * are closed here.
+ * ---------------------------------------------------------------------------
+ */
+
+/** CRLF normalization. This repo is cloned on Windows with autocrlf, so a rule
+ *  that counts newlines or spans them must read one form, not two. */
+const lf = (text) => text.replace(/\r\n/g, "\n");
+
+/**
+ * Where the browser gets its bytes, DERIVED from server.mjs's sendFile call
+ * sites rather than hardcoded here.
+ *
+ * Hardcoding is what let three of five markup sources go unscanned: the list was
+ * written once, the server grew, and nothing connected the two. Deriving it
+ * means a newly served asset is either scanned or fails the tripwire in the
+ * "derives the scanned source list" test.
+ *
+ * The anchor is the FUNCTION NAME plus the path.join argument, never the
+ * argument list, and `[^)]*?` absorbs any number of leading arguments without
+ * being able to escape the call. That is not a hypothetical robustness: G-88
+ * item 8 changed this helper from sendFile(res, filePath, contentType) to
+ * sendFile(req, res, filePath, contentType) in the same session this gate was
+ * written, because the ETag path needs req to read If-None-Match. An extractor
+ * anchored on the literal "sendFile(res," would have found zero call sites the
+ * moment that merged and the gate would have scanned nothing, silently. This
+ * one was re-measured against the merged signature and still resolves all six.
+ *
+ * The count assertion in the tripwire test is the backstop for the case this
+ * regex genuinely cannot read: a call site whose path is a variable rather than
+ * an inline path.join. The derivation would find fewer sites than there are
+ * calls, and that test fails rather than the gate quietly shrinking.
+ */
+const SEND_FILE_DIRS = { WEB: "web", __dirname: "src" };
+
+function servedAssets() {
+  const found = new Set();
+  const re = /sendFile\([^)]*?path\.join\(\s*(WEB|__dirname)\s*,\s*"([^"]+)"\s*\)/g;
+  for (const m of serverSrc.matchAll(re)) found.add(`${SEND_FILE_DIRS[m[1]]}/${m[2]}`);
+  return [...found].sort();
+}
+
+const SERVED_ASSETS = servedAssets();
+
+/** The stylesheets are the DEFINITION side of the gate: they are what
+ *  stylesheetClasses() counts, not what the scan reads for class usage. */
+const STYLESHEET_SOURCES = SERVED_ASSETS.filter((rel) => rel.endsWith(".css"));
+
+/**
+ * Markup that reaches the browser without being served: shell-homes.mjs emits
+ * the connections register as a server template string and gets into
+ * index.html only through scripts/bake-connections.mjs. That bake's output is
+ * never byte-asserted, so a class renamed here and not re-baked ships stale and
+ * passes every test. Scanned at source for that reason, and named separately so
+ * the derived list stays honestly derived.
+ */
+const BAKE_SOURCES = ["src/shell-homes.mjs"];
+
+/** The five markup sources the gate scans. */
+const MARKUP_SOURCES = [
+  ...SERVED_ASSETS.filter((rel) => !rel.endsWith(".css")),
+  ...BAKE_SOURCES,
+].sort();
+
+function readMarkupSources() {
+  const out = {};
+  for (const rel of MARKUP_SOURCES) out[rel] = fs.readFileSync(path.join(root, rel), "utf8");
+  return out;
+}
+
+/**
+ * The DEFINED set. Ported VERBATIM from the SmartCity kit's counting rule,
+ * `stylesheetClasses()` in the kit's `test/_lib.mjs`, which is the authority for
+ * this rule across the product line.
+ *
+ * Ported and deliberately NOT imported: the rule is not in the kit's package
+ * exports, and depending on the kit would add an npm dependency to a repo whose
+ * only dependency is pg.
+ *
+ * Counting rule: the served stylesheets, CRLF-normalized, CSS COMMENTS
+ * STRIPPED, then every "." followed by an identifier, deduplicated. The product
+ * previously ran the same match WITHOUT stripping comments, which counted six
+ * words appearing only inside comments - css, hidden, html, md, mjs, test - as
+ * shipped classes. 115 tokens then, 109 now, and those six are the difference.
+ */
+function stylesheetClasses() {
+  const css = STYLESHEET_SOURCES.map((rel) => lf(fs.readFileSync(path.join(root, rel), "utf8")))
+    .join("\n")
+    .replace(/\/\*[\s\S]*?\*\//g, "");
+  const found = new Set();
+  for (const m of css.matchAll(/\.(-?[_a-zA-Z][\w-]*)/g)) found.add(m[1]);
+  return found;
+}
+
+/**
+ * The USED set for one source. Every extractor runs against every source rather
+ * than one extractor per file type, because which file carries which form is not
+ * a fact worth encoding: index.html could gain a script, app.js already carries
+ * template markup, and shell-homes.mjs is a server template emitting class="".
+ * ${...} spans are blanked rather than kept, so an interpolated value never
+ * reads as a class name.
+ */
+function classesUsed(text) {
+  const used = new Set();
+  const addAll = (raw) => {
+    for (const token of raw.replace(/\$\{[^}]*\}/g, " ").split(/\s+/)) if (token) used.add(token);
+  };
+  for (const m of text.matchAll(/class="([^"]*)"/g)) addAll(m[1]);
+  for (const m of text.matchAll(/class=`([^`]*)`/g)) addAll(m[1]);
+  for (const m of text.matchAll(/className\s*=\s*"([^"]*)"/g)) addAll(m[1]);
+  for (const m of text.matchAll(/className\s*=\s*`([^`]*)`/g)) addAll(m[1]);
+  for (const m of text.matchAll(/classList\.(add|remove|toggle)\(([^)]*)\)/g)) {
+    /**
+     * DOM semantics, and they differ per method: add() and remove() take a class
+     * name in EVERY argument, so classList.remove("is-presented", "is-max")
+     * contributes both. toggle() takes one class name and an optional force
+     * boolean, so only its first argument is a class. Reading toggle's second
+     * argument as a class is how the state values "presented" and "max" read as
+     * strays on the first run of this widened extractor - a false positive the
+     * gate itself caught, which is the arm working.
+     */
+    const literals = [...m[2].matchAll(/"([^"]+)"/g)].map((lit) => lit[1]);
+    for (const cls of m[1] === "toggle" ? literals.slice(0, 1) : literals) used.add(cls);
+  }
+  return used;
+}
+
+/** Every class used across the given sources that no served stylesheet defines. */
+function strayClasses(sources, defined, excluded) {
+  const found = new Set();
+  for (const text of Object.values(sources)) {
+    for (const cls of classesUsed(text)) {
+      if (!defined.has(cls) && !excluded.has(cls)) found.add(cls);
+    }
+  }
+  return [...found].sort();
+}
+
+
 describe("G-66 four-lens shell", () => {
   it("presents four lead lenses as views without a parcel form or Compose click", () => {
     assert.match(html, /href="\/\?lens=city-manager"/);
@@ -350,33 +497,153 @@ describe("G-77 fixture pack on Development services", () => {
   });
 
   it("composes existing kit classes and declares no new one", () => {
-    const defined = new Set(
-      [...(shell + kit).matchAll(/\.([a-zA-Z][a-zA-Z0-9_-]*)/g)].map((m) => m[1]),
-    );
+    /**
+     * THE CLASS GATE. Hardened at G-88 item 3, before any design pass shipped a
+     * screen through it, because the gate had three defects and each was
+     * measured rather than suspected.
+     *
+     * Counting rule for the DEFINED set, stated here where its output is read:
+     * the served stylesheets, CRLF-normalized, CSS COMMENTS STRIPPED, then every
+     * "." followed by an identifier, deduplicated. The comment strip is the
+     * whole point. Without it the old rule counted six words that appear only
+     * inside CSS comments as shipped classes - css, hidden, html, md, mjs, test
+     * - so an injected class="hidden" did not fire this gate at all. 115 tokens
+     * under the old rule, 109 under this one, and those six words are exactly
+     * the difference.
+     *
+     * Counting rule for the USED set: every class token in every markup source
+     * the product serves, plus the bake source below, with ${...} spans blanked.
+     *
+     * The gate is watched FIRING in this same test. A clean arm and an injected
+     * arm living in different tests let an unrun check and a passing check look
+     * alike, which is the failure this program keeps paying for.
+     */
+    const defined = stylesheetClasses();
     /**
      * Exclusion set, stated where the output is read: roster-lens is a pre-G-77
-     * marker class in the nav that carries no style. Nothing else is excused.
+     * marker class in the nav that carries no style. It is a DELETION TICKET,
+     * not permanent amnesty - the fix is removing it from the five sections of
+     * web/index.html that carry it, at which point this set becomes empty.
+     * Nothing else is excused. A new stray is a finding, never a new entry here.
      */
     const KNOWN_UNSTYLED = new Set(["roster-lens"]);
-    const used = new Set();
-    for (const m of html.matchAll(/class="([^"]+)"/g)) {
-      for (const c of m[1].split(/\s+/)) if (c) used.add(c);
+
+    /** Arm A, the real sources: the stray list must be empty. */
+    const sources = readMarkupSources();
+    assert.deepEqual(Object.keys(sources).sort(), MARKUP_SOURCES);
+    assert.deepEqual(strayClasses(sources, defined, KNOWN_UNSTYLED), []);
+
+    /**
+     * Arm B, the injected violations, run against every scanned source so the
+     * gate is proven able to fire on each one rather than on the single source
+     * somebody remembered to test.
+     *
+     * mx-card is a class a design pass would introduce; it appears in neither
+     * design spec, so it cannot become real underneath this arm. hidden is the
+     * regression this card exists for: the old rule counted it as defined
+     * because the word appears inside a CSS comment, so this exact injection
+     * used to pass.
+     */
+    const PROBES = ["mx-card", "hidden"];
+    for (const probe of PROBES) {
+      assert.equal(
+        defined.has(probe),
+        false,
+        `${probe} is now a defined class and can no longer serve as a probe; pick one the stylesheets do not define`,
+      );
     }
-    // Classes the script applies at runtime count too.
-    for (const m of app.matchAll(/className = "([^"]+)"/g)) {
-      for (const c of m[1].split(/\s+/)) if (c) used.add(c);
+    for (const probe of PROBES) {
+      for (const file of MARKUP_SOURCES) {
+        const injected = { ...sources, [file]: `${sources[file]}\n<div class="${probe}"></div>\n` };
+        assert.deepEqual(
+          strayClasses(injected, defined, KNOWN_UNSTYLED),
+          [probe],
+          `injecting class="${probe}" into ${file} did not fire the gate naming exactly that class`,
+        );
+      }
     }
-    for (const m of app.matchAll(/className = `([^`]+)`/g)) {
-      for (const c of m[1].replace(/\$\{[^}]*\}/g, " ").split(/\s+/)) if (c) used.add(c);
-    }
-    for (const m of app.matchAll(/classList\.(add|remove|toggle)\("([^"]+)"/g)) used.add(m[2]);
-    const undefinedClasses = [...used].filter((c) => !defined.has(c) && !KNOWN_UNSTYLED.has(c));
-    assert.deepEqual(undefinedClasses, []);
+
     // The severity map turns a declared meaning into a kit pill and nothing else.
     for (const cls of ["p-crit", "p-warn", "p-info", "p-ok", "p-quiet"]) {
       assert.ok(defined.has(cls), cls);
       assert.ok(app.includes(cls), cls);
     }
+  });
+
+  it("derives the scanned source list from server.mjs's sendFile call sites", () => {
+    /**
+     * Defect 2 of three: the gate used to read web/index.html and web/app.js and
+     * nothing else, which is two of the five markup sources this product puts in
+     * front of a browser.
+     *
+     * The list is DERIVED from server.mjs rather than hardcoded, so an asset
+     * added to the server after this test was written cannot dodge the gate by
+     * being new. The assertions below are the tripwire on that derivation: they
+     * fail loudly when the served set changes, which is a decision to make
+     * rather than a detail to discover three months later.
+     */
+    assert.deepEqual(SERVED_ASSETS, [
+      "src/staff-map.mjs",
+      "src/staff-review.mjs",
+      "web/app.js",
+      "web/index.html",
+      "web/sc-kit.css",
+      "web/shell.css",
+    ]);
+
+    /**
+     * No call site dodges the parser. Counted rather than trusted: a refactor of
+     * sendFile's shape would otherwise leave the derivation matching nothing and
+     * the gate scanning nothing, silently, which is this program's own defect
+     * class rather than a hypothetical.
+     */
+    const calls = (serverSrc.match(/\bsendFile\(/g) || []).length;
+    const definitions = (serverSrc.match(/function sendFile\(/g) || []).length;
+    assert.equal(definitions, 1, "sendFile is defined exactly once");
+    assert.equal(
+      SERVED_ASSETS.length,
+      calls - definitions,
+      "a sendFile call site was not parsed by the scan-list derivation",
+    );
+
+    // The stylesheets the counting rule reads ARE the stylesheets the product
+    // serves. A newly served stylesheet fails here rather than going uncounted.
+    assert.deepEqual(STYLESHEET_SOURCES, ["web/sc-kit.css", "web/shell.css"]);
+    assert.deepEqual(
+      SERVED_ASSETS.filter((rel) => rel.endsWith(".css")),
+      STYLESHEET_SOURCES,
+    );
+
+    /**
+     * The five scanned markup sources. Four are served directly. src/shell-homes.mjs
+     * is served by nobody: it generates the connections register as a server
+     * template string and reaches the browser only through
+     * scripts/bake-connections.mjs, whose output is never byte-asserted, so a
+     * class renamed there without a re-bake ships stale and passes every test.
+     * It is named here with its basis rather than folded quietly into the list.
+     */
+    assert.deepEqual(BAKE_SOURCES, ["src/shell-homes.mjs"]);
+    assert.deepEqual(MARKUP_SOURCES, [
+      "src/shell-homes.mjs",
+      "src/staff-map.mjs",
+      "src/staff-review.mjs",
+      "web/app.js",
+      "web/index.html",
+    ]);
+    for (const rel of [...SERVED_ASSETS, ...BAKE_SOURCES]) {
+      assert.ok(fs.existsSync(path.join(root, rel)), `${rel} is scanned but does not exist`);
+    }
+
+    /**
+     * staff-map.mjs and staff-review.mjs assign no classes today, which is
+     * exactly why nobody noticed they were unscanned. Written as a positive
+     * determination with its basis, because an empty result is not an absence.
+     */
+    const sources = readMarkupSources();
+    for (const rel of ["src/staff-map.mjs", "src/staff-review.mjs"]) {
+      assert.equal(classesUsed(sources[rel]).size, 0, `${rel} has started assigning classes`);
+    }
+    assert.ok(classesUsed(sources["src/shell-homes.mjs"]).size > 0, "shell-homes assigns classes");
   });
 
   it("marks the queue as generated in the chrome as well as in the payload", () => {
