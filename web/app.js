@@ -1,5 +1,11 @@
 import { resolveStaffMapQuery } from "/staff-map.mjs";
-import { resolveStaffLensQuery } from "/staff-review.mjs";
+import {
+  LENS_LABELS,
+  TAB_LABELS,
+  WORK_LABELS,
+  resolveStaffLensQuery,
+  surfaceTitle,
+} from "/staff-review.mjs";
 import {
   THEME_STORAGE_KEY,
   nextTheme,
@@ -8,35 +14,19 @@ import {
   themeToggleTitle,
 } from "/theme.mjs";
 
-const LENS_LABELS = {
-  "city-manager": "Overview",
-  "development-services": "Development services",
-  finance: "Finance",
-  citizen: "Citizen",
-  "public-works": "Public works",
-  parks: "Parks",
-  police: "Police",
-  "fire-ems": "Fire and EMS",
-  fleet: "Fleet",
-};
+/*
+  G-95. The three label maps that used to live here now live in
+  src/staff-review.mjs, and they moved rather than being copied.
 
-const TAB_LABELS = {
-  pipeline: "Pipeline",
-  place: "Place",
-  review: "Review",
-  inspections: "Inspections",
-  "code-enforcement": "Code enforcement",
-  licenses: "Licenses",
-};
-
-const WORK_LABELS = {
-  files: "Files",
-  review: "Plan review",
-  records: "Records search",
-  assets: "Assets",
-  connections: "Connections",
-  people: "People and access",
-};
+  The document title has to name the surface (2.4.2), and three readers need
+  that name: this file, the inline head script in web/index.html, and the CI
+  accessibility gate. A fourth copy here would have made the chrome and the
+  title able to disagree about what a surface is called - the crumb saying
+  Licenses while the title said Development services - which is the CTRL-1
+  shape this repo has already paid for. The head script's copy is forced (an
+  importing script is a module, a module is deferred, and that is the G-89
+  defect) and src/first-paint.test.mjs holds it equal.
+*/
 
 function setText(id, value) {
   const el = document.getElementById(id);
@@ -89,6 +79,11 @@ function currentPackName() {
 
 /** The view label applyLens resolved, so the scope line can be re-rendered. */
 let viewLabel = "";
+/** The surface the screen is currently painting, kept so the document title can
+ *  be recomposed when the pack identity resolves. Initialised to the resolver's
+ *  own answer for this URL, so a title composed before applyLens has run names
+ *  the same surface the head script already stamped. */
+let currentSurface = resolveStaffLensQuery(window.location.search);
 
 function renderScope() {
   setText("cp-source-scope", `${currentPackName()} · ${viewLabel}`);
@@ -146,7 +141,14 @@ function applyIdentity(identity) {
   if (sources.demonstratedLabel) setText("nav-demonstrated", sources.demonstratedLabel);
   if (sources.demonstratedRule) setText("nav-demonstrated-rule", sources.demonstratedRule);
 
-  if (identity.documentTitle) document.title = identity.documentTitle;
+  /**
+   * G-95, 2.4.2 Page Titled. The pack-level title is the TAIL, never the whole
+   * title: the surface name is what distinguishes twenty-three pages that all
+   * belong to one city, and it is stamped at first paint by the head script so
+   * it is never late. What arrives here is the city, which cannot be known
+   * before the pack reads and which this product does not assert unread.
+   */
+  if (identity.documentTitle) document.title = surfaceTitle(currentSurface, identity.documentTitle);
   renderScope();
 }
 
@@ -798,6 +800,12 @@ function applyLens(staffLens) {
    * because its section carries .sc-light, which is the kit's scoped mechanism.
    * Flipping documentElement dragged the staff chrome light on a lens change.
    */
+  /**
+   * The resolved surface is kept so the title can be recomposed when the pack
+   * resolves. Read from the same model that painted the screen, so the title
+   * cannot name a surface other than the one showing.
+   */
+  currentSurface = staffLens;
   const label = workOn ? WORK_LABELS[work] || work : LENS_LABELS[lens] || lens;
   viewLabel = label;
   renderScope();
