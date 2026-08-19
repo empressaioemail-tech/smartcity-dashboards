@@ -206,6 +206,12 @@ export const PLANTS = {
  */
 const PLANT_CHROME = "position:fixed;top:0;left:0;z-index:99999;";
 
+/**
+ * The floor a scan must clear to count as having measured anything. See
+ * visibleTextNodes above for the counting rule and the plant that bought it.
+ */
+export const VISIBLE_TEXT_FLOOR = 10;
+
 /* ------------------------------------------------------------------ inputs */
 
 function parseArgs(argv) {
@@ -465,6 +471,23 @@ async function scanOnce(browser, base, target, axe, plant) {
       await page.goto(base + target.url, { waitUntil: "networkidle", timeout: 90000 });
     }
     /**
+     * THE PLANT GOES FIRST, and that ordering is not cosmetic.
+     *
+     * It used to be applied after the probe below, which meant a plant could
+     * never trip the probe's own assertions - and the unresolved-contrast plant,
+     * whose whole point is a page that renders nothing measurable, reported
+     * "gate PASSED, WHICH IS THE BUG" for exactly that reason. Measuring after
+     * the plant is also simply more faithful: these assertions are about the
+     * page axe is handed, not the page before something happened to it.
+     */
+    if (plant) {
+      await page.evaluate((chrome) => {
+        window.__plantChrome = chrome;
+      }, PLANT_CHROME);
+      await page.evaluate(PLANTS[plant].apply);
+    }
+
+    /**
      * THE THEME LANDED, asserted rather than assumed. Without this a scan that
      * silently ran the default palette is indistinguishable from a clean one,
      * and that is precisely how a light-theme regression stays invisible
@@ -492,6 +515,37 @@ async function scanOnce(browser, base, target, axe, plant) {
        * that is known to fail carries its own resolved colours into the log, and
        * the next run answers the question instead of inviting a theory.
        */
+      /**
+       * HOW MUCH OF THIS PAGE IS ACTUALLY VISIBLE, and the plant that forced it.
+       *
+       * The unresolved-contrast plant drops a translucent full-viewport overlay
+       * and the gate PASSED it. Not because the overlay was harmless - because
+       * axe treats everything under it as obscured and evaluates nothing, so the
+       * run came back with no violations, no incomplete results, and no reason to
+       * refuse. A page that renders nothing measurable was scoring clean, which
+       * is the same defect as the unstyled scan one layer up: silence read as
+       * success.
+       *
+       * Counting rule: elements carrying their own non-empty text whose centre
+       * point hit-tests back to themselves or to one of their descendants. An
+       * overlay takes that to zero because every hit-test lands on the overlay.
+       */
+      visibleTextNodes: (() => {
+        let n = 0;
+        for (const el of document.querySelectorAll("h1,h2,p,span,b,a,button,td,th,li")) {
+          const text = (el.textContent || "").trim();
+          if (!text) continue;
+          const r = el.getBoundingClientRect();
+          if (r.width === 0 || r.height === 0) continue;
+          if (r.bottom < 0 || r.top > innerHeight || r.right < 0 || r.left > innerWidth) continue;
+          const hit = document.elementFromPoint(
+            Math.min(Math.max(r.left + r.width / 2, 0), innerWidth - 1),
+            Math.min(Math.max(r.top + r.height / 2, 0), innerHeight - 1),
+          );
+          if (hit && (hit === el || el.contains(hit) || hit.contains(el))) n += 1;
+        }
+        return n;
+      })(),
       witness: (() => {
         const el = document.querySelector(".navitem.roster") || document.querySelector(".p-quiet");
         if (!el) return null;
@@ -528,11 +582,17 @@ async function scanOnce(browser, base, target, axe, plant) {
         `the page did not paint: body background is ${painted.canvas} with ${painted.sheets} stylesheet rule set(s) applied. An unstyled scan reports no contrast failures and no focus indicators, which reads as the cleanest scan of the run; it is recorded as unmeasured instead.`,
       );
     }
-    if (plant) {
-      await page.evaluate((chrome) => {
-        window.__plantChrome = chrome;
-      }, PLANT_CHROME);
-      await page.evaluate(PLANTS[plant].apply);
+    /**
+     * AND THE PAGE IS ACTUALLY LEGIBLE. A floor rather than an exact figure,
+     * because the number varies by surface and only its collapse is meaningful.
+     * Ten is well under the smallest real surface (the leanest scan of the
+     * product reports over a hundred) and far above what an obscured page
+     * reports, which is zero.
+     */
+    if (painted.visibleTextNodes < VISIBLE_TEXT_FLOOR) {
+      throw new Error(
+        `the page rendered nothing legible: ${painted.visibleTextNodes} text elements hit-test to themselves, under the floor of ${VISIBLE_TEXT_FLOOR}. Everything is obscured or absent, so axe evaluated nothing and the scan would otherwise report no findings at all - silence, read as success.`,
+      );
     }
     const title = await page.title();
     await page.addScriptTag({ content: axe.source });
