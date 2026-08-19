@@ -230,6 +230,42 @@ describe("G-95 the gate is proven able to fire", () => {
     );
   });
 
+  it("fires when axe could not SETTLE a conformance check, which is not a pass", () => {
+    /**
+     * The class the first CI run of this gate found. axe returned nothing for
+     * color-contrast over all 46 scans - zero violations - while the same commit
+     * returned 1002 locally, because the check landed in the incomplete bucket
+     * this scanner was not reading. A gate that answers "clean" because it could
+     * not measure is the quietest failure it can have.
+     */
+    const results = cleanResults();
+    results[0].incomplete = [
+      {
+        id: "color-contrast",
+        impact: "serious",
+        tags: ["cat.color", "wcag2aa", "wcag143"],
+        help: "elements must meet minimum contrast",
+        nodes: 37,
+        sample: [".badge"],
+      },
+      {
+        id: "region",
+        impact: "moderate",
+        tags: ["cat.keyboard", "best-practice"],
+        help: "best practice, not conformance",
+        nodes: 5,
+        sample: ["div"],
+      },
+    ];
+    const s = summarize(results, AXE, "http://test");
+    // Only the conformance one counts. A best-practice incomplete is not a
+    // conformance failure, and merging them would make this gate cry wolf.
+    assert.deepEqual(s.incompleteConformance.map((x) => [x.id, x.nodes]), [["color-contrast", 37]]);
+    const v = verdict(s);
+    assert.equal(v.pass, false);
+    assert.ok(v.reasons.some((r) => r.includes("could NOT SETTLE")), v.reasons.join("; "));
+  });
+
   it("fires on a shared title, which is the 2.4.2 defect this card was opened for", () => {
     const w = WAIVERS.find((x) => x.rule === "color-contrast");
     const results = [

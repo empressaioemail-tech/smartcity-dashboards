@@ -167,6 +167,20 @@ export const PLANTS = {
       document.title = "SmartCity Dashboards";
     },
   },
+  "unresolved-contrast": {
+    what: "a translucent overlay, so axe can no longer resolve any background",
+    /**
+     * The plant for the class the FIRST CI RUN found: axe returning nothing for
+     * color-contrast, not because the product passed but because it could not
+     * settle the check. A run that reads zero because it could not measure is
+     * the quietest failure this gate can have, so it gets a plant of its own.
+     */
+    apply: () => {
+      const d = document.createElement("div");
+      d.setAttribute("style", "position:fixed;inset:0;z-index:99998;background:rgba(120,120,120,0.35)");
+      document.body.appendChild(d);
+    },
+  },
   "focus-indicator": {
     what: "a focusable control that paints no focus indicator",
     apply: () => {
