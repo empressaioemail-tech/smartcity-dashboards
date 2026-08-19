@@ -39,8 +39,13 @@ export const TEMPLATE_CITY = {
    * spireon is deliberately absent while src/domains/patrol-vehicles.mjs is
    * fully built, so the ungranted state stays reachable on the shipped demo
    * instead of being a branch nothing exercises.
+   *
+   * G-92 wave 2 adds verkada, firstdue, powerbi and goto so the four department
+   * domains demonstrate. spireon stays out, for exactly the reason above: a
+   * registry that grows until every region is populated has quietly deleted its
+   * own ungranted state, and the four-state distinction is the whole point.
    */
-  fixtureGrants: ["mygov", "samsara"],
+  fixtureGrants: ["mygov", "samsara", "verkada", "firstdue", "powerbi", "goto"],
   notes:
     "Public fixture pack. Records are generated from the adapter output contracts and marked fixture in the payload. Fixture grants are a demonstration axis, never a feed. No clerk calendar grant. Bastrop is not this pack. Cutover is a later WDLL.",
 };

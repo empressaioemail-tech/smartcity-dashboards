@@ -81,7 +81,7 @@ describe("G-91 the domain registry", () => {
   it("registers every domain, each gated by a catalogued kind, and names which pack generates each", () => {
     const domains = listDomains();
     /**
-     * RE-SCOPED AT G-92, four to seven. The list stays EXPLICIT rather than
+     * RE-SCOPED AT G-92, four to eleven across two concurrent lanes. The list stays EXPLICIT rather than
      * becoming a length check for the same reason the adapter catalog does: a
      * domain arriving or leaving unnoticed is exactly what this assertion is
      * for. Additions are appended, never inserted, so the diff a concurrent lane
@@ -94,6 +94,10 @@ describe("G-91 the domain registry", () => {
         "work-orders",
         "fleet-vehicles",
         "patrol-vehicles",
+        "police-cameras",
+        "fire-apparatus",
+        "cip-projects",
+        "call-analytics",
         "inspections",
         "code-violations",
         "business-licenses",
@@ -112,8 +116,12 @@ describe("G-91 the domain registry", () => {
      *
      * Counting rule: a domain carries records on a pack when the pack generates
      * fixtures AND the domain's gating kind is in that pack's fixtureGrants.
-     * Six of seven on template-city; zero of seven on empty-city and on
-     * fixture-city, neither of which generates.
+     * Ten of eleven on template-city; zero of eleven on empty-city and on
+     * fixture-city, neither of which generates. The one that does not carry is
+     * patrol-vehicles, unchanged since G-91: spireon is deliberately left off
+     * the demonstration axis so the ungranted state stays reachable on the
+     * shipped demo pack. A wave that grants everything deletes the state that
+     * proves ruling 1.
      */
     const carries = (pack) =>
       DOMAIN_REGISTRY.filter((d) => composeDomain(pack, d).recordCount > 0).map((d) => d.id);
@@ -121,6 +129,10 @@ describe("G-91 the domain registry", () => {
       "permits-pipeline",
       "work-orders",
       "fleet-vehicles",
+      "police-cameras",
+      "fire-apparatus",
+      "cip-projects",
+      "call-analytics",
       "inspections",
       "code-violations",
       "business-licenses",
@@ -135,7 +147,16 @@ describe("G-91 the domain registry", () => {
       // No feed is connected by this card, on any pack.
       assert.deepEqual(pack.grantedAdapters, [], pack.cityKey);
     }
-    assert.deepEqual(TEMPLATE_CITY.fixtureGrants, ["mygov", "samsara"]);
+    assert.deepEqual(TEMPLATE_CITY.fixtureGrants, [
+      "mygov",
+      "samsara",
+      "verkada",
+      "firstdue",
+      "powerbi",
+      "goto",
+    ]);
+    // spireon is STILL not demonstrated, which is what keeps ungranted reachable.
+    assert.equal(TEMPLATE_CITY.fixtureGrants.includes("spireon"), false);
     assert.deepEqual(EMPTY_CITY.fixtureGrants, []);
     assert.deepEqual(FIXTURE_CITY.fixtureGrants, []);
     // Paired control: two readers of one field must not drift (DEV_PROCESS 2.4).
@@ -542,6 +563,6 @@ describe("G-91 the catalog and what it counts", () => {
      * move, because no feed was connected.
      */
     assert.equal(TEMPLATE_CITY.grantedAdapters.length, 0);
-    assert.equal(packFixtureGrantsFromSeam(TEMPLATE_CITY).length, 2);
+    assert.equal(packFixtureGrantsFromSeam(TEMPLATE_CITY).length, 6);
   });
 });

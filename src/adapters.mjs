@@ -179,6 +179,34 @@ export const VEHICLE_STATUS_VALUES = [
   { id: "in-service", label: "In service", severity: "ok", resolved: true },
 ];
 
+/**
+ * Devices, G-92. Cameras and doors, and the reason this is its own set rather
+ * than a reuse of VEHICLE_STATUS_VALUES is that the bands genuinely differ: a
+ * camera is never "in shop" and a vehicle is never "signal loss". Fire apparatus
+ * DOES reuse the vehicle set, and that asymmetry is deliberate and stated in
+ * src/domains/fire-apparatus.mjs where it is read.
+ */
+export const DEVICE_STATUS_VALUES = [
+  { id: "offline", label: "Offline", severity: "crit", resolved: false },
+  { id: "signal-loss", label: "Signal loss", severity: "warn", resolved: false },
+  { id: "firmware-due", label: "Firmware due", severity: "info", resolved: false },
+  { id: "online", label: "Online", severity: "ok", resolved: true },
+];
+
+/**
+ * Capital projects, G-92. A CIP register carries a PHASE beside its status, and
+ * the two are different questions: phase is where the project is in its own
+ * lifecycle, status is whether it is in trouble. Collapsing them would lose the
+ * dimension the lens exists to show.
+ */
+export const PROJECT_STATUS_VALUES = [
+  { id: "stalled", label: "Stalled", severity: "crit", resolved: false },
+  { id: "at-risk", label: "At risk", severity: "warn", resolved: false },
+  { id: "in-progress", label: "In progress", severity: "info", resolved: false },
+  { id: "complete", label: "Complete", severity: "ok", resolved: true },
+];
+
+export const PROJECT_PHASE_VALUES = ["planning", "design", "bid", "construction", "closeout"];
 /* ------------------------------------------------- G-92 development services
 
 Three more record types under the mygov kind, and the reason they are here is
@@ -341,10 +369,142 @@ export const RECORD_SHAPES = {
     declared: false,
     basis: "meeting record shape ships in municode-calendar.mjs and is not restated here",
   },
-  firstdue: { declared: false, basis: "incident record shape is not declared on G-91" },
-  verkada: { declared: false, basis: "camera and door record shape is not declared on G-91" },
-  goto: { declared: false, basis: "call-handling record shape is not declared on G-91" },
-  powerbi: { declared: false, basis: "CIP and reporting record shape is not declared on G-91" },
+  /**
+   * G-92. Four shapes that read `declared: false` at G-91 and now carry a
+   * contract, because four department lenses generate against them.
+   *
+   * Each one declares at least one field it will NEVER carry, with a basis. That
+   * is not decoration. An optional field with a stated basis is how this table
+   * says "a granted feed has this and a generated record does not, and here is
+   * why" — the pattern samsara.operatorName established, applied to the two
+   * families that are genuinely dangerous rather than merely absent.
+   */
+  firstdue: {
+    declared: true,
+    recordType: "fire-apparatus",
+    writesTo: "files",
+    statusValues: VEHICLE_STATUS_VALUES,
+    fields: [
+      { name: "unitLabel", type: "text", required: true },
+      { name: "apparatusType", type: "text", required: true },
+      {
+        name: "status",
+        type: "enum",
+        required: true,
+        values: VEHICLE_STATUS_VALUES.map((s) => s.id),
+      },
+      { name: "stationRef", type: "text", required: true },
+      { name: "stationLabel", type: "text", required: true },
+      {
+        name: "crew",
+        type: "text",
+        required: false,
+        basis:
+          "a granted feed carries the assigned crew; a generated record names no person, because a roster of real firefighters is not a demo fixture",
+      },
+    ],
+  },
+  verkada: {
+    declared: true,
+    recordType: "camera-device",
+    writesTo: "files",
+    statusValues: DEVICE_STATUS_VALUES,
+    fields: [
+      { name: "deviceLabel", type: "text", required: true },
+      {
+        name: "status",
+        type: "enum",
+        required: true,
+        values: DEVICE_STATUS_VALUES.map((s) => s.id),
+      },
+      { name: "siteRef", type: "text", required: true },
+      { name: "placement", type: "text", required: true },
+      { name: "occupancyBand", type: "text", required: true },
+      {
+        name: "plateReads",
+        type: "text",
+        required: false,
+        basis:
+          "the live vendor exposes a plate-read family; a generated record carries none, because a plate read is a surveillance record about an identifiable person and a demo fixture pack does not carry one",
+      },
+      {
+        name: "personsOfInterest",
+        type: "text",
+        required: false,
+        basis:
+          "the live vendor exposes a persons-of-interest family; a generated record carries none, for the same reason as plateReads and with the same force",
+      },
+      {
+        name: "occupancyCount",
+        type: "integer",
+        required: false,
+        basis:
+          "a granted feed carries a counted occupancy; a generated record carries a band only, because a specific head count is a specific claim about a specific place at a specific moment",
+      },
+    ],
+  },
+  goto: {
+    declared: true,
+    recordType: "call-volume",
+    writesTo: "files",
+    statusValues: null,
+    statusValuesBasis:
+      "a call-volume record is an aggregate bucket and has no in-flight status; the volume is the fact, and inventing a status band for it would put a severity on a number that carries none",
+    fields: [
+      { name: "queueRef", type: "text", required: true },
+      { name: "queueLabel", type: "text", required: true },
+      { name: "dayOffset", type: "integer", required: true },
+      { name: "callsOffered", type: "integer", required: true },
+      { name: "callsAnswered", type: "integer", required: true },
+      { name: "callsAbandoned", type: "integer", required: true },
+      {
+        name: "recording",
+        type: "text",
+        required: false,
+        basis:
+          "the live vendor exposes call recordings; a generated record carries none, because a recording is a conversation with an identifiable resident",
+      },
+      {
+        name: "callerRef",
+        type: "text",
+        required: false,
+        basis:
+          "the live vendor exposes individual call detail; a generated record aggregates to a queue and a relative day and never to a call",
+      },
+      {
+        name: "extensionOwner",
+        type: "text",
+        required: false,
+        basis:
+          "the live vendor exposes an extension directory; a generated record maps no extension to a person, because that mapping is a staff roster",
+      },
+    ],
+  },
+  powerbi: {
+    declared: true,
+    recordType: "capital-project",
+    writesTo: "files",
+    statusValues: PROJECT_STATUS_VALUES,
+    fields: [
+      { name: "subject", type: "text", required: true },
+      { name: "phase", type: "enum", required: true, values: PROJECT_PHASE_VALUES },
+      {
+        name: "status",
+        type: "enum",
+        required: true,
+        values: PROJECT_STATUS_VALUES.map((s) => s.id),
+      },
+      { name: "place", type: "place", required: true },
+      { name: "scheduleOffsetDays", type: "integer", required: true },
+      {
+        name: "budget",
+        type: "integer",
+        required: false,
+        basis:
+          "a granted feed carries the project budget; a generated record carries no figure, because a money number beside a city name is a claim about that city's finances and this record was generated",
+      },
+    ],
+  },
 };
 
 /**
