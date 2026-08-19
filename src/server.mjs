@@ -1,4 +1,5 @@
 import http from "node:http";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -38,14 +39,49 @@ function json(res, status, body) {
   res.end(data);
 }
 
-function sendFile(res, filePath, contentType) {
+// A strong validator derived from the bytes themselves. Content-derived on every
+// request by construction: the only caller hashes the buffer it just read, so a
+// changed file can never keep an old tag. A constant or startup-computed tag here
+// would cause permanent staleness, which is worse than serving no validator at all.
+export function etagFor(buf) {
+  return `"${crypto.createHash("sha256").update(buf).digest("base64url")}"`;
+}
+
+// RFC 9110 If-None-Match uses weak comparison: "*" matches any existing
+// representation, the field is a comma list, and a W/ prefix is stripped from
+// both sides before the opaque tags are compared.
+export function ifNoneMatchSatisfied(header, etag) {
+  const raw = String(header ?? "").trim();
+  if (!raw) return false;
+  if (raw === "*") return true;
+  const opaque = (tag) => tag.trim().replace(/^W\//, "");
+  const wanted = opaque(etag);
+  return raw.split(",").some((tag) => opaque(tag) === wanted);
+}
+
+// cache-control: no-cache means store it but always revalidate. Never stale by
+// construction, and near-zero cost when unchanged. Deliberately NOT no-store,
+// which is right for the JSON helper above and wrong here: it forbids storage and
+// throws away the 304 entirely.
+export function sendFile(req, res, filePath, contentType) {
   fs.readFile(filePath, (err, buf) => {
     if (err) {
       res.writeHead(404);
       res.end("not found");
       return;
     }
-    res.writeHead(200, { "content-type": contentType });
+    const etag = etagFor(buf);
+    if (ifNoneMatchSatisfied(req?.headers?.["if-none-match"], etag)) {
+      // 304 carries no representation, so no content-type and no body.
+      res.writeHead(304, { "cache-control": "no-cache", etag });
+      res.end();
+      return;
+    }
+    res.writeHead(200, {
+      "content-type": contentType,
+      "cache-control": "no-cache",
+      etag,
+    });
     res.end(buf);
   });
 }
@@ -236,22 +272,22 @@ async function handle(req, res) {
   }
 
   if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html")) {
-    sendFile(res, path.join(WEB, "index.html"), "text/html; charset=utf-8");
+    sendFile(req, res, path.join(WEB, "index.html"), "text/html; charset=utf-8");
     return;
   }
 
   if (req.method === "GET" && url.pathname === "/app.js") {
-    sendFile(res, path.join(WEB, "app.js"), "text/javascript; charset=utf-8");
+    sendFile(req, res, path.join(WEB, "app.js"), "text/javascript; charset=utf-8");
     return;
   }
 
   if (req.method === "GET" && url.pathname === "/sc-kit.css") {
-    sendFile(res, path.join(WEB, "sc-kit.css"), "text/css");
+    sendFile(req, res, path.join(WEB, "sc-kit.css"), "text/css");
     return;
   }
 
   if (req.method === "GET" && url.pathname === "/shell.css") {
-    sendFile(res, path.join(WEB, "shell.css"), "text/css");
+    sendFile(req, res, path.join(WEB, "shell.css"), "text/css");
     return;
   }
 
@@ -261,12 +297,12 @@ async function handle(req, res) {
   }
 
   if (req.method === "GET" && url.pathname === "/staff-map.mjs") {
-    sendFile(res, path.join(__dirname, "staff-map.mjs"), "text/javascript; charset=utf-8");
+    sendFile(req, res, path.join(__dirname, "staff-map.mjs"), "text/javascript; charset=utf-8");
     return;
   }
 
   if (req.method === "GET" && url.pathname === "/staff-review.mjs") {
-    sendFile(res, path.join(__dirname, "staff-review.mjs"), "text/javascript; charset=utf-8");
+    sendFile(req, res, path.join(__dirname, "staff-review.mjs"), "text/javascript; charset=utf-8");
     return;
   }
 
