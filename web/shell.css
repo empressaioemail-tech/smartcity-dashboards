@@ -796,22 +796,33 @@ a.prov:hover { border-color: var(--sc-line-strong); background: var(--sc-surface
    one declaration per line, and every colour is a var(--sc-*) that already
    ships. Zero tokens are declared here; sc-kit.css is untouched.
 
-   G1, the type floor holds. The spec sets .cite em at 11px, .cite.model .corpus
-   and .mxgroup .lic at 10px, and .atomchip, .atomchip .did and .basisline at
-   10px or 11px. All six ship at 12px. The product had already made this call
-   once, shipping .prov at 13px where the spec says 11px. The consequence is
-   named and accepted: the spec's own specimens no longer match what ships, and
-   the spec is the looser document. The port principle was to change only the
-   size number, so every line-height, weight, tracking and geometry below is
-   exactly what the spec drew. That is why .atomchip is 12px/14px rather than
-   12px/16px: at 14px the chip stays 20px tall, the same height as .pill and
-   .prov beside it.
+   G1, the type floor holds. The spec sets .cite em at 11px, and .cite.model
+   .corpus, .mxgroup .lic and .basisline below the floor. All four ship at 12px.
+   The product had already made this call once, shipping .prov at 13px where the
+   spec says 11px. The consequence is named and accepted: the spec's own
+   specimens no longer match what ships, and the spec is the looser document.
+   The port principle was to change only the size number, so every line-height,
+   weight, tracking and geometry below is exactly what the spec drew.
 
-   The spec grants the evidence chip label one named 10px exception. This
-   product's type gate (src/type-conformance.test.mjs) makes the floor absolute,
-   and G-88's constraint list says no font declaration below 12px anywhere in
-   this file, so the exception is not taken here and the gate was left intact.
-   Recorded in the close as the one call the rulings did not cover.
+   The evidence chip label is the ONE exception and it is taken. The type law
+   grants it in one sentence, quoted here because a carve-out whose reason lives
+   only in a review thread does not survive:
+
+     12px is the floor and nothing renders below it, with one named exception:
+     the evidence chip label may set at 10px, because the chip has to read as a
+     citation mark rather than a button and SmartSite sets it near 9.5px. The
+     exception is the chip label only. The body of BRIEF and FULL, and every
+     other string in the system, stays at the 12px floor. Nothing else inherits
+     this.
+
+   So .atomchip and .atomchip .did set 10px and nothing else in this file does.
+   The gate at src/type-conformance.test.mjs had hardcoded the floor as absolute
+   and justified it in its own error string with the words 'the evidence chip,
+   which does not exist in this product'. That was true when it was written and
+   this card falsified it, so the gate was amended to carry the exception by
+   name rather than left to assert something untrue. .basisline is NOT covered:
+   the exception is the chip label only, so the basis line stays at 12px even
+   though the spec draws it at 11px.
 
    G2, the design system governs the CSS wherever it and the platform IA
    document disagree. Five divergences, each marked DIV-n at the rule.
@@ -859,7 +870,8 @@ a.prov:hover { border-color: var(--sc-line-strong); background: var(--sc-surface
    .dead is an unservable record; .web is an unverified source and drops the
    accent entirely for a neutral, differently-shaped chip, so the reservation
    holds structurally rather than by convention. */
-/* G1: the spec sets 10px here under its one named exception. */
+/* 10px is the type law's one named exception, carved into the gate by name.
+   At 14px line the chip stays 20px tall, the same height as .pill and .prov. */
 .atomchip {
   display: inline-flex;
   align-items: center;
@@ -868,15 +880,16 @@ a.prov:hover { border-color: var(--sc-line-strong); background: var(--sc-surface
   border-radius: var(--sc-r-control);
   border: 1px solid color-mix(in srgb, var(--sc-atom) 45%, transparent);
   background: var(--sc-atom-wash);
-  font: 500 12px/14px var(--sc-font-ui);
+  font: 500 10px/14px var(--sc-font-ui);
   color: var(--sc-atom);
   text-decoration: none;
   cursor: pointer;
   white-space: nowrap;
   vertical-align: 2px;
 }
-/* G1: the spec sets 10px here. */
-.atomchip .did { font: 400 12px/14px var(--sc-font-data); opacity: 0.75; }
+/* The record identifier is part of the chip label, so the same exception covers
+   it. These two selectors are the entire exception; the gate names both. */
+.atomchip .did { font: 400 10px/14px var(--sc-font-data); opacity: 0.75; }
 .atomchip:hover { border-color: var(--sc-atom); }
 /* DIV-4: the IA document states cursor: pointer, which this rule already
    inherits from .atomchip, so the two agree in effect. */
@@ -991,7 +1004,8 @@ a.prov:hover { border-color: var(--sc-line-strong); background: var(--sc-surface
 .finding .fmeta { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .finding .fact { padding: 11px 0; display: flex; gap: 6px; align-items: center; }
 
-/* G1: the spec sets 11px here. */
+/* G1: the spec sets 11px here. Not covered by the chip-label exception, which is
+   the chip label only, so it goes to the floor. */
 .basisline {
   display: flex;
   align-items: center;

@@ -6,11 +6,24 @@
 //   - Eight ramp steps. display 26/32 650 -0.022em, title 19/26 620 -0.015em,
 //     head 15/22 620 -0.008em, body 14/20 400, body-em 14/20 600,
 //     label 12/16 500 mono uppercase 0.06em, caption 12/16 400, data 13/18 400 mono.
-//   - 12px is the floor and nothing renders below it. The one named exception is
-//     the evidence chip label at 10px, and that component does not exist in this
-//     product, so the floor is absolute here.
+//   - 12px is the floor and nothing renders below it, with one named exception:
+//     the evidence chip label at exactly 10px, on .atomchip and .atomchip .did
+//     and nowhere else. See CHIP_LABEL_SELECTORS below for the quoted law and
+//     the boundary.
 //   - Uppercase only for mono labels, always with 0.06em to 0.16em tracking.
 //   - shell.css consumes var(--sc-*) only: no hex, no rgb(), no token declaration.
+//
+// AMENDED at G-88. Until then this file read 'that component does not exist in
+// this product, so the floor is absolute here', and it enforced an absolute
+// floor on that basis. The sentence was true when it was written. G-88 ported
+// the evidence chip into web/shell.css and falsified it, which is the same
+// shape as the G-87 finding where a directory skip was correct when written and
+// went stale when authored source moved into it. The gate was not wrong in
+// principle; its justification expired. So the exception is now carried by
+// name, and the widening it could have caused is measured rather than asserted:
+// see 'the carve-out did not widen the gate' below, which fails the gate on a
+// 10px declaration outside the two named selectors, on a non-10px sub-floor
+// size on the named selectors themselves, and on everything it caught before.
 //
 // The checker is a pure function over CSS text so that it can be PROVEN to fire.
 // A gate that has only ever been run against passing input is not a gate
@@ -31,6 +44,36 @@ const CR = String.fromCharCode(13);
 const LF = String.fromCharCode(10);
 
 export const FLOOR_PX = 12;
+
+// The one named exception, stated where it is read rather than in a review
+// thread. 30b section 1.3, quoted:
+//
+//   "12px is the floor and nothing renders below it, with one named exception:
+//    the evidence chip label may set at 10px, because the chip has to read as a
+//    citation mark rather than a button and SmartSite sets it near 9.5px. The
+//    exception is the chip label only. The body of BRIEF and FULL, and every
+//    other string in the system, stays at the 12px floor. Nothing else
+//    inherits this."
+//
+// "The chip label only" is the boundary, so the exception is expressed as two
+// literal selectors and one literal size. Not a lowered floor, not a prefix
+// match, not a regex. The consequences are deliberate and each has a test:
+//   - .atomchip.web or .atomchip .txt, which are inside the same family, are
+//     NOT covered, because a modifier and an unnamed descendant are not the
+//     chip label.
+//   - 9px on .atomchip is NOT covered, because the law grants 10px, not
+//     'anything below the floor'.
+//   - 11px on .atomchip is NOT covered, for the same reason.
+// A future third selector that wants this has to be added here, in the open,
+// which is the point.
+export const CHIP_LABEL_SELECTORS = [".atomchip", ".atomchip .did"];
+export const CHIP_LABEL_PX = 10;
+
+// Exact string equality against the normalized selector. A selector list, a
+// descendant, or a modifier all miss, which is the intended behaviour.
+export function isChipLabelException(selector, sizePx) {
+  return sizePx === CHIP_LABEL_PX && CHIP_LABEL_SELECTORS.includes(selector);
+}
 
 // The ramp steps this file pins by selector. Each is a rule that carries a
 // structural job on the shell, so a drift here is a drift in the reading order
@@ -154,6 +197,17 @@ function usesMono(decls) {
   );
 }
 
+// One message, so the sentence a future reader hits cannot drift from the rule.
+function floorMessage() {
+  return (
+    `below the ${FLOOR_PX}px floor; 30b section 1.3 type law. The one named ` +
+    `exception is the evidence chip label at exactly ${CHIP_LABEL_PX}px on ` +
+    `${CHIP_LABEL_SELECTORS.join(" and ")}, and it is the chip label only, so ` +
+    "nothing else inherits it. If content will not fit at the floor, cut content " +
+    "rather than shrink type (anti-pattern A5)."
+  );
+}
+
 export function findTypeViolations(cssText, label = "shell.css") {
   const clean = blankComments(normalize(cssText));
   const rules = parseRules(cssText);
@@ -172,9 +226,8 @@ export function findTypeViolations(cssText, label = "shell.css") {
             "font-size is not a plain px value, so the 12px floor cannot be checked; an unreadable declaration is not a passing one");
           continue;
         }
-        if (Number(m[1]) < FLOOR_PX) {
-          add("floor", rule.line, rule.selector, `${m[1]}px`,
-            `below the ${FLOOR_PX}px floor; 30b section 1.3 type law, and the one named 10px exception is the evidence chip, which does not exist in this product`);
+        if (Number(m[1]) < FLOOR_PX && !isChipLabelException(rule.selector, Number(m[1]))) {
+          add("floor", rule.line, rule.selector, `${m[1]}px`, floorMessage());
         }
       } else if (d.prop === "font") {
         if (FONT_KEYWORD.test(d.value)) continue;
@@ -184,9 +237,8 @@ export function findTypeViolations(cssText, label = "shell.css") {
             "no <size>px/<line> pair found in the font shorthand, so the 12px floor cannot be checked");
           continue;
         }
-        if (size < FLOOR_PX) {
-          add("floor", rule.line, rule.selector, `${size}px`,
-            `below the ${FLOOR_PX}px floor; 30b section 1.3 type law, and the one named 10px exception is the evidence chip, which does not exist in this product`);
+        if (size < FLOOR_PX && !isChipLabelException(rule.selector, size)) {
+          add("floor", rule.line, rule.selector, `${size}px`, floorMessage());
         }
       }
     }
@@ -429,5 +481,102 @@ describe("G-76 the guard is proven able to fire", () => {
     assert.equal(bad.length, 1, report(bad));
     assert.equal(bad[0].selector, ".e");
     assert.equal(bad[0].value, "8px");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Proof that the carve-out did not widen the gate.
+//
+// An exception that is not measured widens. G-88 amended a gate that had been
+// absolute, and the only honest way to ship that is to show the gate still
+// fails everything it failed before, plus everything the exception's own
+// boundary excludes. Two arms, both required:
+//
+//   Arm A, OUTSIDE the two named selectors: 10px must still fail, including on
+//     selectors inside the same component family.
+//   Arm B, ON the two named selectors: every sub-floor size that is not exactly
+//     10px must still fail, because the law grants 10px and not "below 12".
+//
+// Plus a liveness arm: the shipped stylesheet must actually EXERCISE the
+// exception. A carve-out nothing uses is a notional one, and the whole reason
+// this gate needed amending is that its previous justification had quietly
+// stopped matching the file.
+// ---------------------------------------------------------------------------
+
+describe("G-88 the chip-label carve-out did not widen the gate", () => {
+  it("arm A: 10px on a selector outside the two named still fails", () => {
+    for (const sel of [".navitem .badge", ".seal", ".t-label", ".prov"]) {
+      const bad = only(CONFORMANT_RAMP + `${sel} { font: 500 10px/14px var(--sc-font-ui); }`, "floor");
+      assert.equal(bad.length, 1, `${sel}: ` + report(bad));
+      assert.equal(bad[0].selector, sel);
+      assert.equal(bad[0].value, "10px");
+    }
+  });
+
+  it("arm A: 10px inside the atom chip's own family still fails, because a modifier is not the chip label", () => {
+    for (const sel of [".atomchip.web", ".atomchip.dead", ".atomchip .txt", ".atomchip a .did", ".atomchip-label"]) {
+      const bad = only(CONFORMANT_RAMP + `${sel} { font: 500 10px/14px var(--sc-font-ui); }`, "floor");
+      assert.equal(bad.length, 1, `${sel}: ` + report(bad));
+      assert.equal(bad[0].selector, sel);
+    }
+  });
+
+  it("arm A: the exception does not travel through a selector list", () => {
+    const bad = only(CONFORMANT_RAMP + `.atomchip, .cz-nav { font: 500 10px/14px var(--sc-font-ui); }`, "floor");
+    assert.equal(bad.length, 1, report(bad));
+    assert.equal(bad[0].selector, ".atomchip, .cz-nav");
+  });
+
+  it("arm B: on the named selectors, every sub-floor size that is not exactly 10px still fails", () => {
+    for (const sel of CHIP_LABEL_SELECTORS) {
+      for (const px of [8, 9, 11, 11.5]) {
+        const bad = only(CONFORMANT_RAMP + `${sel} { font: 500 ${px}px/14px var(--sc-font-ui); }`, "floor");
+        assert.equal(bad.length, 1, `${sel} at ${px}px: ` + report(bad));
+        assert.equal(bad[0].value, `${px}px`);
+      }
+      const shorthandless = only(CONFORMANT_RAMP + `${sel} { font-size: 9px; }`, "floor");
+      assert.equal(shorthandless.length, 1, report(shorthandless));
+      assert.equal(shorthandless[0].value, "9px");
+    }
+  });
+
+  it("arm B: an unreadable size on a named selector is still not a passing one", () => {
+    const bad = only(CONFORMANT_RAMP + `.atomchip { font-size: 0.625rem; }`, "unparsed");
+    assert.equal(bad.length, 1, report(bad));
+    assert.equal(bad[0].selector, ".atomchip");
+  });
+
+  it("admits exactly the two named selectors at exactly 10px, and nothing more", () => {
+    const css = CONFORMANT_RAMP +
+      `.atomchip { font: 500 10px/14px var(--sc-font-ui); }` +
+      `.atomchip .did { font: 400 10px/14px var(--sc-font-data); }`;
+    assert.equal(only(css, "floor", "unparsed").length, 0, report(findTypeViolations(css, "fixture")));
+    assert.deepEqual(CHIP_LABEL_SELECTORS, [".atomchip", ".atomchip .did"]);
+    assert.equal(CHIP_LABEL_PX, 10);
+  });
+
+  it("the predicate itself is exact, not a prefix or a range", () => {
+    assert.equal(isChipLabelException(".atomchip", 10), true);
+    assert.equal(isChipLabelException(".atomchip .did", 10), true);
+    assert.equal(isChipLabelException(".atomchip", 9), false);
+    assert.equal(isChipLabelException(".atomchip", 11), false);
+    assert.equal(isChipLabelException(".atomchip.web", 10), false);
+    assert.equal(isChipLabelException(".atomchip .did b", 10), false);
+    assert.equal(isChipLabelException(".atomchipx", 10), false);
+  });
+
+  it("liveness: the shipped stylesheet actually exercises the exception, so it is real and not notional", () => {
+    const atTen = parseRules(shellCss).filter((r) => {
+      for (const d of declarations(r.body)) {
+        if (d.prop === "font" && sizeInShorthand(d.value) === CHIP_LABEL_PX) return true;
+        if (d.prop === "font-size" && d.value.trim() === CHIP_LABEL_PX + "px") return true;
+      }
+      return false;
+    });
+    const selectors = atTen.map((r) => r.selector).sort();
+    assert.deepEqual(selectors, [".atomchip", ".atomchip .did"],
+      "the only 10px declarations in shell.css must be the two the exception names; " +
+      "an empty list means the carve-out is notional and should be removed, and a " +
+      "longer list means it leaked");
   });
 });
