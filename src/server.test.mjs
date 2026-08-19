@@ -1,6 +1,9 @@
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { server, cityPackAuthorized } from "./server.mjs";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { server, cityPackAuthorized, sendFile, etagFor } from "./server.mjs";
 
 let port;
 const saved = {};
@@ -131,6 +134,107 @@ describe("HTTP surface", () => {
     const shell = await fetch(`${base}/shell.css`);
     assert.equal(shell.status, 200);
     assert.match(shell.headers.get("content-type") || "", /text\/css/);
+
+    // G-88 item 8: the revalidation contract, on the asset this case already owns.
+    // Leg 1, a plain GET advertises no-cache plus a strong validator.
+    assert.equal(res.headers.get("cache-control"), "no-cache");
+    const etag = res.headers.get("etag");
+    assert.ok(etag, "sc-kit.css must carry an etag");
+    assert.match(etag, /^"[^"]+"$/, "strong validator, quoted and unprefixed");
+
+    // Leg 2, a returning browser revalidates cheaply.
+    const fresh = await fetch(`${base}/sc-kit.css`, { headers: { "If-None-Match": etag } });
+    assert.equal(fresh.status, 304);
+    assert.equal(await fresh.text(), "");
+    assert.equal(fresh.headers.get("cache-control"), "no-cache");
+    assert.equal(fresh.headers.get("etag"), etag);
+
+    // Leg 3, the leg that can fail. A stale validator must not 304.
+    const stale = await fetch(`${base}/sc-kit.css`, {
+      headers: { "If-None-Match": '"stale-from-a-previous-deploy"' },
+    });
+    assert.equal(stale.status, 200);
+    assert.equal((await stale.text()).length, css.length);
+    assert.notEqual(stale.headers.get("etag"), '"stale-from-a-previous-deploy"');
+    assert.equal(stale.headers.get("etag"), etag);
+  });
+
+  it("gives all six static assets the same revalidation contract", async () => {
+    const base = `http://127.0.0.1:${port}`;
+    // Derived from the sendFile call sites in server.mjs. "/" and "/index.html"
+    // are one asset served on two routes, which is why seven routes cover six files.
+    const routes = [
+      "/",
+      "/index.html",
+      "/app.js",
+      "/sc-kit.css",
+      "/shell.css",
+      "/staff-map.mjs",
+      "/staff-review.mjs",
+    ];
+    const etags = {};
+    for (const route of routes) {
+      const res = await fetch(`${base}${route}`);
+      assert.equal(res.status, 200, `${route} must serve`);
+      assert.equal(res.headers.get("cache-control"), "no-cache", `${route} cache-control`);
+      const etag = res.headers.get("etag");
+      assert.ok(etag, `${route} must carry an etag`);
+      assert.match(etag, /^"[^"]+"$/, `${route} strong validator`);
+      const body = await res.text();
+      assert.ok(body.length > 0, `${route} must have a body on a plain GET`);
+      etags[route] = etag;
+
+      const revalidated = await fetch(`${base}${route}`, { headers: { "If-None-Match": etag } });
+      assert.equal(revalidated.status, 304, `${route} must 304 on its own etag`);
+      assert.equal(await revalidated.text(), "", `${route} 304 carries no body`);
+      assert.equal(revalidated.headers.get("etag"), etag, `${route} 304 echoes the validator`);
+
+      const staleHit = await fetch(`${base}${route}`, {
+        headers: { "If-None-Match": '"stale-from-a-previous-deploy"' },
+      });
+      assert.equal(staleHit.status, 200, `${route} must not 304 a stale validator`);
+      assert.equal((await staleHit.text()).length, body.length, `${route} stale hit is a full body`);
+      assert.notEqual(staleHit.headers.get("etag"), '"stale-from-a-previous-deploy"');
+    }
+
+    // Six different files must produce six different validators. A constant or
+    // hardcoded etag dies here, and it would survive the three legs above.
+    const distinct = new Set([
+      etags["/index.html"],
+      etags["/app.js"],
+      etags["/sc-kit.css"],
+      etags["/shell.css"],
+      etags["/staff-map.mjs"],
+      etags["/staff-review.mjs"],
+    ]);
+    assert.equal(distinct.size, 6, "six assets, six validators");
+
+    // One file on two routes must produce ONE validator. A path-derived etag dies
+    // here: it would look content-derived to the assertion above and is not.
+    assert.equal(etags["/"], etags["/index.html"]);
+  });
+
+  it("honours the RFC forms of If-None-Match on a static asset", async () => {
+    const base = `http://127.0.0.1:${port}`;
+    const res = await fetch(`${base}/shell.css`);
+    const etag = res.headers.get("etag");
+    await res.text();
+
+    const star = await fetch(`${base}/shell.css`, { headers: { "If-None-Match": "*" } });
+    assert.equal(star.status, 304, "* matches any existing representation");
+
+    const weak = await fetch(`${base}/shell.css`, { headers: { "If-None-Match": `W/${etag}` } });
+    assert.equal(weak.status, 304, "If-None-Match uses weak comparison");
+
+    const list = await fetch(`${base}/shell.css`, {
+      headers: { "If-None-Match": `"other-one", ${etag}, "other-two"` },
+    });
+    assert.equal(list.status, 304, "the field is a comma list");
+
+    const miss = await fetch(`${base}/shell.css`, {
+      headers: { "If-None-Match": '"other-one", "other-two"' },
+    });
+    assert.equal(miss.status, 200, "a list that matches nothing is a full GET");
   });
 
   it("serves Work Files as /?work=files and mounts smart-files-app", async () => {
@@ -465,5 +569,75 @@ describe("HTTP surface", () => {
     assert.equal("samsara" in composed, false);
     assert.equal("permits" in composed, false);
     assert.equal("fleet" in composed, false);
+  });
+});
+
+
+// The one property the three HTTP legs cannot prove between them: that the
+// validator is recomputed from the CONTENT on every request. A tag computed once
+// at startup passes every assertion above and then serves a 304 forever against
+// changed bytes, which is permanent staleness, strictly worse than the defect this
+// fixes. Proved here by changing bytes mid-process. A temp file is used
+// deliberately: node --test runs each test file in its own process concurrently,
+// and ui.test.mjs and type-conformance.test.mjs read web/ off disk, so mutating a
+// shipped asset to prove this would race them.
+describe("static asset validators are derived from content, not from startup", () => {
+  const tmp = path.join(os.tmpdir(), `g88-etag-${process.pid}-${Date.now()}.txt`);
+
+  after(() => {
+    if (fs.existsSync(tmp)) fs.unlinkSync(tmp);
+  });
+
+  function drive(headers = {}) {
+    return new Promise((resolve) => {
+      const captured = { status: 0, headers: {}, body: Buffer.alloc(0) };
+      const res = {
+        writeHead(status, hdrs) {
+          captured.status = status;
+          captured.headers = hdrs || {};
+          return res;
+        },
+        end(chunk) {
+          if (chunk) captured.body = Buffer.from(chunk);
+          resolve(captured);
+        },
+      };
+      sendFile({ headers }, res, tmp, "text/plain; charset=utf-8");
+    });
+  }
+
+  it("re-derives the etag after the bytes change under a live process", async () => {
+    fs.writeFileSync(tmp, "the deployed stylesheet, before");
+    const first = await drive();
+    assert.equal(first.status, 200);
+    assert.equal(first.headers["cache-control"], "no-cache");
+    const before = first.headers.etag;
+    assert.match(before, /^"[^"]+"$/);
+
+    const unchanged = await drive({ "if-none-match": before });
+    assert.equal(unchanged.status, 304);
+    assert.equal(unchanged.body.length, 0);
+
+    fs.writeFileSync(tmp, "the deployed stylesheet, AFTER a css deploy");
+    const afterDeploy = await drive({ "if-none-match": before });
+    assert.equal(afterDeploy.status, 200, "changed bytes must never 304 an old validator");
+    assert.notEqual(afterDeploy.headers.etag, before, "the validator must move with the content");
+    assert.equal(afterDeploy.body.toString(), "the deployed stylesheet, AFTER a css deploy");
+
+    const settled = await drive({ "if-none-match": afterDeploy.headers.etag });
+    assert.equal(settled.status, 304, "and it 304s again once the client has caught up");
+  });
+
+  it("computes the same validator for the same bytes and a different one for different bytes", () => {
+    assert.equal(etagFor(Buffer.from("a")), etagFor(Buffer.from("a")));
+    assert.notEqual(etagFor(Buffer.from("a")), etagFor(Buffer.from("b")));
+    assert.match(etagFor(Buffer.from("a")), /^"[^"]+"$/);
+  });
+
+  it("404s a missing file rather than serving a validator for nothing", async () => {
+    fs.unlinkSync(tmp);
+    const gone = await drive({ "if-none-match": '"anything"' });
+    assert.equal(gone.status, 404);
+    assert.equal(gone.body.toString(), "not found");
   });
 });
