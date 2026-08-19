@@ -547,6 +547,22 @@ async function scanOnce(browser, base, target, axe, plant) {
         help: v.help,
         nodes: v.nodes.length,
         sample: v.nodes.slice(0, 3).map((n) => String(n.target)),
+        /**
+         * WHY, not just WHERE. An unresolved check that names only its element
+         * tells a reader it exists and nothing about what to do; axe already
+         * knows the reason (bgOverlap, bgImage, fgAlpha and friends) and it was
+         * being thrown away. Carried for incomplete results in particular,
+         * because those are the ones nobody can reproduce from the element name.
+         */
+        reasons: [
+          ...new Set(
+            v.nodes.slice(0, 5).flatMap((n) =>
+              [...(n.any || []), ...(n.all || []), ...(n.none || [])].map(
+                (c) => c.data?.messageKey || c.message || c.id,
+              ),
+            ),
+          ),
+        ].filter(Boolean).slice(0, 4),
       });
       return { violations: run.violations.map(shape), incomplete: run.incomplete.map(shape) };
     }, CONFORMANCE_TAGS);
@@ -623,7 +639,7 @@ function report(summary, out = process.stdout) {
     `UNRESOLVED conformance checks (axe could not settle these; not a pass): ${summary.incompleteConformance.length} rule(s), ${summary.incompleteConformance.reduce((n, x) => n + x.nodes, 0)} node(s)`,
   );
   for (const inc of summary.incompleteConformance) {
-    w(`  ${inc.id.padEnd(30)} ${String(inc.nodes).padStart(4)} nodes  sample ${JSON.stringify(inc.sample)}`);
+    w(`  ${inc.id.padEnd(30)} ${String(inc.nodes).padStart(4)} nodes  sample ${JSON.stringify(inc.sample)}  reason ${JSON.stringify(inc.reasons)}`);
     w(`      on: ${[...new Set(inc.surfaces)].slice(0, 6).join(", ")}${inc.surfaces.length > 6 ? " ..." : ""}`);
   }
   w(`best-practice rules failing: ${summary.bestPracticeViolations.length}`);

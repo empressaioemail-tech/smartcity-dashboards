@@ -240,7 +240,8 @@ export function incompleteConformance(results) {
   for (const r of results.filter((x) => x.ok)) {
     for (const v of r.incomplete || []) {
       if (!isConformance(v)) continue;
-      const prev = out.get(v.id) || { id: v.id, nodes: 0, surfaces: [], sample: v.sample };
+      const prev = out.get(v.id) || { id: v.id, nodes: 0, surfaces: [], sample: v.sample, reasons: [] };
+      prev.reasons = [...new Set([...prev.reasons, ...(v.reasons || [])])];
       prev.nodes += v.nodes;
       prev.surfaces.push(`${r.surface} [${r.theme}]`);
       out.set(v.id, prev);
@@ -404,7 +405,7 @@ export function verdict(summary, waivers = WAIVERS) {
 
   for (const inc of summary.incompleteConformance || []) {
     reasons.push(
-      `${inc.id}: ${inc.nodes} node(s) axe could NOT SETTLE across ${new Set(inc.surfaces).size} scan(s). An unresolved conformance check is not a pass; sample ${JSON.stringify(inc.sample)}`,
+      `${inc.id}: ${inc.nodes} node(s) axe could NOT SETTLE across ${new Set(inc.surfaces).size} scan(s). An unresolved conformance check is not a pass; sample ${JSON.stringify(inc.sample)}; reason ${JSON.stringify(inc.reasons)}; on ${JSON.stringify([...new Set(inc.surfaces)].slice(0, 4))}`,
     );
   }
   for (const v of summary.bestPracticeViolations) {
