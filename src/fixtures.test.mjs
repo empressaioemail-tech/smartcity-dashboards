@@ -63,7 +63,18 @@ describe("adapter record shapes", () => {
     const fromRegistry = DOMAIN_REGISTRY.map((d) => `${d.gatedBy}:${d.recordType}`).sort();
     const fromShapes = declaredRecordShapes().map((d) => `${d.kind}:${d.recordType}`).sort();
     assert.deepEqual(fromRegistry, fromShapes);
+    /**
+     * RE-SCOPED AT G-92, four to seven. The three additions are all mygov
+     * variants, because the live Development services surface reads five record
+     * types out of one adapter kind and a shape table keyed by kind alone can
+     * express one of them. This literal is sorted, so a new entry lands wherever
+     * its name sorts rather than at the end; the divergence assertion above is
+     * the one that catches a shape and a domain drifting apart.
+     */
     assert.deepEqual(fromShapes, [
+      "mygov:business-license",
+      "mygov:code-violation",
+      "mygov:inspection",
       "mygov:permit-case",
       "mygov:work-order",
       "samsara:fleet-vehicle",
