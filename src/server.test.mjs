@@ -6,6 +6,7 @@ import path from "node:path";
 import { server, cityPackAuthorized, sendFile, etagFor } from "./server.mjs";
 import { ADAPTER_KINDS } from "./adapters.mjs";
 import { DOMAIN_REGISTRY } from "./domains.mjs";
+import { ALL_HOME_ROWS, SHELL_HOMES, homeRowsLabel, sourceRowCount } from "./shell-homes.mjs";
 
 let port;
 const saved = {};
@@ -285,8 +286,18 @@ describe("HTTP surface", () => {
     assert.equal(assets.includes("$0"), false);
     const connections = await (await fetch(`${base}/?work=connections`)).text();
     assert.match(connections, /id="work-connections"/);
-    assert.match(connections, /67 of 67/);
-    assert.equal((connections.match(/data-home-row="/g) || []).length, 70);
+    /**
+     * G-93. Two figures on the SERVED document, both measured, neither derived
+     * from the other by subtraction: the register renders 70 Homes-table rows
+     * and 5 addenda for 67 source rows and 3 inventory jobs, because two source
+     * rows bundled jobs whose dispositions differ and were split one row per
+     * job. Asserted against the computed values so this gate moves with the rule
+     * rather than pinning a literal that a later split would falsify.
+     */
+    assert.match(connections, new RegExp(`<b id="connections-rows">${homeRowsLabel()}</b>`));
+    assert.match(connections, new RegExp(`from ${sourceRowCount(SHELL_HOMES)} Homes-table rows`));
+    assert.equal((connections.match(/data-home-row="/g) || []).length, ALL_HOME_ROWS.length);
+    assert.equal(ALL_HOME_ROWS.length, 75);
     const files = await (await fetch(`${base}/?work=files`)).text();
     assert.match(files, /id="work-files"/);
     const packs = await (await fetch(`${base}/api/city-packs`)).json();

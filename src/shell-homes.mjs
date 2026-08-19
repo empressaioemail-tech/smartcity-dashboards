@@ -1,15 +1,36 @@
 /**
- * G-73 / G-75 Connections register.
+ * G-73 / G-75 / G-93 Connections register.
  *
- * Counting rule: one row per Homes-table row in
- * doc_repo/_inbox/2026-08-17_g18_shell_homes.md
- * (primary 31 + review-product 7 + products 6 + feeds 12 + other 11 = 67),
- * plus SHELL_HOMES_ADDENDA, which are layout-inventory jobs the Homes tables
- * never named and the G-73 design review found homeless (section F).
+ * Counting rule: ONE ROW PER JOB. The Homes tables in
+ * doc_repo/_inbox/2026-08-17_g18_shell_homes.md carry 67 source rows
+ * (primary 31 + review-product 7 + products 6 + feeds 12 + other 11), plus
+ * SHELL_HOMES_ADDENDA, which are 3 layout-inventory jobs the Homes tables never
+ * named and the G-73 design review found homeless (section F).
  *
  * Disposition vocabulary is closed at six values. The source markdown carried
  * ten; the extra four were prose living in a column that has to be countable,
  * so the nuance moved into the home text and the state normalised.
+ *
+ * G-93, AND WHY THE ROW COUNT IS NO LONGER THE SOURCE-ROW COUNT.
+ *
+ * Two source rows BUNDLED jobs whose dispositions differ. `Auth / session /
+ * notifications / theme / sign out` was one row for four jobs, and after G-90
+ * two of them exist and two do not; `Feedback with screenshot and category` was
+ * one row for three, and after G-90 one exists and two do not. With a vocabulary
+ * closed at six values, NO SINGLE VALUE was true of either row - which is why
+ * the G-90 lane deliberately did not edit them and routed a ruling instead.
+ *
+ * The operator ruled: split, each job with its own honest disposition. So a
+ * bundled source row becomes several register rows, each naming its source row
+ * in `splitFrom`, and the register renders 70 + 5 for 67 + 3 source rows.
+ *
+ * BOTH FIGURES ARE MEASURED AND NEITHER IS DERIVED FROM THE OTHER BY
+ * SUBTRACTION (DEV_PROCESS 1.3): rows are counted by counting rows, and source
+ * rows are counted as the distinct values of `splitFrom ?? job`. The alternative
+ * - keep 67 and set each bundled row's disposition from its worst leg - was
+ * rejected because it makes the disposition column report the least-built leg of
+ * a bundle rather than the state of a job, on the page whose entire purpose is
+ * to be the honest build map.
  */
 export const DISPOSITIONS = [
   "Mounted",
@@ -21,10 +42,20 @@ export const DISPOSITIONS = [
 ];
 
 export const SHELL_HOMES_COUNTING_RULE =
-  "one row per Homes-table row in _inbox/2026-08-17_g18_shell_homes.md (primary 31 + review-product 7 + products 6 + feeds 12 + other 11 = 67)";
+  "one row per job, from the Homes tables in _inbox/2026-08-17_g18_shell_homes.md (primary 31 + review-product 7 + products 6 + feeds 12 + other 11 = 67 source rows); a source row that bundled jobs with different dispositions is split into one row per job, each naming its source row in splitFrom";
 
 export const SHELL_HOMES_ADDENDA_RULE =
-  "layout-inventory jobs the Homes tables never named, found homeless by the G-73 design review section F";
+  "layout-inventory jobs the Homes tables never named, found homeless by the G-73 design review section F; split by the same rule";
+
+/**
+ * The source row a split register row came from. A register row without a
+ * splitFrom IS its own source row, which is what makes the source-row count a
+ * measurement rather than a subtraction.
+ */
+export const SPLIT_SOURCE_ROWS = [
+  "Auth / session / notifications / theme / sign out",
+  "Feedback with screenshot and category",
+];
 
 export const SHELL_HOMES = [
   { table: "primary", job: "See the whole city this morning", home: "Overview", disposition: "Mounted" },
@@ -91,7 +122,17 @@ export const SHELL_HOMES = [
   { table: "other", job: "Data audit", home: "Connections", disposition: "Not built" },
   { table: "other", job: "Departments including Parks and Courts", home: "Parks lens; Municipal court on Connections", disposition: "Not built" },
   { table: "other", job: "Citizen service requests", home: "Citizen lens. The twelve-tile grid was dropped.", disposition: "Mounted" },
-  { table: "other", job: "Auth / session / notifications / theme / sign out", home: "Top bar; People and access", disposition: "Not built" },
+  /**
+   * G-93, the split. Four jobs, four dispositions, and the home column carries
+   * the nuance the vocabulary cannot. Every home text below states a STRUCTURAL
+   * fact - which build an action waits on - rather than a deployment fact such
+   * as "SHELL_IDENTITY_PROVIDER is unset", which would be true the day it was
+   * typed and silently false the day a variable is set.
+   */
+  { table: "other", job: "Auth and session actions", home: "Top bar account menu; the actions arrive with the People and access build", disposition: "Not built", splitFrom: "Auth / session / notifications / theme / sign out" },
+  { table: "other", job: "Notifications", home: "Top bar notifications tray; empty with its basis, and it prints no count", disposition: "Empty", splitFrom: "Auth / session / notifications / theme / sign out" },
+  { table: "other", job: "Theme, light and dark", home: "Top bar theme toggle, persisted per device and resolved before first paint", disposition: "Mounted", splitFrom: "Auth / session / notifications / theme / sign out" },
+  { table: "other", job: "Sign out", home: "Top bar account menu; ending a session needs the People and access build", disposition: "Not built", splitFrom: "Auth / session / notifications / theme / sign out" },
   { table: "other", job: "Status bar integration count", home: "Connections; nav footer, counted from this register", disposition: "Mounted" },
   { table: "other", job: "City-owned assets", home: "City Assets", disposition: "Empty" },
 ];
@@ -102,11 +143,99 @@ export const SHELL_HOMES = [
  */
 export const SHELL_HOMES_ADDENDA = [
   { table: "layout-inventory", job: "Print / PDF export of a record", home: "Action on the record surface that owns the record", disposition: "Not built" },
-  { table: "layout-inventory", job: "Feedback with screenshot and category", home: "Top bar; People and access", disposition: "Not built" },
+  /**
+   * G-93, the same treatment. Feedback exists after G-90 - a composer, a route,
+   * and an `accepted` flag that means DELIVERED and nothing else - while the
+   * screenshot and category legs do not exist at all.
+   */
+  { table: "layout-inventory", job: "Feedback", home: "Top bar account menu composer; delivery is reported per send and never assumed", disposition: "Mounted", splitFrom: "Feedback with screenshot and category" },
+  { table: "layout-inventory", job: "Feedback screenshot attachment", home: "Top bar account menu composer; the composer takes text only", disposition: "Not built", splitFrom: "Feedback with screenshot and category" },
+  { table: "layout-inventory", job: "Feedback category", home: "Top bar account menu composer; the composer takes text only", disposition: "Not built", splitFrom: "Feedback with screenshot and category" },
   { table: "layout-inventory", job: "Municipal court", home: "Connections only. Ruled long-tail, not a lens this wave.", disposition: "Not built" },
 ];
 
 export const ALL_HOME_ROWS = [...SHELL_HOMES, ...SHELL_HOMES_ADDENDA];
+
+/* -------------------------------------------------------------- the counts
+
+G-93. Every figure the Connections page prints is computed here and baked from
+here. Before this card the page carried "67 of 67", "3", and a prose restatement
+of the counting rule as HAND-TYPED text in web/index.html, while the rule itself
+lived in this file - three copies of one number with nothing connecting them.
+That is the drift this repo has already paid for twice on this very page, as
+"7 integrations" and as "0 of 4", and a split that changes the row count is
+exactly the edit that would have left them stale.
+
+Rows and source rows are each MEASURED. Neither is the other minus something.
+*/
+
+/** The source row a register row came from. A row that was never split is its own. */
+export function sourceRowOf(row) {
+  return row.splitFrom ?? row.job;
+}
+
+/** Distinct source rows behind a set of register rows. */
+export function sourceRowCount(rows = SHELL_HOMES) {
+  return new Set(rows.map(sourceRowOf)).size;
+}
+
+/** Rows and source rows per table, both measured by counting. */
+export function tableCounts(rows = SHELL_HOMES) {
+  const seen = new Map();
+  for (const row of rows) {
+    const entry = seen.get(row.table) || { table: row.table, rows: 0, sources: new Set() };
+    entry.rows += 1;
+    entry.sources.add(sourceRowOf(row));
+    seen.set(row.table, entry);
+  }
+  return [...seen.values()].map((e) => ({ table: e.table, rows: e.rows, sourceRows: e.sources.size }));
+}
+
+/**
+ * The panel-head figure: register rows that name a home, over register rows.
+ * The page claims nothing is homeless, so the numerator measures exactly that
+ * claim rather than restating the denominator.
+ */
+export function homeRowsCounted(rows = SHELL_HOMES) {
+  const homed = rows.filter((r) => String(r.home ?? "").trim().length > 0).length;
+  return { homed, rows: rows.length, sourceRows: sourceRowCount(rows) };
+}
+
+export function homeRowsLabel(rows = SHELL_HOMES) {
+  const { homed, rows: total } = homeRowsCounted(rows);
+  return `${homed} of ${total}`;
+}
+
+export function homeRowsRule(rows = SHELL_HOMES) {
+  return `register row, from ${sourceRowCount(rows)} Homes-table rows`;
+}
+
+export function addendaLabel(rows = SHELL_HOMES_ADDENDA) {
+  return String(rows.length);
+}
+
+export function addendaRule(rows = SHELL_HOMES_ADDENDA) {
+  return `layout-inventory addendum, from ${sourceRowCount(rows)} inventory jobs`;
+}
+
+/**
+ * The counting rule as the page prints it, composed from the same arrays the
+ * register is rendered from. The per-table breakdown is the SOURCE-row
+ * breakdown, because that is what the G-18 file carries; the register totals
+ * follow it in the same sentence so the two can never be read as one figure.
+ */
+export function countingRuleCaption(rows = SHELL_HOMES, addenda = SHELL_HOMES_ADDENDA) {
+  const breakdown = tableCounts(rows)
+    .map((t) => `${t.table} ${t.sourceRows}`)
+    .join(", ");
+  return (
+    `Counting rule: one row per job. The G-18 function-homes file carries ${sourceRowCount(rows)} Homes-table rows ` +
+    `(${breakdown}) plus ${sourceRowCount(addenda)} layout-inventory jobs the Homes tables never named. ` +
+    `A source row that bundled jobs with different dispositions is split into one row per job, each naming its ` +
+    `source row, so the register renders ${rows.length} and ${addenda.length}. ` +
+    `Disposition is one of ${DISPOSITIONS.length}: ${DISPOSITIONS.join(", ")}. No live sync time is invented.`
+  );
+}
 
 /**
  * Nav-footer denominator. Derived from the feeds table, never hardcoded:
@@ -197,6 +326,32 @@ export function bakeConnectionsInto(rawHtml) {
    */
   const label = sourcesConnectedLabel();
   html = html.replace(/(<b id="connections-sources">)[^<]*(<\/b>)/, (_m, a, b) => `${a}${label}${b}`);
+
+  /**
+   * G-93. THE PANEL-HEAD FIGURES AND THE COUNTING RULE, NOW BAKED.
+   *
+   * "67 of 67", "3" and the prose counting rule were hand-typed into
+   * web/index.html while the rule that produces them lived in this file. Three
+   * copies of one number, with nothing connecting them, on the page whose entire
+   * job is to be countable - and a split that changes the row count is precisely
+   * the edit that leaves them stale. So they bake, and the fixed-point
+   * assertion in src/shell-homes.test.mjs covers them for free.
+   *
+   * Written through the same id-anchored replace as the sources label, which is
+   * idempotent by construction: the replacement contains no "<", so re-running
+   * the bake matches the same span and writes the same bytes.
+   */
+  for (const [id, value] of [
+    ["connections-rows", homeRowsLabel()],
+    ["connections-rows-rule", homeRowsRule()],
+    ["connections-addenda", addendaLabel()],
+    ["connections-addenda-rule", addendaRule()],
+    ["connections-counting-rule", countingRuleCaption()],
+  ]) {
+    const re = new RegExp(`(<(?:b|span|p)[^>]*id="${id}"[^>]*>)[^<]*(</(?:b|span|p)>)`);
+    if (!re.test(html)) throw new Error(`${id} missing from the bake target`);
+    html = html.replace(re, (_m, a, b) => `${a}${value}${b}`);
+  }
 
   return html;
 }

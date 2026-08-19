@@ -241,7 +241,13 @@
               <a class="navitem roster" data-work="people" href="/?work=people">People and access<span class="grow"></span><span class="badge">Not built</span></a>
             </div>
             <div class="nav-foot">
-              <a class="prov" href="/?work=connections"><b id="nav-sources">Sources not read</b> <span class="sep">|</span> <span data-pack-key>this pack</span> <span id="nav-sources-rule">no grant count has been read for this pack</span></a>
+              <!-- G-93. TWO FIGURES, BECAUSE THEY ARE TWO CLAIMS. A granted
+                   source is connected; a demonstrated kind is generated fixture
+                   data that connects nothing. Both are per-pack, both are
+                   derived in src/city-identity.mjs packSources(), and each
+                   carries its own counting rule beside it. The strings below are
+                   the pre-resolution fallback, which names no pack. -->
+              <a class="prov" href="/?work=connections"><b id="nav-sources">Sources not read</b> <span class="sep">|</span> <b id="nav-demonstrated">Demonstration not read</b> <span class="sep">|</span> <span data-pack-key>this pack</span> <span id="nav-sources-rule">no grant count has been read for this pack</span> <span class="sep">|</span> <span id="nav-demonstrated-rule">no demonstration count has been read for this pack</span></a>
             </div>
           </nav>
 
@@ -885,9 +891,20 @@
               </header>
               <div class="shell-regions solo">
                 <div class="panel">
-                  <div class="panel-head"><span class="t">Function homes</span><span class="grow"></span><span class="prov"><b>67 of 67</b> <span class="sep">|</span> Homes-table row</span><span class="prov"><b>3</b> <span class="sep">|</span> layout-inventory addendum</span></div>
+                  <!-- G-93. Every figure below is BAKED from src/shell-homes.mjs
+                       by scripts/bake-connections.mjs, and web/index.html is an
+                       asserted fixed point of that bake. They used to be
+                       hand-typed copies of a rule that lives in the generator,
+                       which is how the two retired integration counts this page
+                       once carried went stale. Do not edit them here; change the
+                       generator and re-bake. -->
+                  <!-- The retired literals themselves are deliberately NOT quoted
+                       above: src/shell-homes.test.mjs asserts they appear nowhere
+                       in this document, and prose reproducing a forbidden string
+                       is the same defect as shipping it. -->
+                  <div class="panel-head"><span class="t">Function homes</span><span class="grow"></span><span class="prov"><b id="connections-rows">70 of 70</b> <span class="sep">|</span> <span id="connections-rows-rule">register row, from 67 Homes-table rows</span></span><span class="prov"><b id="connections-addenda">5</b> <span class="sep">|</span> <span id="connections-addenda-rule">layout-inventory addendum, from 3 inventory jobs</span></span></div>
                   <div class="panel-body">
-                    <p class="t-caption">Counting rule: one row per Homes-table row in the G-18 function-homes file (primary 31, review-product 7, products 6, feeds 12, other 11), plus three layout-inventory jobs the Homes tables never named. Disposition is one of six: Mounted, Empty, Not built, Island, Killed, Not connected. No live sync time is invented.</p>
+                    <p class="t-caption" id="connections-counting-rule">Counting rule: one row per job. The G-18 function-homes file carries 67 Homes-table rows (primary 31, review-product 7, products 6, feeds 12, other 11) plus 3 layout-inventory jobs the Homes tables never named. A source row that bundled jobs with different dispositions is split into one row per job, each naming its source row, so the register renders 70 and 5. Disposition is one of 6: Mounted, Empty, Not built, Island, Killed, Not connected. No live sync time is invented.</p>
                   </div>
                   <div class="panel-body flush" id="connections-register">
                     <div class="srcreg" data-home-row="1" data-home-table="primary" data-disposition="Mounted"><i class="rail"></i><span class="nm"><b>See the whole city this morning</b><span>Overview</span></span><span class="pill p-restricted">Mounted</span></div>
@@ -954,12 +971,17 @@
                       <div class="srcreg" data-home-row="62" data-home-table="other" data-disposition="Not built"><i class="rail"></i><span class="nm"><b>Data audit</b><span>Connections</span></span><span class="pill p-quiet">Not built</span></div>
                       <div class="srcreg" data-home-row="63" data-home-table="other" data-disposition="Not built"><i class="rail"></i><span class="nm"><b>Departments including Parks and Courts</b><span>Parks lens; Municipal court on Connections</span></span><span class="pill p-quiet">Not built</span></div>
                       <div class="srcreg" data-home-row="64" data-home-table="other" data-disposition="Mounted"><i class="rail"></i><span class="nm"><b>Citizen service requests</b><span>Citizen lens. The twelve-tile grid was dropped.</span></span><span class="pill p-restricted">Mounted</span></div>
-                      <div class="srcreg" data-home-row="65" data-home-table="other" data-disposition="Not built"><i class="rail"></i><span class="nm"><b>Auth / session / notifications / theme / sign out</b><span>Top bar; People and access</span></span><span class="pill p-quiet">Not built</span></div>
-                      <div class="srcreg" data-home-row="66" data-home-table="other" data-disposition="Mounted"><i class="rail"></i><span class="nm"><b>Status bar integration count</b><span>Connections; nav footer, counted from this register</span></span><span class="pill p-restricted">Mounted</span></div>
-                      <div class="srcreg" data-home-row="67" data-home-table="other" data-disposition="Empty"><i class="rail"></i><span class="nm"><b>City-owned assets</b><span>City Assets</span></span><span class="pill p-quiet">Empty</span></div>
-                      <div class="srcreg" data-home-row="68" data-home-table="layout-inventory" data-disposition="Not built"><i class="rail"></i><span class="nm"><b>Print / PDF export of a record</b><span>Action on the record surface that owns the record</span></span><span class="pill p-quiet">Not built</span></div>
-                      <div class="srcreg" data-home-row="69" data-home-table="layout-inventory" data-disposition="Not built"><i class="rail"></i><span class="nm"><b>Feedback with screenshot and category</b><span>Top bar; People and access</span></span><span class="pill p-quiet">Not built</span></div>
-                      <div class="srcreg" data-home-row="70" data-home-table="layout-inventory" data-disposition="Not built"><i class="rail"></i><span class="nm"><b>Municipal court</b><span>Connections only. Ruled long-tail, not a lens this wave.</span></span><span class="pill p-quiet">Not built</span></div>
+                      <div class="srcreg" data-home-row="65" data-home-table="other" data-disposition="Not built"><i class="rail"></i><span class="nm"><b>Auth and session actions</b><span>Top bar account menu; the actions arrive with the People and access build</span></span><span class="pill p-quiet">Not built</span></div>
+                      <div class="srcreg" data-home-row="66" data-home-table="other" data-disposition="Empty"><i class="rail"></i><span class="nm"><b>Notifications</b><span>Top bar notifications tray; empty with its basis, and it prints no count</span></span><span class="pill p-quiet">Empty</span></div>
+                      <div class="srcreg" data-home-row="67" data-home-table="other" data-disposition="Mounted"><i class="rail"></i><span class="nm"><b>Theme, light and dark</b><span>Top bar theme toggle, persisted per device and resolved before first paint</span></span><span class="pill p-restricted">Mounted</span></div>
+                      <div class="srcreg" data-home-row="68" data-home-table="other" data-disposition="Not built"><i class="rail"></i><span class="nm"><b>Sign out</b><span>Top bar account menu; ending a session needs the People and access build</span></span><span class="pill p-quiet">Not built</span></div>
+                      <div class="srcreg" data-home-row="69" data-home-table="other" data-disposition="Mounted"><i class="rail"></i><span class="nm"><b>Status bar integration count</b><span>Connections; nav footer, counted from this register</span></span><span class="pill p-restricted">Mounted</span></div>
+                      <div class="srcreg" data-home-row="70" data-home-table="other" data-disposition="Empty"><i class="rail"></i><span class="nm"><b>City-owned assets</b><span>City Assets</span></span><span class="pill p-quiet">Empty</span></div>
+                      <div class="srcreg" data-home-row="71" data-home-table="layout-inventory" data-disposition="Not built"><i class="rail"></i><span class="nm"><b>Print / PDF export of a record</b><span>Action on the record surface that owns the record</span></span><span class="pill p-quiet">Not built</span></div>
+                      <div class="srcreg" data-home-row="72" data-home-table="layout-inventory" data-disposition="Mounted"><i class="rail"></i><span class="nm"><b>Feedback</b><span>Top bar account menu composer; delivery is reported per send and never assumed</span></span><span class="pill p-restricted">Mounted</span></div>
+                      <div class="srcreg" data-home-row="73" data-home-table="layout-inventory" data-disposition="Not built"><i class="rail"></i><span class="nm"><b>Feedback screenshot attachment</b><span>Top bar account menu composer; the composer takes text only</span></span><span class="pill p-quiet">Not built</span></div>
+                      <div class="srcreg" data-home-row="74" data-home-table="layout-inventory" data-disposition="Not built"><i class="rail"></i><span class="nm"><b>Feedback category</b><span>Top bar account menu composer; the composer takes text only</span></span><span class="pill p-quiet">Not built</span></div>
+                      <div class="srcreg" data-home-row="75" data-home-table="layout-inventory" data-disposition="Not built"><i class="rail"></i><span class="nm"><b>Municipal court</b><span>Connections only. Ruled long-tail, not a lens this wave.</span></span><span class="pill p-quiet">Not built</span></div>
                   </div>
                 </div>
               </div>
