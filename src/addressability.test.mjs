@@ -49,19 +49,71 @@ import {
  * 1. SOURCE TEXT
  * ======================================================================== */
 
-/** Scripts, comments stripped. web/app.js names [data-pack-name] and
- *  [data-pack-key] inside prose comments at three places; without the strip,
- *  prose reads as behaviour. */
-const scriptText = {};
-for (const rel of SCRIPT_SOURCES) scriptText[rel] = stripJsComments(readSource(rel));
+/**
+ * An inline <script> block is CODE that reaches the browser, not markup. It
+ * addresses and it writes; it attaches nothing.
+ *
+ * G-89 made that distinction load-bearing rather than academic. Its first-paint
+ * fix put a classless inline script in the head of web/index.html that stamps
+ * data-surface, data-tab and data-atab on the document element before the parser
+ * reaches the body - deliberately NOT in app.js, because a type=module script is
+ * deferred by definition and can never run before first paint. So the earliest
+ * writer of a behaviour hook in this product lives inside a markup file. A
+ * derivation that reads only the files server.mjs sends as scripts cannot see it.
+ *
+ * Both directions matter and both are handled below: inline blocks JOIN the
+ * script population, and their bodies LEAVE the markup population.
+ */
+const INLINE_SCRIPT = /<script\b(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g;
 
-/** Markup, with comments stripped from script-typed sources for the same
- *  reason: a comment is not an attached attribute. */
+/** Blank an inline script's body, preserving length and line count so nothing
+ *  downstream shifts. */
+function stripInlineScripts(html) {
+  return html.replace(INLINE_SCRIPT, (whole, body) =>
+    whole.replace(body, body.replace(/[^\n]/g, " ")),
+  );
+}
+
+/**
+ * Every script the browser executes, comments stripped: the served scripts, plus
+ * each inline block in a scanned markup source keyed as `<source>#script<n>`.
+ *
+ * web/app.js names [data-pack-name] and [data-pack-key] inside prose comments at
+ * three places; without the strip, prose reads as behaviour.
+ */
+function scriptTexts(overrides = {}) {
+  const out = {};
+  for (const rel of SCRIPT_SOURCES) {
+    out[rel] = stripJsComments(overrides[rel] ?? readSource(rel));
+  }
+  for (const rel of MARKUP_SOURCES) {
+    if (SCRIPT_SOURCES.includes(rel)) continue;
+    const raw = overrides[rel] ?? readSource(rel);
+    let n = 0;
+    for (const m of raw.matchAll(INLINE_SCRIPT)) {
+      n += 1;
+      out[`${rel}#script${n}`] = stripJsComments(m[1]);
+    }
+  }
+  return out;
+}
+
+const scriptText = scriptTexts();
+const SCRIPT_KEYS = Object.keys(scriptText);
+
+/**
+ * Markup, for the ATTACHED scans. Comments are stripped from script-typed
+ * sources and inline script bodies are blanked, for one reason: an attribute
+ * NAME written inside code is not an attached attribute. Today the head script
+ * writes setAttribute("data-surface", ...) with the name in a string literal,
+ * and only the quote character in front of it keeps that out of the attached
+ * set. Depending on a quote is not a rule.
+ */
 function readMarkupForScan(overrides = {}) {
   const out = {};
   for (const rel of MARKUP_SOURCES) {
     const raw = overrides[rel] ?? readSource(rel);
-    out[rel] = /\.m?js$/.test(rel) ? stripJsComments(raw) : raw;
+    out[rel] = /\.m?js$/.test(rel) ? stripJsComments(raw) : stripInlineScripts(raw);
   }
   return out;
 }
@@ -183,7 +235,7 @@ function indexCallables(rel, src) {
 }
 
 const callables = {};
-for (const rel of SCRIPT_SOURCES) callables[rel] = indexCallables(rel, scriptText[rel]);
+for (const rel of SCRIPT_KEYS) callables[rel] = indexCallables(rel, scriptText[rel]);
 
 /** The innermost named callable containing an offset, or null for module scope. */
 function enclosing(rel, offset) {
@@ -548,7 +600,7 @@ function idsFromIdrefs(sources) {
 function idsCreatedByScripts() {
   const out = new Set();
   const forms = [];
-  for (const rel of SCRIPT_SOURCES) {
+  for (const rel of SCRIPT_KEYS) {
     const src = scriptText[rel];
     for (const m of src.matchAll(/[\w$\])"']\.id\s*=(?!=)\s*([^;]*)/g)) {
       forms.push(`${rel}: .id = ${m[1].trim().slice(0, 40)}`);
@@ -568,7 +620,7 @@ function idsCreatedByScripts() {
 }
 
 const ADDRESSED_IDS = new Set();
-for (const rel of SCRIPT_SOURCES) {
+for (const rel of SCRIPT_KEYS) {
   for (const id of idsFromGetElementById(rel)) ADDRESSED_IDS.add(id);
   for (const id of idsFromSelectors(rel)) ADDRESSED_IDS.add(id);
   for (const id of idsFromComparisons(rel)) ADDRESSED_IDS.add(id);
@@ -619,7 +671,7 @@ const kebab = (camel) => camel.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
 /** Read by a served script: attribute selectors plus dataset property reads. */
 function hooksReadByScripts() {
   const out = new Set();
-  for (const rel of SCRIPT_SOURCES) {
+  for (const rel of SCRIPT_KEYS) {
     for (const selector of selectorStrings(rel)) {
       for (const m of selector.matchAll(/\[(data-[\w-]+)/g)) out.add(m[1]);
     }
@@ -630,13 +682,35 @@ function hooksReadByScripts() {
   return out;
 }
 
-/** Written by a served script, and therefore NOT required in static markup. The
- *  same derived-exclusion shape as trap 2, for the same reason. */
+/**
+ * Written by a script the browser executes. Derived from BOTH write forms, and
+ * the second one was added because the first was incomplete rather than because
+ * a second style is tidy.
+ *
+ * G-89 stamps data-surface, data-tab and data-atab through
+ * root.setAttribute("data-...", ...), in web/app.js and again in the inline head
+ * script. A derivation that knew only `X.dataset.Y =` saw none of them, so
+ * data-surface - which enters the required set legitimately, because
+ * web/shell.css selects html[data-surface] - read as a hook the markup had
+ * dropped. The instrument was right and its derivation was short.
+ *
+ * data-tab and data-atab escaped the same fate only because they also happen to
+ * sit in static markup on the tab anchors. Two of three passing by luck is not
+ * two of three passing, which is why this is widened rather than excused.
+ *
+ * Derived and recomputed every run. A hardcoded data-surface entry here would be
+ * the has_writer defect this program has already paid for.
+ */
 function hooksWrittenByScripts() {
   const out = new Set();
-  for (const rel of SCRIPT_SOURCES) {
+  for (const rel of SCRIPT_KEYS) {
     for (const m of scriptText[rel].matchAll(/\.dataset\.([A-Za-z][\w$]*)\s*=(?!=)/g)) {
       out.add(`data-${kebab(m[1])}`);
+    }
+    // Multi-line calls are real: the head script wraps setAttribute( onto its own
+    // line for data-tab and data-atab, so the name may not be on the call's line.
+    for (const m of scriptText[rel].matchAll(/setAttribute\s*\(\s*["'](data-[\w-]+)["']/g)) {
+      out.add(m[1]);
     }
   }
   return out;
@@ -660,9 +734,35 @@ function hooksReadByStylesheets() {
 const HOOKS_BY_SCRIPT = hooksReadByScripts();
 const HOOKS_BY_CSS = hooksReadByStylesheets();
 const HOOKS_WRITTEN = hooksWrittenByScripts();
-const REQUIRED_HOOKS = [...new Set([...HOOKS_BY_SCRIPT, ...HOOKS_BY_CSS])]
-  .filter((h) => !HOOKS_WRITTEN.has(h))
-  .sort();
+const HOOKS_READ = [...new Set([...HOOKS_BY_SCRIPT, ...HOOKS_BY_CSS])].sort();
+
+/**
+ * THE HOOK EXCLUSION SET, and the subtraction it performs is narrower than
+ * "written by a script" on purpose.
+ *
+ * Subtracting every script-written hook is wrong, and G-89 is the case that
+ * shows why. The head script stamps data-surface, data-tab and data-atab on the
+ * DOCUMENT ELEMENT. Only data-surface is exclusively a runtime stamp; data-tab
+ * and data-atab ALSO sit in static markup on the tab anchors, where
+ * `.tabs [data-tab]` reads them off descendants. One attribute name, two element
+ * populations. Excusing the name globally would have silently dropped six tab
+ * anchors out of coverage in exchange for fixing one false positive.
+ *
+ * So a hook is excused only when a script provably writes it AND it is attached
+ * nowhere in static markup. Both halves are required: the second alone would be
+ * "excuse whatever is missing", which is the gate agreeing with the defect.
+ *
+ * That leaves one drift hazard, and it is pinned rather than accepted. The
+ * excused set is computed from what is attached TODAY, so if a translation ever
+ * dropped data-tab from every anchor it would move from required to excused and
+ * go quiet. The pin below fails when the membership changes, in either
+ * direction, which turns that silence into a decision somebody has to make.
+ */
+const HOOKS_ATTACHED_NOW = attachedHooks(readMarkupForScan());
+const HOOKS_EXCUSED = HOOKS_READ.filter(
+  (h) => HOOKS_WRITTEN.has(h) && !HOOKS_ATTACHED_NOW.has(h),
+);
+const REQUIRED_HOOKS = HOOKS_READ.filter((h) => !HOOKS_EXCUSED.includes(h));
 
 function attachedHooks(sources) {
   const out = new Set();
@@ -740,13 +840,13 @@ describe("G-88 addressability: a screen that renders can also be driven", () => 
      * where a bare count would drift with every unrelated screen that ships.
      */
     const literalOnly = new Set();
-    for (const rel of SCRIPT_SOURCES) {
+    for (const rel of SCRIPT_KEYS) {
       for (const m of scriptText[rel].matchAll(/getElementById\s*\(\s*"([^"]+)"\s*\)/g)) {
         literalOnly.add(m[1]);
       }
     }
     const viaGetElementById = new Set();
-    for (const rel of SCRIPT_SOURCES) for (const id of idsFromGetElementById(rel)) viaGetElementById.add(id);
+    for (const rel of SCRIPT_KEYS) for (const id of idsFromGetElementById(rel)) viaGetElementById.add(id);
     const CHAINS = {
       "cp-scope-lens": "R4, the id-taking helper: setText(id) calls getElementById(id)",
       "cp-env-badge": "R3, the array loop: for (const id of [...]) getElementById(id)",
@@ -872,7 +972,7 @@ describe("G-88 addressability: a screen that renders can also be driven", () => 
      */
     const idrefs = idsFromIdrefs(sources);
     const byScript = new Set();
-    for (const rel of SCRIPT_SOURCES) {
+    for (const rel of SCRIPT_KEYS) {
       for (const id of idsFromGetElementById(rel)) byScript.add(id);
       for (const id of idsFromSelectors(rel)) byScript.add(id);
       for (const id of idsFromComparisons(rel)) byScript.add(id);
@@ -899,10 +999,15 @@ describe("G-88 addressability: a screen that renders can also be driven", () => 
      * ARM A for hooks.
      *
      * Counting rule, stated where the number is read. REQUIRED = the data-*
-     * attributes read by a served script (attribute selectors in
+     * attributes read by a script the browser executes (attribute selectors in
      * querySelector/querySelectorAll/closest strings, plus .dataset property
      * reads with camelCase mapped to kebab) UNION the data-* attribute selectors
-     * in the served stylesheets, MINUS the ones a served script writes.
+     * in the served stylesheets, MINUS the EXCUSED set - the hooks a script
+     * provably writes AND that are attached nowhere in static markup. The
+     * scripts scanned are the served scripts plus every inline <script> block in
+     * a served markup source, because G-89's first-paint stamp lives inline in
+     * the head of web/index.html and a served-files-only derivation cannot see
+     * the earliest writer in the product.
      *
      * The dispatch's eight names were a grep and are not authoritative. This
      * derivation adds data-metric, data-stage-max and data-theme, and reclassifies
@@ -917,12 +1022,44 @@ describe("G-88 addressability: a screen that renders can also be driven", () => 
      */
     assert.deepEqual(missingHooks(readMarkupForScan()), []);
 
-    // The two populations, named separately so neither can quietly vanish.
+    // The two reader populations, named separately so neither can quietly vanish.
     assert.ok(HOOKS_BY_SCRIPT.size >= 10, `script-read hooks collapsed to ${HOOKS_BY_SCRIPT.size}`);
     assert.ok(HOOKS_BY_CSS.has("data-disposition"), "the connections register's severity hook");
-    assert.deepEqual([...HOOKS_WRITTEN].sort(), ["data-city-key", "data-src"]);
-    for (const written of HOOKS_WRITTEN) {
-      assert.equal(REQUIRED_HOOKS.includes(written), false, `${written} is written by a script`);
+
+    /**
+     * The WRITTEN set, derived from both write forms across every executed
+     * script. `.dataset.Y =` alone returned two; adding setAttribute("data-...")
+     * and the inline head script returns five.
+     */
+    assert.deepEqual(
+      [...HOOKS_WRITTEN].sort(),
+      ["data-atab", "data-city-key", "data-src", "data-surface", "data-tab"],
+    );
+
+    /**
+     * The EXCUSED set, pinned because the derivation that produces it would
+     * otherwise self-heal into silence, and stated here where the gate's output
+     * is read rather than buried in the source (DEV_PROCESS 2.1).
+     *
+     * data-src and data-city-key are written onto elements app.js already holds.
+     * data-surface is G-89's first-paint stamp on the document element and is
+     * correctly absent from static markup: web/shell.css selects
+     * html[data-surface] and fifteen html[data-surface="lens-x"] rules, so it is
+     * genuinely read and genuinely never authored.
+     *
+     * data-tab and data-atab are deliberately NOT here even though the same head
+     * script stamps them, because they are also attached to the tab anchors and
+     * read from there. If either ever leaves the markup it lands in this list and
+     * this assertion fails, which is the point of pinning it.
+     */
+    assert.deepEqual(HOOKS_EXCUSED, ["data-city-key", "data-src", "data-surface"]);
+    for (const excused of HOOKS_EXCUSED) {
+      assert.equal(REQUIRED_HOOKS.includes(excused), false);
+      assert.ok(HOOKS_WRITTEN.has(excused), `${excused} is excused without a proven writer`);
+    }
+    for (const hook of ["data-tab", "data-atab"]) {
+      assert.ok(HOOKS_WRITTEN.has(hook), `${hook} should still be script-written`);
+      assert.ok(REQUIRED_HOOKS.includes(hook), `${hook} is attached in markup and must stay required`);
     }
   });
 

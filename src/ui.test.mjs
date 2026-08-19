@@ -446,13 +446,42 @@ describe("G-77 fixture pack on Development services", () => {
     const defined = stylesheetClasses();
     const loose = stylesheetClassesWithoutCommentStrip();
     const commentOnly = [...loose].filter((cls) => !defined.has(cls)).sort();
-    assert.deepEqual(commentOnly, ["css", "hidden", "html", "md", "mjs", "test"]);
+
+    /**
+     * THE INVARIANT IS ASSERTED; THE SET IS REPORTED. This deliberately does NOT
+     * pin the membership of commentOnly, and the reason is a measured one.
+     *
+     * It used to read assert.deepEqual(commentOnly, ["css","hidden","html","md",
+     * "mjs","test"]). G-89 wrote a CSS comment explaining that app.js is a
+     * module, the word `js` became the seventh member, and the pin went red for
+     * a change that was not a defect in either direction. That pin re-arms every
+     * time anyone writes a comment containing a dotted filename, which makes it
+     * a gate that goes red only for prose - the DEV_PROCESS 2.0 shape, where a
+     * gate nobody can keep green stops being read.
+     *
+     * What is load-bearing is not WHICH words are comment-only. It is that
+     * `hidden` is one of them, because that is the whole reason an injected
+     * class="hidden" fires this gate and did not fire the weaker rule; and that
+     * the two counting rules differ by exactly the comment-only set, which is
+     * the structural claim the comment strip makes. Both are asserted. The set
+     * itself is checked for shape rather than membership, so a broken strip
+     * cannot fill it with real classes.
+     */
+    assert.ok(commentOnly.includes("hidden"), "the probe class must be comment-only, or arm B proves nothing");
     assert.equal(
       defined.size + commentOnly.length,
       loose.size,
       "the two counting rules must differ by exactly the comment-only words",
     );
     assert.ok(defined.size > 0 && loose.size > defined.size);
+    // Every comment-only word must really be inside a comment. Positive
+    // determination: this fails if the loose rule starts inventing members.
+    const commentText = [...STYLESHEET_SOURCES.map((rel) => readSource(rel)).join("\n").matchAll(/\/\*[\s\S]*?\*\//g)]
+      .map((m) => m[0])
+      .join("\n");
+    for (const word of commentOnly) {
+      assert.ok(commentText.includes(word), `${word} is counted as comment-only but appears in no comment`);
+    }
 
     /**
      * Arm A, the real sources: the stray list must be empty. KNOWN_UNSTYLED is
