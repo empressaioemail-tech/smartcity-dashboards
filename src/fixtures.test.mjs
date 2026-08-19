@@ -5,8 +5,11 @@ import {
   CASE_STATUS_VALUES,
   RECORD_SHAPES,
   assertRecordShape,
+  declaredRecordShapes,
   recordShapeFor,
 } from "./adapters.mjs";
+import { DOMAIN_REGISTRY } from "./domains.mjs";
+import { PERMITS_PIPELINE_DOMAIN } from "./domains/permits-pipeline.mjs";
 import {
   TEMPLATE_CITY,
   EMPTY_CITY,
@@ -46,10 +49,30 @@ describe("adapter record shapes", () => {
     }
     assert.equal(RECORD_SHAPES.mygov.declared, true);
     assert.equal(RECORD_SHAPES.mygov.recordType, "permit-case");
-    const declared = Object.entries(RECORD_SHAPES)
-      .filter(([, shape]) => shape.declared)
-      .map(([id]) => id);
-    assert.deepEqual(declared, ["mygov"]);
+    /**
+     * RE-SCOPED AT G-91. This was deepEqual(declared, ["mygov"]) - a literal
+     * that says nothing about whether the shape table and the domain registry
+     * agree, and that has to be edited by hand every time a lens lands.
+     *
+     * It becomes a DIVERGENCE test in both directions (DEV_PROCESS 2.4): every
+     * registered domain must resolve to a declared shape, and every declared
+     * shape must be reachable from a registered domain. A shape declared for
+     * nobody and a domain generating an undeclared type are both findings, and
+     * the literal could see neither.
+     */
+    const fromRegistry = DOMAIN_REGISTRY.map((d) => `${d.gatedBy}:${d.recordType}`).sort();
+    const fromShapes = declaredRecordShapes().map((d) => `${d.kind}:${d.recordType}`).sort();
+    assert.deepEqual(fromRegistry, fromShapes);
+    assert.deepEqual(fromShapes, [
+      "mygov:permit-case",
+      "mygov:work-order",
+      "samsara:fleet-vehicle",
+      "spireon:patrol-vehicle",
+    ]);
+    for (const domain of DOMAIN_REGISTRY) {
+      const shape = recordShapeFor(domain.gatedBy, domain.recordType);
+      assert.ok(shape?.declared, `${domain.id} generates an undeclared shape`);
+    }
   });
 
   it("declares the four in-flight statuses the Development services strip names", () => {
@@ -92,7 +115,26 @@ describe("gate 2: every generated record is marked fixture in the payload", () =
     );
     assert.throws(() => assertRecordShape({ ...good, origin: "unknown" }), /origin must be feed or fixture/);
     assert.throws(() => assertRecordShape({ ...good, status: "issued" }), /status must be one of/);
-    assert.throws(() => assertRecordShape({ ...good, kind: "samsara" }), /undeclared/);
+    /**
+     * RE-SCOPED AT G-91, and it gained an arm rather than losing one. The old
+     * arm used kind "samsara" to mean "a kind with no declared shape"; samsara
+     * declares one now, so the arm would have kept passing while testing
+     * something else entirely. esri is still undeclared and carries the original
+     * meaning, and the mismatch it used to also cover is now its own arm.
+     */
+    assert.throws(() => assertRecordShape({ ...good, kind: "esri" }), /undeclared/);
+    assert.throws(
+      () => assertRecordShape({ ...good, kind: "samsara" }),
+      /samsara declares no permit-case record type/,
+    );
+    assert.throws(
+      () => assertRecordShape({ ...good, recordType: "work-permit" }),
+      /mygov declares no work-permit record type/,
+    );
+    // And the variant resolves, which is what makes the two arms above findings
+    // rather than a kind that simply cannot produce anything.
+    assert.equal(recordShapeFor("mygov", "work-order").declared, true);
+    assert.equal(recordShapeFor("mygov").recordType, "permit-case");
   });
 });
 
@@ -100,7 +142,17 @@ describe("gate 3: no real-world content on a generated record", () => {
   it("carries no person, no street, no parcel outside the demo range, no vendor account", () => {
     for (const record of template.records) {
       assertNoRealWorldContent(record);
-      assertDeclaredVocabulary(record);
+      /**
+       * RE-SCOPED AT G-91: the vocabulary guard takes the DOMAIN's declared
+       * vocabulary now instead of one global list. A global list would have every
+       * wave-2 lens widening one shared set until it permitted everything, which
+       * is a gate dying of success rather than of neglect.
+       */
+      assertDeclaredVocabulary(
+        record,
+        PERMITS_PIPELINE_DOMAIN.vocabulary,
+        PERMITS_PIPELINE_DOMAIN.formats,
+      );
       assert.equal(record.place.parcelNodeId, null);
       assert.match(record.place.parcelBasis, /\S/);
     }
@@ -147,7 +199,32 @@ describe("gate 3: no real-world content on a generated record", () => {
       /no vendor account identifier/,
     );
     assert.throws(
-      () => assertDeclaredVocabulary({ ...good, subject: "Something nobody declared" }),
+      () =>
+        assertDeclaredVocabulary(
+          { ...good, subject: "Something nobody declared" },
+          PERMITS_PIPELINE_DOMAIN.vocabulary,
+          PERMITS_PIPELINE_DOMAIN.formats,
+        ),
+      /undeclared string/,
+    );
+    /**
+     * The per-domain half, watched: a record legal under its OWN domain is
+     * rejected under another domain's vocabulary. If it were not, the vocabulary
+     * would be global in effect whatever the signature said.
+     */
+    assert.throws(
+      () => assertDeclaredVocabulary(good, ["nothing-this-record-carries"], []),
+      /undeclared string/,
+    );
+    // And the dueLabel field no longer authorises itself. At G-77 record.dueLabel
+    // was in its own allowed set, so any string at all passed in that field.
+    assert.throws(
+      () =>
+        assertDeclaredVocabulary(
+          { ...good, dueLabel: "last synced an hour ago" },
+          PERMITS_PIPELINE_DOMAIN.vocabulary,
+          PERMITS_PIPELINE_DOMAIN.formats,
+        ),
       /undeclared string/,
     );
   });
@@ -278,7 +355,27 @@ describe("the generator", () => {
     const types = new Set(template.records.map((r) => r.recordType));
     assert.deepEqual([...types], ["permit-case"]);
     assert.equal(/asset/i.test(JSON.stringify(template)), false);
-    assert.equal(RECORD_SHAPES.samsara.declared, false);
+    /**
+     * RE-SCOPED AT G-91. This asserted RECORD_SHAPES.samsara.declared === false
+     * and used "samsara has no shape" as a PROXY for "nothing generates a city
+     * asset". Samsara declares a fleet-vehicle shape now, so the proxy is gone;
+     * the rule it stood for is asserted directly instead, and registry-wide
+     * rather than on one payload.
+     *
+     * Counting rule: every recordType declared by every registered domain, over
+     * the whole registry, checked against the asset needle. Measured, not
+     * implied - which is stronger than what it replaced.
+     */
+    const recordTypes = DOMAIN_REGISTRY.map((d) => d.recordType);
+    assert.equal(recordTypes.length, DOMAIN_REGISTRY.length);
+    for (const recordType of recordTypes) {
+      assert.equal(/asset|inventory/i.test(recordType), false, recordType);
+    }
+    assert.equal(
+      DOMAIN_REGISTRY.some((d) => d.lensId === "assets" || d.region === "Assets"),
+      false,
+      "no registered domain fills the Assets surface",
+    );
   });
 
   it("grants nothing: a fixture pack is not a connected feed", () => {

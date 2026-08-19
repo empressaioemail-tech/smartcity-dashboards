@@ -1,7 +1,16 @@
 import { LEAD_LENSES } from "./lenses.mjs";
 import { getPool } from "./db.mjs";
 import { assertNoSupplierDsn } from "./mounts.mjs";
-import { assertGrantedAdapterShape } from "./adapters.mjs";
+import { adapterKindById, assertGrantedAdapterShape } from "./adapters.mjs";
+
+/**
+ * The demonstration axis, read defensively in one place. Declared here rather
+ * than imported from the seam so the pack module keeps its current import
+ * surface; src/domains.test.mjs holds the two readers to one answer.
+ */
+export function packFixtureGrants(pack) {
+  return Array.isArray(pack?.fixtureGrants) ? pack.fixtureGrants : [];
+}
 
 const memoryPacks = new Map();
 const ACCESS_POLICIES = new Set(["public-free", "tenant-private"]);
@@ -21,8 +30,19 @@ export const TEMPLATE_CITY = {
   generatesFixtures: true,
   lenses: LEAD_LENSES.map((l) => l.id),
   grantedAdapters: [],
+  /**
+   * The adapter kinds this demo pack DEMONSTRATES, which is a third axis and not
+   * a grant. grantedAdapters below stays empty and assertCityPackShape still
+   * refuses any grant on a generating pack, so no feed is connected by this
+   * declaration and nothing here reads a vendor.
+   *
+   * spireon is deliberately absent while src/domains/patrol-vehicles.mjs is
+   * fully built, so the ungranted state stays reachable on the shipped demo
+   * instead of being a branch nothing exercises.
+   */
+  fixtureGrants: ["mygov", "samsara"],
   notes:
-    "Public fixture pack. Records are generated from the adapter output contracts and marked fixture in the payload. No clerk calendar grant. Bastrop is not this pack. Cutover is a later WDLL.",
+    "Public fixture pack. Records are generated from the adapter output contracts and marked fixture in the payload. Fixture grants are a demonstration axis, never a feed. No clerk calendar grant. Bastrop is not this pack. Cutover is a later WDLL.",
 };
 
 /**
@@ -40,8 +60,9 @@ export const EMPTY_CITY = {
   generatesFixtures: false,
   lenses: LEAD_LENSES.map((l) => l.id),
   grantedAdapters: [],
+  fixtureGrants: [],
   notes:
-    "The unconnected city. Generates nothing, grants nothing, and states every absence with a basis.",
+    "The unconnected city. Generates nothing, grants nothing, demonstrates nothing, and states every absence with a basis.",
 };
 
 export const FIXTURE_CITY = {
@@ -53,6 +74,7 @@ export const FIXTURE_CITY = {
   generatesFixtures: false,
   lenses: LEAD_LENSES.map((l) => l.id),
   grantedAdapters: [],
+  fixtureGrants: [],
   notes:
     "Tenant-private tenancy test subject, not the demo. Not Bastrop. Not a connected feed. Generates nothing and grants stay empty.",
 };
@@ -71,6 +93,7 @@ CREATE TABLE IF NOT EXISTS city_packs (
   granted_adapters JSONB NOT NULL DEFAULT '[]',
   environment TEXT NOT NULL DEFAULT 'demo',
   generates_fixtures BOOLEAN NOT NULL DEFAULT false,
+  fixture_grants JSONB NOT NULL DEFAULT '[]',
   notes TEXT,
   stored_at TIMESTAMPTZ NOT NULL DEFAULT now()
 )`;
@@ -84,9 +107,19 @@ ALTER TABLE city_packs ADD COLUMN IF NOT EXISTS environment TEXT NOT NULL DEFAUL
 const ADD_GENERATES_FIXTURES_SQL = `
 ALTER TABLE city_packs ADD COLUMN IF NOT EXISTS generates_fixtures BOOLEAN NOT NULL DEFAULT false`;
 
+/**
+ * G-91. The demonstration axis has to survive the store or a Neon deployment
+ * reads template-city back with nothing demonstrated and every built region
+ * renders ungranted - which is the exact failure generatesFixtures had before
+ * G-79, in the same table, for the same reason. Four places have to agree:
+ * this ALTER, the upsert params, PACK_COLUMNS, and rowToPack.
+ */
+const ADD_FIXTURE_GRANTS_SQL = `
+ALTER TABLE city_packs ADD COLUMN IF NOT EXISTS fixture_grants JSONB NOT NULL DEFAULT '[]'`;
+
 const UPSERT_PACK_SQL = `
-INSERT INTO city_packs (city_key, jurisdiction_fips, display_name, access_policy, lenses, granted_adapters, notes, environment, generates_fixtures)
-VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7, $8, $9)
+INSERT INTO city_packs (city_key, jurisdiction_fips, display_name, access_policy, lenses, granted_adapters, notes, environment, generates_fixtures, fixture_grants)
+VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7, $8, $9, $10::jsonb)
 ON CONFLICT (city_key) DO UPDATE SET
   jurisdiction_fips = EXCLUDED.jurisdiction_fips,
   display_name = EXCLUDED.display_name,
@@ -95,7 +128,8 @@ ON CONFLICT (city_key) DO UPDATE SET
   granted_adapters = EXCLUDED.granted_adapters,
   notes = EXCLUDED.notes,
   environment = EXCLUDED.environment,
-  generates_fixtures = EXCLUDED.generates_fixtures`;
+  generates_fixtures = EXCLUDED.generates_fixtures,
+  fixture_grants = EXCLUDED.fixture_grants`;
 
 export function getPacksStore(envMap = process.env) {
   const url = String(envMap.DATABASE_URL || "").trim();
@@ -121,6 +155,7 @@ function packParams(pack) {
     pack.notes,
     pack.environment,
     pack.generatesFixtures,
+    JSON.stringify(packFixtureGrants(pack)),
   ];
 }
 
@@ -133,7 +168,7 @@ function packParams(pack) {
  * takes the SQL path at all.
  */
 export const PACK_COLUMNS =
-  "city_key, jurisdiction_fips, display_name, access_policy, lenses, granted_adapters, notes, environment, generates_fixtures";
+  "city_key, jurisdiction_fips, display_name, access_policy, lenses, granted_adapters, notes, environment, generates_fixtures, fixture_grants";
 
 function rowToPack(row) {
   const pack = {
@@ -145,6 +180,13 @@ function rowToPack(row) {
     generatesFixtures: row.generates_fixtures === true,
     lenses: row.lenses,
     grantedAdapters: row.granted_adapters ?? [],
+    /**
+     * A row written before the column existed reads back as no demonstration,
+     * and that is a STATED rule rather than a silent default: a pack that
+     * declares no fixtureGrants demonstrates nothing, so every built region
+     * renders ungranted with its basis. Asserted in src/city-pack.test.mjs.
+     */
+    fixtureGrants: row.fixture_grants ?? [],
     notes: row.notes ?? null,
   };
   assertCityPackShape(pack);
@@ -161,6 +203,12 @@ function listItem(pack) {
     generatesFixtures: pack.generatesFixtures === true,
     lensCount: pack.lenses.length,
     grantedAdapterCount: pack.grantedAdapters.length,
+    /**
+     * Counted separately from grantedAdapterCount and never added to it. A
+     * demonstrated shape is not a connected source, and one figure carrying both
+     * would put a false sources-granted number beside a city name.
+     */
+    fixtureGrantCount: packFixtureGrants(pack).length,
   };
 }
 
@@ -170,6 +218,7 @@ export async function ensureCityPacksTable(envMap = process.env, deps = {}) {
   await runQuery(envMap, ADD_ACCESS_POLICY_SQL, [], deps);
   await runQuery(envMap, ADD_ENVIRONMENT_SQL, [], deps);
   await runQuery(envMap, ADD_GENERATES_FIXTURES_SQL, [], deps);
+  await runQuery(envMap, ADD_FIXTURE_GRANTS_SQL, [], deps);
   await runQuery(envMap, UPSERT_PACK_SQL, packParams(TEMPLATE_CITY), deps);
   await runQuery(envMap, UPSERT_PACK_SQL, packParams(EMPTY_CITY), deps);
   await runQuery(envMap, UPSERT_PACK_SQL, packParams(FIXTURE_CITY), deps);
@@ -239,6 +288,9 @@ export function assertCityPackShape(pack) {
   if (!Array.isArray(pack.grantedAdapters)) {
     throw new Error("city pack requires grantedAdapters[]");
   }
+  if ("fixtureGrants" in pack && !Array.isArray(pack.fixtureGrants)) {
+    throw new Error("city pack fixtureGrants must be an array of adapter kind ids");
+  }
   if (typeof pack.generatesFixtures !== "boolean") {
     throw new Error("city pack requires generatesFixtures true or false");
   }
@@ -261,6 +313,20 @@ export function assertCityPackShape(pack) {
     if (pack.grantedAdapters.length > 0) {
       throw new Error("a pack that generates fixtures grants no adapter");
     }
+  }
+  for (const kindId of packFixtureGrants(pack)) {
+    if (!adapterKindById(kindId)) {
+      throw new Error(`fixtureGrants names ${kindId}, which is not a catalogued adapter kind`);
+    }
+  }
+  /**
+   * A pack that generates nothing cannot demonstrate anything, so claiming a
+   * fixture grant on one is a declaration it can never honour. Stated as a gate
+   * rather than tolerated, because empty-city is the regression target for every
+   * honest-empty state and a stray grant on it would switch that target off.
+   */
+  if (!pack.generatesFixtures && packFixtureGrants(pack).length > 0) {
+    throw new Error("a pack that generates no fixtures declares no fixtureGrants");
   }
   for (const grant of pack.grantedAdapters) {
     assertGrantedAdapterShape(grant);
