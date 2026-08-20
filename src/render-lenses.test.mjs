@@ -311,26 +311,31 @@ describe("G-97 accessibility is a merge gate in this lane", () => {
     assert.equal(/<h5\b/.test(works), false, "public works still ships an h5");
   });
 
-  it("makes every scrollable column keyboard reachable and named", () => {
+  it("makes every scrollable column keyboard reachable, the way the a11y lane did it", () => {
     /**
      * .colstack carries overflow-y:auto, so a populated column IS a scrollable
-     * region and axe's scrollable-region-focusable applies to it. role is
-     * required as well as tabindex: aria-label on a roleless div is itself a
-     * finding. The global :focus-visible outline gives the focus ring, so this
-     * costs no CSS either.
+     * region and axe's scrollable-region-focusable applies to it. G-95 answered
+     * that product-wide with a bare tabindex="0" and shipped the CI gate that
+     * enforces it, so these two lenses use the SAME shape rather than a second
+     * one. A role plus an aria-label was written here first and dropped on the
+     * merge: a named landmark reads better to a screen reader, but one rule with
+     * two implementations is the shape this repo has already paid for, and the
+     * accessibility lane owns that call for the whole product line. Carried to
+     * the planner as a product-line improvement rather than settled here.
      */
     for (const [name, section] of [["fleet", fleet], ["public works", works]]) {
       const stacks = section.match(/<div class="colstack"[^>]*>/g) || [];
       assert.ok(stacks.length >= 1, `${name} has no colstack`);
-      for (const stack of stacks) {
-        assert.match(stack, /tabindex="0"/, `${name}: ${stack}`);
-        assert.match(stack, /role="region"/, `${name}: ${stack}`);
-        assert.match(stack, /aria-label="[^"]+"/, `${name}: ${stack}`);
-      }
+      for (const stack of stacks) assert.match(stack, /tabindex="0"/, `${name}: ${stack}`);
     }
-    // Two named regions must not share a name, or they stop being distinguishable.
-    const labels = [...(fleet + works).matchAll(/aria-label="([^"]+)"/g)].map((m) => m[1]);
-    assert.equal(new Set(labels).size, labels.length, `duplicate region names: ${labels.join(" | ")}`);
+    /**
+     * Divergence test: the shape on these two lenses is the shape the rest of
+     * the shell uses, measured across every colstack in the document rather than
+     * asserted about mine alone.
+     */
+    const all = html.match(/<div class="colstack"[^>]*>/g) || [];
+    assert.ok(all.length >= 8, `colstack population collapsed to ${all.length}`);
+    assert.deepEqual(all.filter((tag) => !/tabindex="0"/.test(tag)), []);
   });
 
   it("adds no control, so there is no unnamed one to find", () => {
