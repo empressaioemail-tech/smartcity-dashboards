@@ -568,7 +568,7 @@ describe("G-95 the gate is wired and cannot skip", () => {
     }
   });
 
-  it("holds the LIVE ledger to the same shape, and names every entry in it", () => {
+  it("holds the LIVE ledger to the same shape, and it is currently empty", () => {
     /**
      * G-95's one entry was deleted the moment its cause landed in the kit, which
      * is exactly what its ratchet demanded. The shape check stays and applies to
@@ -584,37 +584,12 @@ describe("G-95 the gate is wired and cannot skip", () => {
       assert.match(w.remove, /\S/, `${w.rule} has no removal condition, which is amnesty`);
       assert.match(w.countingRule, /\S/, `${w.rule} pins a number with no counting rule`);
     }
+    assert.deepEqual(WAIVERS, [], "a waiver is a decision, not a detail; adding one is a deliberate act");
     /**
-     * G-97 PUT ONE ENTRY HERE, and this assertion is the deliberate act the
-     * previous wording asked for rather than a line quietly relaxed.
-     *
-     * The ledger is pinned by MEMBERSHIP, not by length, so a second waiver
-     * added later still has to be named here by somebody. The basis and the
-     * measurement live on the entry itself in src/a11y-gate.mjs; what belongs
-     * here is only that the exception exists and is not a detail.
-     *
-     * Every OTHER rule stays at zero tolerance, which is the assertion that
-     * actually matters and is exercised below on a rule with no waiver.
+     * And with an empty ledger the gate is at ZERO TOLERANCE, which is the
+     * assertion that actually matters here: every conformance node fails.
      */
-    assert.deepEqual(
-      WAIVERS.map((w) => w.rule),
-      ["color-contrast"],
-      "a waiver is a decision, not a detail; adding or removing one is a deliberate act",
-    );
-    const contrastWaiver = WAIVERS.find((w) => w.rule === "color-contrast");
-    assert.deepEqual(contrastWaiver.nodesByTheme, { light: 2, dark: 0 });
-    assert.match(contrastWaiver.basis, /4\.44/, "the waiver must carry the measured ratio, not an adjective");
-    assert.match(contrastWaiver.remove, /sc-kit\.css/, "the removal condition must name where the fix lands");
-    /**
-     * An unwaived conformance rule still refuses the build. Measured on a rule
-     * that is NOT in the ledger, so the zero-tolerance claim is tested rather
-     * than assumed away by the one exception.
-     */
-    const results = THEMES.map((t) =>
-      scan("s1", t, {
-        violations: [{ id: "link-name", impact: "serious", tags: ["wcag2a"], help: "h", nodes: [{ target: ["a"], html: "<a>" }] }],
-      }),
-    );
+    const results = THEMES.map((t) => scan("s1", t, { violations: [contrast(1)] }));
     const v = verdict(summarize(results, AXE, "http://test"), WAIVERS, []);
     assert.equal(v.pass, false);
     assert.ok(v.reasons.some((r) => r.includes("no waiver")), v.reasons.join("; "));

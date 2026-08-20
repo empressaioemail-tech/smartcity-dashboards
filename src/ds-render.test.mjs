@@ -117,6 +117,17 @@ const composed = Object.fromEntries(
   DS_DOMAINS.map((d) => [d.id, composeDomainById(TEMPLATE_CITY, d.id)]),
 );
 
+/**
+ * The head sentence the shipped regionHead() produces for one state, evaluated
+ * out of the served source rather than re-implemented here. Re-implementing it
+ * would be the second copy this whole file argues against.
+ */
+function renderedHeadFor(source, status) {
+  // eslint-disable-next-line no-new-func
+  const fn = new Function(`${source}; return regionHead;`)();
+  return fn(status, "Inspections", "probe-city");
+}
+
 describe("G-97 the Development services lens renders its domains", () => {
   it("carries a region for every Development services domain, and none for a domain that is not one", () => {
     /**
@@ -131,10 +142,23 @@ describe("G-97 the Development services lens renders its domains", () => {
       ["business-licenses", "code-violations", "inspections", "permits-pipeline", "work-orders"],
       "a Development services domain was added or removed without a region",
     );
+    /**
+     * TWO ID CONVENTIONS, and the split is deliberate rather than untidy.
+     *
+     * The four regions this lane added adopt the convention main already
+     * carries, so ONE renderer serves every lens on the product: renderRegion()
+     * reads -state, -kicker, -head, -basis, -records, -recordsbasis, -mark,
+     * -prov and -caption. The pipeline keeps its historical -empty family
+     * because src/ui.test.mjs pins those ids by name, and renaming them to buy
+     * symmetry would have edited a gate for a cosmetic gain. The id convention
+     * is not the rule; the sentence vocabulary is, and there is one of those.
+     */
+    const SHARED = ["mark", "prov", "caption", "state", "kicker", "head", "basis", "records", "recordsbasis", "rows"];
+    const PIPELINE = ["mark", "prov", "caption", "empty", "empty-kicker", "empty-head", "empty-basis", "records", "basis", "rows"];
     for (const domain of DS_DOMAINS) {
       const prefix = PREFIX[domain.id];
       assert.ok(prefix, `${domain.id} has no region prefix`);
-      for (const suffix of ["empty", "empty-kicker", "empty-head", "empty-basis", "records", "rows", "mark", "prov", "caption", "basis"]) {
+      for (const suffix of prefix === "ds-pipeline" ? PIPELINE : SHARED) {
         assert.ok(
           ds.includes(`id="${prefix}-${suffix}"`),
           `${domain.id} is missing #${prefix}-${suffix}`,
@@ -234,72 +258,76 @@ describe("G-97 the Development services lens renders its domains", () => {
 });
 
 describe("G-97 the four source states are four sentences", () => {
-  /** The map, read out of the shipped script rather than re-declared here. */
-  const map = app.match(/const SOURCE_STATE = \{[\s\S]*?\n\};/)?.[0] || "";
+  /**
+   * The map, read out of the shipped script rather than re-declared here.
+   *
+   * THIS LANE DELETED ITS OWN COPY. G-97 R3 merged first with an equivalent
+   * four-state vocabulary, so a rename around the collision would have shipped
+   * two implementations of one rule saying different sentences for the same
+   * state on two lenses of one product - the CTRL-1 shape (DEV_PROCESS 2.4).
+   * The incumbent on main is the one implementation and this lane adapted onto
+   * it, including the pipeline, which had never read its own source status.
+   */
+  const map = app.match(/const REGION_KICKER = \{[\s\S]*?\n\};/)?.[0] || "";
+  const head = app.match(/function regionHead\(status, region, cityKey\) \{[\s\S]*?\n\}/)?.[0] || "";
 
-  it("carries one entry for every state the seam can report, plus the two the seam cannot", () => {
-    assert.ok(map, "web/app.js carries no SOURCE_STATE map");
+  it("carries one entry for every state the seam can report, plus the one the seam cannot", () => {
+    assert.ok(map, "web/app.js carries no REGION_KICKER map");
     for (const status of DOMAIN_STATUSES) {
       assert.ok(map.includes(`"${status}"`) || map.includes(`${status}:`), status);
     }
     /**
-     * not-registered is the surface that does not exist, which is the only
-     * surviving meaning of Not built; read-failed is a fetch that did not answer
-     * and is NOT a source state - it must not borrow a pack's sentence.
+     * did-not-read is a fetch that did not answer. It is NOT a source state and
+     * must not borrow a pack's sentence, which is why it has its own entry.
      */
-    assert.ok(map.includes('"not-registered"'), "not-registered");
-    assert.ok(map.includes('"read-failed"'), "read-failed");
+    assert.ok(map.includes('"did-not-read"'), "did-not-read");
   });
 
   it("gives every state a different kicker and a different headline", () => {
-    const kickers = [...map.matchAll(/kicker: "([^"]+)"/g)].map((m) => m[1]);
-    const headlines = [...map.matchAll(/headline: "([^"]+)"/g)].map((m) => m[1]);
-    const notes = [...map.matchAll(/metricNote: "([^"]+)"/g)].map((m) => m[1]);
-    assert.equal(kickers.length, 6, "six states");
-    assert.equal(headlines.length, 6);
-    assert.equal(notes.length, 6);
+    const kickers = [...map.matchAll(/: "([^"]+)"/g)].map((m) => m[1]);
+    assert.equal(kickers.length, 5, "four source states plus the failed read");
     assert.equal(new Set(kickers).size, kickers.length, `two states share a kicker: ${kickers}`);
-    assert.equal(new Set(headlines).size, headlines.length, "two states share a headline");
+    /**
+     * The headlines are a function rather than a table, so distinctness is
+     * measured by CALLING it over every state with one region and one pack.
+     * A table comparison would have read the source and proven nothing about
+     * what a person sees.
+     */
+    const sentences = DOMAIN_STATUSES.concat(["did-not-read"]).map((status) =>
+      renderedHeadFor(head, status),
+    );
+    assert.equal(new Set(sentences).size, sentences.length, `two states share a headline: ${sentences}`);
     /**
      * The pair the ruling is about, named rather than left to the set check: a
      * later edit that collapsed exactly these two would still pass a generic
      * distinctness assertion if it collapsed two others apart.
      */
-    const ungranted = map.match(/ungranted: \{[\s\S]*?\}/)?.[0] || "";
-    const grantedEmpty = map.match(/"granted-empty": \{[\s\S]*?\}/)?.[0] || "";
-    assert.ok(ungranted && grantedEmpty);
-    assert.notEqual(ungranted.replace("ungranted", ""), grantedEmpty.replace('"granted-empty"', ""));
-    assert.match(ungranted, /built/i, "ungranted must say the region is built");
-    assert.match(grantedEmpty, /granted/i, "granted-empty must say the source is granted");
+    const ungranted = renderedHeadFor(head, "ungranted");
+    const grantedEmpty = renderedHeadFor(head, "granted-empty");
+    assert.notEqual(ungranted, grantedEmpty);
+    assert.match(ungranted, /no source is granted/i);
+    assert.match(grantedEmpty, /granted .* and returned no records/i);
     assert.equal(/not built/i.test(ungranted), false, "ungranted must not say not built");
   });
 
   it("has ONE implementation, read by every region including the pipeline", () => {
+    assert.equal((app.match(/const REGION_KICKER = \{/g) || []).length, 1);
+    assert.equal((app.match(/function regionHead\(/g) || []).length, 1);
     /**
-     * Two implementations of one rule is the CTRL-1 shape (DEV_PROCESS 2.4). The
-     * sentences live in one frozen map and every region resolves through one
-     * accessor, so a region cannot quietly grow its own vocabulary.
+     * The copy this lane wrote and then deleted. Asserted ABSENT rather than
+     * described, so a future lane re-adding a private four-state map has to get
+     * past this line.
      */
-    assert.equal((app.match(/const SOURCE_STATE = \{/g) || []).length, 1);
-    assert.match(app, /function sourceSentence\(status\)/);
-    assert.match(app, /function writeSourceSentence\(prefix, payload\)/);
-    // The pipeline reads it too, off the sourceStatus composePipeline already carried.
-    assert.match(app, /const sentence = sourceSentence\(pipeline\.sourceStatus\)/);
-    /**
-     * Every region resolves through the accessor rather than indexing the map.
-     * The two indexings are the lookup and its fallback and BOTH are inside
-     * sourceSentence, which is what this measures - a count alone would have
-     * been wrong in both directions, and was: the first draft pinned 1 and went
-     * red on the fallback that makes an unknown status a stated failure rather
-     * than a quiet pass.
-     */
-    const accessor = app.match(/function sourceSentence\(status\) \{[\s\S]*?\n\}/)?.[0] || "";
-    assert.ok(accessor);
-    assert.equal(
-      (app.match(/SOURCE_STATE\[/g) || []).length,
-      (accessor.match(/SOURCE_STATE\[/g) || []).length,
-      "SOURCE_STATE is indexed outside its accessor",
-    );
+    assert.equal(app.includes("SOURCE_STATE"), false, "a second four-state map returned to web/app.js");
+    assert.equal(app.includes("writeSourceSentence"), false);
+    // The pipeline reads it too, off the sourceStatus the compose already carried.
+    assert.match(app, /const status = String\(pipeline\.sourceStatus \|\| "did-not-read"\)/);
+    assert.match(app, /regionHead\(status, "Pipeline", pipeline\.cityKey\)/);
+    // And the four new regions render through the shared renderer, not a copy.
+    for (const prefix of ["ds-insp", "ds-wo", "ds-ce", "ds-lic"]) {
+      assert.match(app, new RegExp(`renderRegion\\("${prefix}", payload\\)`), prefix);
+      assert.match(app, new RegExp(`renderRegionMetrics\\(document\\.getElementById\\("${prefix}-metrics"\\), payload\\)`), prefix);
+    }
   });
 
   it("shows ungranted and granted-empty as two different sentences from the seam, not two labels", () => {
@@ -348,16 +376,24 @@ describe("G-97 the four source states are four sentences", () => {
   });
 
   it("renders a failed read as a stated failure rather than as a pack with no records", () => {
-    assert.match(app, /status: "read-failed"/);
-    assert.match(app, /the \$\{domainId\} region did not read for \$\{key\}/);
-    // And the absence carries a basis in BOTH branches of the queue renderer,
-    // so a hidden table never keeps a claim the pack has not earned.
-    const queue = app.match(/function renderDomainQueue\([\s\S]*?\n\}/)?.[0] || "";
-    assert.equal(
-      (queue.match(/basis\.textContent = `Basis:/g) || []).length,
-      2,
-      "the queue writes its basis in exactly one of its two branches",
-    );
+    /**
+     * Every one of the four regions wraps a null read in the shared
+     * unreadRegion() determination, naming its own region, so a fetch that did
+     * not answer never renders as a city that has no records.
+     */
+    for (const region of ["Inspections", "Work orders", "Code enforcement", "Licenses"]) {
+      assert.match(app, new RegExp(`unreadRegion\\("${region}", cityKey\\)`), region);
+    }
+    assert.match(app, /the \$\{region\} region did not read for \$\{pack\}/);
+    /**
+     * And the absence carries a basis in EVERY state, not only when the region
+     * is empty: renderRegion writes the basis line unconditionally, so a hidden
+     * table never keeps a claim the pack has not earned.
+     */
+    const renderer = app.match(/function renderRegion\(prefix, payload\) \{[\s\S]*?\n\}/)?.[0] || "";
+    assert.ok(renderer);
+    assert.match(renderer, /if \(basis\) basis\.textContent = line;/);
+    assert.equal(/if \(ok\)[^\n]*basis\.textContent/.test(renderer), false, "the basis must not be conditional on ok");
   });
 });
 
@@ -385,8 +421,16 @@ describe("G-97 the metric strips agree with the declared vocabulary", () => {
         `${domainId} tile labels drifted from the declared labels`,
       );
     }
-    // And the renderer writes the payload's label, so runtime cannot diverge.
-    assert.match(app, /if \(key\) key\.textContent = metric\.label;/);
+    /**
+     * The shared metric renderer writes the VALUE and the NOTE and never the
+     * label, so the static markup is the only source of a tile's name and this
+     * assertion is the whole control rather than half of one. Stated here
+     * because the earlier draft of this lane wrote the label at runtime and the
+     * check would have been comparing a fallback nobody reads.
+     */
+    const metrics = app.match(/function renderRegionMetrics\(strip, payload\) \{[\s\S]*?\n\}/)?.[0] || "";
+    assert.ok(metrics);
+    assert.equal(/\.k"\)|metric\.label/.test(metrics), false, "the tile label is written at runtime after all");
   });
 
   it("states an unread tile as a word rather than as a zero, on every strip", () => {

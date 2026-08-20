@@ -111,22 +111,7 @@ export const GATED_BEST_PRACTICE = {
  * deleted. Per theme rather than as a total, because one number lets a dark
  * regression hide behind a light improvement.
  */
-export const WAIVERS = [
-  {
-    rule: "color-contrast",
-    nodesByTheme: { light: 2, dark: 0 },
-    countingRule:
-      "failing DOM elements per theme, over the scanned surfaces; both light nodes are .p-ok pills in the licence roll on lens-development-services-licenses, and the dark theme is pinned at 0 so a dark regression cannot hide behind it",
-    owner:
-      "the product-line token pass (G-94), which owns web/sc-kit.css - byte-identical across smartcity-dashboards, smart-files and plan-review",
-    basis:
-      "--sc-ok #2F7A52 on --sc-ok-wash #E3F0E8 measures 4.44:1 in the LIGHT theme against the 4.5:1 requirement for 12px normal text; axe's own message on the node reads 'insufficient color contrast of 4.44 (foreground color: #2f7a52, background color: #e3f0e8)'. Dark composites to 6.17:1 and passes, which is why the pin is 0 there. THE PAIR IS NOT NEW AND THIS LANE DID NOT INTRODUCE IT: the permit pipeline has rendered .p-ok pills since G-77, and the same pair measures 4.44:1 on base 78a2b9a, read off computed styles. The wave-3 baseline and this gate both read it clean until now because axe evaluates color-contrast only where it can resolve a background at the element's on-screen position, and the pipeline's two ready-to-issue rows sort LAST in a fourteen-row table inside a scrolling column, below the fold. G-97 renders four more tables; the licence roll puts active rows inside the viewport, so the pair finally surfaced. Two instruments disagreed and the disagreement was the finding rather than the noise (DEV_PROCESS 1.4).",
-    remove:
-      "when --sc-ok reaches 4.5:1 against --sc-ok-wash in the light theme, in web/sc-kit.css, and the change is re-vendored to all three product repos so the file stays byte-identical. Roughly #2E7850 or a lighter wash; the token pass owns the choice. RECORDED SO A SUCCESSOR KNOWS IT WAS A SCOPE CALL AND NOT A CAPABILITY ONE, on the same evidentiary standard this file already applied to --sc-quiet: the failing DECLARATION is web/shell.css:146 `.p-ok { color: var(--sc-ok); background: var(--sc-ok-wash); }` and a Dashboards-only re-pairing was therefore possible. It was declined because there is no darker ok token to re-pair to, so any Dashboards-side fix either invents a colour in a file whose own gate forbids one, or forks what 'ok' means in one repo of three.",
-    routedTo:
-      "G-94, the kit contrast pass, as the second token pair after --sc-ink-3 and --sc-quiet. Deleting this entry turns the build red again and blocks the merge until the kit moves, which is the correct behaviour if the planner would rather hold the lens than carry the exception.",
-  },
-];
+export const WAIVERS = [];
 
 /**
  * ---------------------------------------------------------------------------

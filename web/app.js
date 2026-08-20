@@ -685,17 +685,29 @@ function renderPipeline(pipeline) {
    * the document, and "Pipeline unread" sitting under fourteen rendered cases is
    * a sentence this pack has not earned.
    */
-  const sentence = sourceSentence(pipeline.sourceStatus);
-  if (emptyKicker) emptyKicker.textContent = sentence.kicker;
-  if (emptyHead) emptyHead.textContent = sentence.headline;
+  const status = String(pipeline.sourceStatus || "did-not-read");
+  if (emptyKicker) {
+    emptyKicker.textContent = REGION_KICKER[status] || REGION_KICKER["did-not-read"];
+  }
+  if (emptyHead) emptyHead.textContent = regionHead(status, "Pipeline", pipeline.cityKey);
   /** The absence carries the basis the pack itself stated. */
   if (emptyBasis && pipeline.basis) emptyBasis.textContent = `Basis: ${pipeline.basis}`;
 
   const records = Array.isArray(pipeline.records) ? pipeline.records : [];
-  const statusLabels = {};
-  for (const metric of pipeline.metrics || []) {
-    statusLabels[metric.id] = { label: metric.label, severity: metric.severity };
-  }
+  /**
+   * G-97. ONE severity rendering across the product.
+   *
+   * G-97 R3 read the resolved flag the record contract has carried since G-77
+   * and rendered a resolved status quiet, which is the visual law's inverted
+   * applicability - a pass is quiet, and eight coloured pills for the rows that
+   * need nobody are the loudest thing on a page. It named the consequence in its
+   * own close: Development services still rendered ready-to-issue through p-ok,
+   * so one severity vocabulary had two renderings across two lenses. That is
+   * settled here by adopting the incumbent rather than left as a divergence for
+   * somebody to find. The pipeline carries its tiles at the top level, so the
+   * shared resolver is called with the shape it reads.
+   */
+  const statusLabels = statusLabelsFor({ extras: { metrics: pipeline.metrics } });
 
   if (records.length === 0) {
     show(empty, true);
@@ -758,89 +770,31 @@ async function loadPipeline(cityKey) {
   renderPipeline(data);
 }
 
-/* ------------------------------------------------- the four source states
+/* ---------------------------------------------- development services regions
 
-RULING 1 AT THE PIXEL (OPS-17 A-076, operator-approved 2026-08-19).
+RULING 1 AT THE PIXEL, on the seam main already carries.
 
-A region is in one of four source states and they are four SENTENCES, not one
-sentence with four bases underneath it. The pair that matters is `ungranted`
-against `granted-empty`: "this city has granted no MyGov" and "this city granted
-MyGov and it returned nothing" are different things to say to a customer, and a
-single "empty" says neither. Collapsing them re-creates the exact defect the
-ruling exists to close.
+This block originally shipped its own four-state map, its own region renderer
+and its own metric renderer. G-97 R3 merged first with an equivalent set, so
+this lane DELETED its copies rather than renaming around the collision: two
+implementations of one rule is the CTRL-1 shape and the two would have said
+different sentences for the same state on two lenses of one product
+(DEV_PROCESS 2.4). The incumbent on main wins and this lane adapts onto it, so
+REGION_KICKER, regionHead, unreadRegion, loadDomain, renderRegion,
+renderRegionMetrics, statusLabelsFor and fill above are the only implementation.
 
-ONE map, read by every region on this lens INCLUDING the pipeline, which said
-one sentence for all four states until G-97. A per-region copy would be two
-implementations of one rule, which is the shape this repo has already paid for
-(DEV_PROCESS 2.4).
-
-`read-failed` is the fifth entry and it is not a source state: a fetch that did
-not answer is not a city with no records, and it must not borrow that sentence.
-`not-registered` is the surface that does not exist, which is the only surviving
-meaning of Not built.
+What is genuinely this lens's own is below: the row for each record type, and
+the SECOND AXIS every Development services domain carries beside its queue -
+the paired result classes and the inspector load, the service level against the
+declared target and the daily slice, the escalation ladder in declared step
+order, the expiry bands. Each carries its own counting rule, and each states the
+absences the domain declared - the inspector held off an inspection, the
+assessed figure held off a case, the renewal charge held off a licence - in the
+domain's own words rather than in words written here.
 */
-const SOURCE_STATE = {
-  ok: {
-    kicker: "Records",
-    headline: "Records are rendering from this pack.",
-    metricNote: "records read",
-  },
-  ungranted: {
-    kicker: "Built, no source",
-    headline: "This region is built and this pack has granted no source for it.",
-    metricNote: "Built, no source",
-  },
-  "granted-empty": {
-    kicker: "Source returned nothing",
-    headline: "The source is granted on this pack and it returned no records.",
-    metricNote: "Source returned nothing",
-  },
-  "no-fixture-source": {
-    kicker: "No source",
-    headline: "This pack generates no records and grants no source.",
-    metricNote: "No source on this pack",
-  },
-  "not-registered": {
-    kicker: "Not built",
-    headline: "This surface is not built.",
-    metricNote: "Not built",
-  },
-  "read-failed": {
-    kicker: "Read failed",
-    headline: "This region did not read, which is not the same as a pack with no records.",
-    metricNote: "Region did not read",
-  },
-};
 
-/** The state's sentence. An unknown status is a failed read, never a quiet pass. */
-function sourceSentence(status) {
-  return SOURCE_STATE[status] || SOURCE_STATE["read-failed"];
-}
-
-/**
- * Writes the state sentence into one region's honest-empty block. Called with a
- * literal prefix from every region, so the ids it composes resolve to concrete
- * strings and the addressability gate can see all of them.
- */
-function writeSourceSentence(prefix, payload) {
-  const sentence = sourceSentence(payload.status);
-  const kicker = document.getElementById(`${prefix}-empty-kicker`);
-  const head = document.getElementById(`${prefix}-empty-head`);
-  const basis = document.getElementById(`${prefix}-empty-basis`);
-  if (kicker) kicker.textContent = sentence.kicker;
-  if (head) head.textContent = sentence.headline;
-  if (basis) basis.textContent = `Basis: ${payload.basis || "no basis was stated"}`;
-}
-
-/* ------------------------------------------------------- region rendering */
-
-/** Status id to declared label and severity, taken from the payload's own tiles. */
-function labelsFrom(metrics) {
-  const out = {};
-  for (const metric of Array.isArray(metrics) ? metrics : []) {
-    out[metric.id] = { label: metric.label, severity: metric.severity };
-  }
-  return out;
+function extrasOf(payload) {
+  return payload && payload.extras && typeof payload.extras === "object" ? payload.extras : {};
 }
 
 function pillCell(label, severity) {
@@ -876,7 +830,7 @@ function placeCell(record) {
 }
 
 /**
- * A stage id rendered for reading. Derived from the declared id rather than
+ * A stage id rendered for reading. DERIVED from the declared id rather than
  * copied into a second vocabulary here: a display map for work-order stages
  * would be a copy of WORK_ORDER_STAGE_VALUES that nothing keeps in step.
  */
@@ -887,109 +841,8 @@ function stageLabel(id) {
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
-function extrasOf(payload) {
-  return payload && payload.extras && typeof payload.extras === "object" ? payload.extras : {};
-}
-
 /**
- * The metric strip for a domain region.
- *
- * The tile LABEL is written from the payload rather than trusted from the
- * markup, so the declared vocabulary and the screen cannot drift; the static
- * markup is the pre-read fallback and nothing more. The counting rule travels
- * with the number, in the note under it, exactly as the pipeline's does.
- */
-function renderDomainMetrics(stripId, payload, noun) {
-  const strip = document.getElementById(stripId);
-  if (!strip) return;
-  const metrics = Array.isArray(extrasOf(payload).metrics) ? extrasOf(payload).metrics : [];
-  const ok = payload.status === "ok";
-  const sentence = sourceSentence(payload.status);
-  for (const metric of metrics) {
-    const el = strip.querySelector(`.metric[data-metric="${metric.id}"]`);
-    if (!el) continue;
-    const key = el.querySelector(".k");
-    const value = el.querySelector(".v");
-    const note = el.querySelector(".n");
-    if (key) key.textContent = metric.label;
-    if (!ok) continue;
-    el.classList.add("has-value");
-    if (value) {
-      value.classList.remove("word");
-      value.textContent = String(metric.count);
-    }
-    if (note) note.textContent = `of ${payload.recordCount} ${noun}`;
-  }
-  if (ok) return;
-  /**
-   * Not a zero. A region with no source states that it has no source, on every
-   * tile, and the sentence names WHICH of the four states it is.
-   */
-  for (const el of strip.querySelectorAll(".metric")) {
-    el.classList.remove("has-value");
-    const value = el.querySelector(".v");
-    const note = el.querySelector(".n");
-    if (value) {
-      value.classList.add("word");
-      value.textContent = "Not read";
-    }
-    if (note) note.textContent = sentence.metricNote;
-  }
-}
-
-/**
- * The queue panel for a domain region: the demo mark, the provenance chip, the
- * honest-empty block and the records table.
- *
- * `extraBases` are further absences the DOMAIN itself declared - the inspector
- * held off an inspection, the assessed figure held off a case, the renewal
- * charge held off a licence. They are the payload's own strings, joined rather
- * than rewritten, so the region's basis line carries every absence it owns.
- */
-function renderDomainQueue(prefix, payload, buildRow, noun, extraBases) {
-  const empty = document.getElementById(`${prefix}-empty`);
-  const wrap = document.getElementById(`${prefix}-records`);
-  const rows = document.getElementById(`${prefix}-rows`);
-  const mark = document.getElementById(`${prefix}-mark`);
-  const prov = document.getElementById(`${prefix}-prov`);
-  const caption = document.getElementById(`${prefix}-caption`);
-  const basis = document.getElementById(`${prefix}-basis`);
-
-  writeSourceSentence(prefix, payload);
-  const records = Array.isArray(payload.records) ? payload.records : [];
-
-  if (records.length === 0) {
-    show(empty, true);
-    show(wrap, false);
-    if (rows) rows.replaceChildren();
-    show(mark, false);
-    show(prov, false);
-    if (caption) caption.textContent = sourceSentence(payload.status).kicker;
-    /**
-     * The table's own basis is rewritten even though the table is hidden. A
-     * hidden element still carries its text into the DOM and into anything that
-     * reads it, and "Basis: generated fixture records" left standing under an
-     * unpopulated region is a claim this pack has not earned.
-     */
-    if (basis) basis.textContent = `Basis: ${payload.basis || "no basis was stated"}`;
-    return;
-  }
-
-  show(empty, false);
-  show(wrap, true);
-  show(mark, true);
-  show(prov, true);
-  if (caption) caption.textContent = `${records.length} ${noun}`;
-  if (basis) {
-    const parts = [payload.basis, ...(Array.isArray(extraBases) ? extraBases : [])].filter(Boolean);
-    basis.textContent = `Basis: ${parts.join(" | ")}`;
-  }
-  if (rows) rows.replaceChildren(...records.map((record) => buildRow(record, payload)));
-}
-
-/**
- * A register of a region's second axis: the result classes, the escalation
- * ladder, the daily slice, the expiry bands, the inspector load.
+ * A register of a region's second axis.
  *
  * When the region has no source the register is EMPTIED and its basis line
  * carries the pack's own sentence. An empty container plus a stated basis is an
@@ -1047,12 +900,21 @@ function renderKeyValues(containerId, basisId, payload, buildPairs, rule) {
   if (basis) basis.textContent = `Basis: ${ok ? rule(payload) : payload.basis}`;
 }
 
+/** The first declared value of a field across a region's rows, or "". */
+function firstOf(list, field) {
+  const rows = Array.isArray(list) ? list : [];
+  for (const row of rows) if (row && row[field]) return row[field];
+  return "";
+}
+
 /* ---------------------------------------------------------- inspections */
 
 function inspectionRow(record, payload) {
   const row = document.createElement("tr");
-  const results = labelsFrom(extrasOf(payload).results);
-  const statuses = labelsFrom(extrasOf(payload).metrics);
+  const results = {};
+  for (const result of extrasOf(payload).results || []) {
+    results[result.id] = { label: result.label, severity: result.severity };
+  }
   const result = results[record.result] || { label: record.result, severity: "quiet" };
   row.append(
     td(record.recordId, "id"),
@@ -1064,17 +926,16 @@ function inspectionRow(record, payload) {
      * record's own scheduleBasis rather than a blank or an invented date.
      */
     record.dayLabel ? dataCell(record.dayLabel) : basisCell(record.scheduleBasis || ""),
-    statusCell(record, statuses),
+    statusCell(record, statusLabelsFor(payload)),
   );
   return row;
 }
 
 function renderInspections(payload) {
-  const first = Array.isArray(payload.records) ? payload.records[0] : null;
-  renderDomainMetrics("ds-insp-metrics", payload, "generated inspections");
-  renderDomainQueue("ds-insp", payload, inspectionRow, "inspections on the board", [
-    first && first.inspectorBasis,
-  ]);
+  const ok = renderRegion("ds-insp", payload);
+  renderRegionMetrics(document.getElementById("ds-insp-metrics"), payload);
+  const records = ok && Array.isArray(payload.records) ? payload.records : [];
+  fill(document.getElementById("ds-insp-rows"), records.map((r) => inspectionRow(r, payload)));
   renderRegister(
     "ds-insp-results",
     "ds-insp-results-basis",
@@ -1086,7 +947,7 @@ function renderInspections(payload) {
         value: result.count,
         severity: result.severity,
       })),
-    (data) => (extrasOf(data).results || []).map((r) => r.countingRule)[0] || data.basis,
+    (data) => firstOf(extrasOf(data).results, "countingRule") || data.basis,
   );
   renderRegister(
     "ds-insp-load",
@@ -1099,10 +960,11 @@ function renderInspections(payload) {
         value: load.inspectionCount,
         severity: "quiet",
       })),
+    /** The inspector absence travels here, in the domain's own words. */
     (data) =>
       [
-        (extrasOf(data).inspectorLoad || []).map((l) => l.countingRule)[0],
-        (extrasOf(data).inspectorLoad || []).map((l) => l.inspectorBasis)[0],
+        firstOf(extrasOf(data).inspectorLoad, "countingRule"),
+        firstOf(extrasOf(data).inspectorLoad, "inspectorBasis"),
       ]
         .filter(Boolean)
         .join(" | ") || data.basis,
@@ -1121,14 +983,16 @@ function workOrderRow(record, payload) {
     dueCell(record),
     /** The target travels with the elapsed figure, so the number is readable. */
     dataCell(`${record.slaElapsedHours} h of ${record.slaTargetHours} h`),
-    statusCell(record, labelsFrom(extrasOf(payload).metrics)),
+    statusCell(record, statusLabelsFor(payload)),
   );
   return row;
 }
 
 function renderWorkOrders(payload) {
-  renderDomainMetrics("ds-wo-metrics", payload, "generated work orders");
-  renderDomainQueue("ds-wo", payload, workOrderRow, "orders in the queue", []);
+  const ok = renderRegion("ds-wo", payload);
+  renderRegionMetrics(document.getElementById("ds-wo-metrics"), payload);
+  const records = ok && Array.isArray(payload.records) ? payload.records : [];
+  fill(document.getElementById("ds-wo-rows"), records.map((r) => workOrderRow(r, payload)));
   renderKeyValues(
     "ds-wo-sla",
     "ds-wo-sla-basis",
@@ -1156,7 +1020,7 @@ function renderWorkOrders(payload) {
         value: day.count,
         severity: "quiet",
       })),
-    (data) => (extrasOf(data).dailyQueue || []).map((d) => d.countingRule)[0] || data.basis,
+    (data) => firstOf(extrasOf(data).dailyQueue, "countingRule") || data.basis,
   );
 }
 
@@ -1164,7 +1028,10 @@ function renderWorkOrders(payload) {
 
 function codeViolationRow(record, payload) {
   const row = document.createElement("tr");
-  const rungs = labelsFrom(extrasOf(payload).escalation);
+  const rungs = {};
+  for (const rung of extrasOf(payload).escalation || []) {
+    rungs[rung.id] = { label: rung.label, severity: rung.severity };
+  }
   const rung = rungs[record.escalation] || { label: record.escalation, severity: "quiet" };
   row.append(
     td(record.recordId, "id"),
@@ -1173,15 +1040,16 @@ function codeViolationRow(record, payload) {
     dataCell(String(record.escalationStep)),
     placeCell(record),
     dueCell(record),
-    statusCell(record, labelsFrom(extrasOf(payload).metrics)),
+    statusCell(record, statusLabelsFor(payload)),
   );
   return row;
 }
 
 function renderCodeEnforcement(payload) {
-  const stats = extrasOf(payload).stats || {};
-  renderDomainMetrics("ds-ce-metrics", payload, "generated cases");
-  renderDomainQueue("ds-ce", payload, codeViolationRow, "cases on the ladder", [stats.penaltyBasis]);
+  const ok = renderRegion("ds-ce", payload);
+  renderRegionMetrics(document.getElementById("ds-ce-metrics"), payload);
+  const records = ok && Array.isArray(payload.records) ? payload.records : [];
+  fill(document.getElementById("ds-ce-rows"), records.map((r) => codeViolationRow(r, payload)));
   renderRegister(
     "ds-ce-ladder",
     "ds-ce-ladder-basis",
@@ -1195,7 +1063,7 @@ function renderCodeEnforcement(payload) {
         value: rung.count,
         severity: rung.severity,
       })),
-    (data) => (extrasOf(data).escalation || []).map((r) => r.countingRule)[0] || data.basis,
+    (data) => firstOf(extrasOf(data).escalation, "countingRule") || data.basis,
   );
   renderKeyValues(
     "ds-ce-stats",
@@ -1207,6 +1075,7 @@ function renderCodeEnforcement(payload) {
         ["Open", figures.open],
         ["Closed", figures.closed],
         ["Measured", figures.measured],
+        /** The assessed figure this product has not read, stated rather than blank. */
         ["Penalty", figures.penaltyBasis],
       ];
     },
@@ -1214,7 +1083,7 @@ function renderCodeEnforcement(payload) {
   );
 }
 
-/* ---------------------------------------------------------- licences */
+/* ------------------------------------------------------------ licences */
 
 function licenceRow(record, payload) {
   const row = document.createElement("tr");
@@ -1224,7 +1093,7 @@ function licenceRow(record, payload) {
     dataCell(record.holderRef),
     placeCell(record),
     dataCell(record.expiryLabel),
-    statusCell(record, labelsFrom(extrasOf(payload).metrics)),
+    statusCell(record, statusLabelsFor(payload)),
   );
   return row;
 }
@@ -1237,12 +1106,10 @@ function bandBounds(band) {
 }
 
 function renderLicences(payload) {
-  const extras = extrasOf(payload);
-  renderDomainMetrics("ds-lic-metrics", payload, "generated licences");
-  renderDomainQueue("ds-lic", payload, licenceRow, "licences on the roll", [
-    extras.chargesBasis,
-    Array.isArray(payload.records) && payload.records[0] ? payload.records[0].holderBasis : "",
-  ]);
+  const ok = renderRegion("ds-lic", payload);
+  renderRegionMetrics(document.getElementById("ds-lic-metrics"), payload);
+  const records = ok && Array.isArray(payload.records) ? payload.records : [];
+  fill(document.getElementById("ds-lic-rows"), records.map((r) => licenceRow(r, payload)));
   renderRegister(
     "ds-lic-expiry",
     "ds-lic-expiry-basis",
@@ -1254,44 +1121,25 @@ function renderLicences(payload) {
         value: band.count,
         severity: band.severity,
       })),
-    (data) => (extrasOf(data).expiry || []).map((w) => w.countingRule)[0] || data.basis,
+    /** The holder and the renewal charge this product has not read, both in the
+     *  domain's own words, joined rather than rewritten. */
+    (data) =>
+      [
+        firstOf(extrasOf(data).expiry, "countingRule"),
+        extrasOf(data).chargesBasis,
+        firstOf(data.records, "holderBasis"),
+      ]
+        .filter(Boolean)
+        .join(" | ") || data.basis,
   );
 }
 
-/* ----------------------------------------------------------- the loader */
-
 /**
- * One registered domain, in full, for a pack.
- *
- * The route has shipped since G-91 and this is its first consumer. No second
- * data path: the browser renders what the seam composed and generates nothing.
- *
- * A read that did not answer is NOT a pack with no records, and it does not get
- * to borrow that sentence. It renders as a stated failure with its own basis,
- * which is the discipline loadPipeline already applies one region over.
+ * The lens. Four regions off the route the product already serves, in parallel.
+ * A read that did not answer becomes did-not-read WITH a basis rather than an
+ * empty city, which is the same determination every other region on this
+ * product makes.
  */
-async function loadDomain(domainId, cityKey) {
-  const key = String(cityKey || "").trim();
-  try {
-    const res = await fetch(
-      `/api/domains/${encodeURIComponent(domainId)}?cityKey=${encodeURIComponent(key)}`,
-    );
-    const body = res.ok ? await res.json() : null;
-    if (body && typeof body.status === "string") return body;
-  } catch {
-    /* fall through to the stated failure below */
-  }
-  return {
-    domainId,
-    cityKey: key,
-    status: "read-failed",
-    recordCount: 0,
-    records: [],
-    extras: {},
-    basis: `the ${domainId} region did not read for ${key}`,
-  };
-}
-
 async function loadDevelopmentServices(cityKey) {
   const [inspections, workOrders, codeViolations, licences] = await Promise.all([
     loadDomain("inspections", cityKey),
@@ -1299,10 +1147,10 @@ async function loadDevelopmentServices(cityKey) {
     loadDomain("code-violations", cityKey),
     loadDomain("business-licenses", cityKey),
   ]);
-  renderInspections(inspections);
-  renderWorkOrders(workOrders);
-  renderCodeEnforcement(codeViolations);
-  renderLicences(licences);
+  renderInspections(inspections || unreadRegion("Inspections", cityKey));
+  renderWorkOrders(workOrders || unreadRegion("Work orders", cityKey));
+  renderCodeEnforcement(codeViolations || unreadRegion("Code enforcement", cityKey));
+  renderLicences(licences || unreadRegion("Licenses", cityKey));
 }
 
 /* ---------------------------------------------------------------- routing */
@@ -1746,6 +1594,399 @@ function bindFeedback() {
   });
 }
 
+/* ------------------------------------------- G-97 Fleet and Public works
+
+Three registered domains reach a pixel here for the first time. Everything
+below READS the seam this product already serves at /api/domains/<id>; nothing
+below generates, seeds, fetches a vendor, or invents a shape the generator does
+not return. A second data path would be the defect, not the feature.
+
+THE FOUR SOURCE STATES ARE FOUR SENTENCES, and that is the whole point of this
+block. src/fixture-seam.mjs has distinguished ok, granted-empty, ungranted and
+no-fixture-source since G-91, and until now no customer could see the
+difference, because no lens rendered any of them. Collapsing ungranted into
+granted-empty re-creates the exact defect ruling 1 exists to close: "this city
+has not granted the source" and "the source is granted and returned nothing"
+are different sentences to a city, and a single "empty" says neither.
+
+So each state gets its own KICKER and its own HEAD, and the BASIS is always the
+payload's own words rather than a sentence composed here. A fifth branch,
+did-not-read, follows the pipeline precedent: a failed read is not an empty
+city, and an empty result is not an absence.
+
+ONE RENDERER, THREE REGIONS. The region identity is a prefix parameter rather
+than three copies of one rule (DEV_PROCESS 2.4), and the addressability gate
+resolves getElementById(`${prefix}-<slot>`) as the cross product of the three
+call-site literals with the nine slots. The cross product IS the required id
+set, so a slot missing on one region fails the gate by name.
+*/
+
+const REGION_KICKER = {
+  ok: "Records generated",
+  ungranted: "No source",
+  "granted-empty": "Source returned nothing",
+  "no-fixture-source": "Not generating",
+  "did-not-read": "Region did not read",
+};
+
+/** The tile note per state. A tile with no source says which absence it is. */
+const REGION_TILE_NOTE = {
+  ungranted: "No source granted",
+  "granted-empty": "Source returned nothing",
+  "no-fixture-source": "Pack generates nothing",
+  "did-not-read": "Region did not read",
+};
+
+/**
+ * The head sentence per state. Every value in it comes off the payload, so this
+ * function names no vendor, no city and no freshness of its own.
+ */
+function regionHead(status, region, cityKey) {
+  const name = region || "this";
+  const pack = cityKey || "this pack";
+  if (status === "ungranted") return `No source is granted for the ${name} region on ${pack}.`;
+  if (status === "granted-empty") {
+    return `The source for ${name} is granted on ${pack} and returned no records.`;
+  }
+  if (status === "no-fixture-source") {
+    return `${pack} generates no records, so the ${name} region has nothing to show.`;
+  }
+  if (status === "did-not-read") return `The ${name} region did not read on ${pack}.`;
+  return `The ${name} region is generating records on ${pack}.`;
+}
+
+/** A read that failed. Stated as its own determination, never as an empty city. */
+function unreadRegion(region, cityKey) {
+  const pack = String(cityKey || "").trim();
+  return {
+    status: "did-not-read",
+    region,
+    cityKey: pack,
+    recordType: "",
+    recordCount: 0,
+    countingRule: "",
+    basis: `the ${region} region did not read for ${pack}`,
+    records: [],
+    extras: {},
+  };
+}
+
+/**
+ * THE SEAM READER. One registered domain, for one pack, off the route the
+ * product already serves. A non-ok response resolves to null and the caller
+ * turns that into did-not-read with a basis.
+ */
+async function loadDomain(domainId, cityKey) {
+  const key = String(cityKey || "").trim();
+  try {
+    const res = await fetch(
+      `/api/domains/${encodeURIComponent(domainId)}?cityKey=${encodeURIComponent(key)}`,
+    );
+    return res.ok ? await res.json() : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The four-state renderer. Returns whether the region is carrying records. */
+function renderRegion(prefix, payload) {
+  const mark = document.getElementById(`${prefix}-mark`);
+  const prov = document.getElementById(`${prefix}-prov`);
+  const caption = document.getElementById(`${prefix}-caption`);
+  const state = document.getElementById(`${prefix}-state`);
+  const kicker = document.getElementById(`${prefix}-kicker`);
+  const head = document.getElementById(`${prefix}-head`);
+  const basis = document.getElementById(`${prefix}-basis`);
+  const records = document.getElementById(`${prefix}-records`);
+  const recordsBasis = document.getElementById(`${prefix}-recordsbasis`);
+
+  const status = String(payload.status || "did-not-read");
+  const ok = status === "ok";
+  show(mark, ok);
+  show(prov, ok);
+  show(records, ok);
+  show(state, !ok);
+
+  if (caption) {
+    caption.textContent = ok
+      ? `${payload.recordCount} ${payload.recordType} records`
+      : "Not read";
+  }
+  if (kicker) kicker.textContent = REGION_KICKER[status] || REGION_KICKER["did-not-read"];
+  if (head) head.textContent = regionHead(status, payload.region, payload.cityKey);
+
+  /** The absence carries the basis the SEAM stated, never one written here. */
+  const line = payload.basis
+    ? `Basis: ${payload.basis}`
+    : "Basis: no region payload has been read for this pack";
+  if (basis) basis.textContent = line;
+  /** A count travels with its counting rule, next to the count. */
+  if (recordsBasis) {
+    recordsBasis.textContent = ok ? `${line}. Counting rule: ${payload.countingRule}` : line;
+  }
+  return ok;
+}
+
+/**
+ * The status tiles for a region. A tile with no records keeps saying Not read
+ * and never shows a zero, because a zero here would be a claim the city has not
+ * made. Every value that does render carries its denominator.
+ */
+function renderRegionMetrics(strip, payload) {
+  if (!strip) return;
+  const ok = payload.status === "ok";
+  const extras = payload.extras || {};
+  const metrics = ok && Array.isArray(extras.metrics) ? extras.metrics : [];
+  const byId = {};
+  for (const metric of metrics) byId[metric.id] = metric;
+  for (const tile of strip.querySelectorAll(".metric")) {
+    const metric = byId[tile.dataset.metric];
+    const value = tile.querySelector(".v");
+    const note = tile.querySelector(".n");
+    if (!metric) {
+      tile.classList.remove("has-value");
+      if (value) {
+        value.classList.add("word");
+        value.textContent = "Not read";
+      }
+      if (note) note.textContent = REGION_TILE_NOTE[payload.status] || "Not read";
+      continue;
+    }
+    tile.classList.add("has-value");
+    if (value) {
+      value.classList.remove("word");
+      value.textContent = String(metric.count);
+    }
+    if (note) note.textContent = `of ${payload.recordCount} generated ${payload.recordType} records`;
+  }
+}
+
+/**
+ * The severity vocabulary a region's own tiles declare, turned into the carrier
+ * its status cells use.
+ *
+ * A RESOLVED STATUS RENDERS QUIET, and this is the visual law rather than a
+ * preference: quiet surfaces, loud exceptions, and applicability is inverted so
+ * that a pass is quiet. On a roster where eight of fourteen vehicles are in
+ * service, eight coloured pills are the loudest thing on the page and they are
+ * the rows that need nobody. The record contract has carried a resolved flag
+ * on every status vocabulary since G-77 and no renderer had ever read it; this
+ * is the first one that does.
+ *
+ * IT ALSO AVOIDS A MEASURED KIT DEFECT, and that is said here rather than left
+ * for someone to discover as the real reason. --sc-ok #2F7A52 on --sc-ok-wash
+ * #E3F0E8 is 4.44:1 in the light theme against 12px/500 text, which needs 4.5:1.
+ * It is 0.06 short, it lives in web/sc-kit.css, that file is byte-identical
+ * across three repos, and a Dashboards PR that edits a token forks the product
+ * line - so this lane cannot fix it and does not pretend to. The finding is
+ * carried to the planner with its measurement. Development services still
+ * renders ready-to-issue through p-ok, so one severity vocabulary currently has
+ * two renderings across two lenses; that divergence is named in the close and is
+ * a product-line call, not something to settle quietly here.
+ */
+function statusLabelsFor(payload) {
+  const out = {};
+  const extras = payload.extras || {};
+  for (const metric of Array.isArray(extras.metrics) ? extras.metrics : []) {
+    out[metric.id] = { label: metric.label, severity: metric.resolved ? "quiet" : metric.severity };
+  }
+  return out;
+}
+
+function fill(tbody, rows) {
+  if (tbody) tbody.replaceChildren(...rows);
+}
+
+/* ----------------------------------------------------------------- fleet */
+
+function renderFleet(payload) {
+  const ok = renderRegion("fleet-roster", payload);
+  renderRegionMetrics(document.getElementById("fleet-metrics"), payload);
+  const extras = payload.extras || {};
+  const records = ok && Array.isArray(payload.records) ? payload.records : [];
+  const labels = statusLabelsFor(payload);
+  fill(
+    document.getElementById("fleet-roster-rows"),
+    records.map((record) => {
+      const row = document.createElement("tr");
+      row.append(
+        td(record.recordId, "id"),
+        td(record.unitLabel, "subj"),
+        statusCell(record, labels),
+        td(record.operatorRef, "id"),
+        td(record.odometerBand),
+      );
+      return row;
+    }),
+  );
+  const operators = ok && Array.isArray(extras.operators) ? extras.operators : [];
+  fill(
+    document.getElementById("fleet-operator-rows"),
+    operators.map((operator) => {
+      const row = document.createElement("tr");
+      row.append(td(operator.operatorRef, "id"), td(String(operator.vehicleCount)));
+      return row;
+    }),
+  );
+  /**
+   * A VEHICLE IS NOT AN ASSET, said on the surface rather than only in the
+   * payload. G-24 stays at zero and this is the lens that would leak into it.
+   */
+  if (extras.inventoryBasis) setText("fleet-roster-inventory", `Basis: ${extras.inventoryBasis}`);
+  const operator = operators[0];
+  if (operator) {
+    setText("fleet-operator-basis", `Basis: ${operator.operatorBasis}`);
+    setText("fleet-operator-rule", operator.countingRule);
+  }
+}
+
+async function loadFleetLens(cityKey) {
+  const payload = (await loadDomain("fleet-vehicles", cityKey)) || unreadRegion("Vehicle roster", cityKey);
+  renderFleet(payload);
+  applyLensState("fleet-state-chip", "fleet", sourcedLabel([payload]));
+  setText("fleet-region-rule", sourcedRule([payload]));
+}
+
+/* ---------------------------------------------------------- public works */
+
+function renderCapitalProjects(payload) {
+  const ok = renderRegion("pw-cip", payload);
+  renderRegionMetrics(document.getElementById("pw-cip-metrics"), payload);
+  const extras = payload.extras || {};
+  const records = ok && Array.isArray(payload.records) ? payload.records : [];
+  const labels = statusLabelsFor(payload);
+  fill(
+    document.getElementById("pw-cip-rows"),
+    records.map((record) => {
+      const row = document.createElement("tr");
+      const place = record.place && record.place.label ? record.place.label : "";
+      row.append(
+        td(record.recordId, "id"),
+        td(record.subject, "subj"),
+        td(record.phase),
+        td(place),
+        td(record.scheduleLabel, "t-data"),
+        statusCell(record, labels),
+      );
+      return row;
+    }),
+  );
+  const phases = ok && Array.isArray(extras.phases) ? extras.phases : [];
+  fill(
+    document.getElementById("pw-cip-phase-rows"),
+    phases.map((phase) => {
+      const row = document.createElement("tr");
+      row.append(td(phase.phase, "subj"), td(String(phase.count)));
+      return row;
+    }),
+  );
+  const firstPhase = phases[0];
+  if (firstPhase) setText("pw-cip-phase-rule", firstPhase.countingRule);
+  /**
+   * Two MEASURED classes, printed as two. Neither is the remainder of the
+   * other, so the pair can be reconciled against the measured total rather than
+   * agreeing by construction.
+   */
+  const schedule = extras.schedule;
+  if (schedule) {
+    setText(
+      "pw-cip-schedule",
+      `Behind ${schedule.behind}, on or ahead ${schedule.onOrAhead}, measured ${schedule.measured}. Counting rule: ${schedule.countingRule}`,
+    );
+  }
+  /** No money on this register, and the refusal is stated rather than implied. */
+  if (extras.budgetBasis) setText("pw-cip-budget", `Basis: ${extras.budgetBasis}`);
+}
+
+/**
+ * Call analytics. AGGREGATE ONLY: the record IS a queue volume for one relative
+ * day, so there is no call row to render and nothing here builds one. No
+ * recording, no caller reference, no extension-to-person mapping - none of the
+ * three is in the payload and none is added.
+ */
+function renderCallAnalytics(payload) {
+  const ok = renderRegion("pw-calls", payload);
+  const extras = payload.extras || {};
+  const queues = ok && Array.isArray(extras.queues) ? extras.queues : [];
+  fill(
+    document.getElementById("pw-calls-queue-rows"),
+    queues.map((queue) => {
+      const row = document.createElement("tr");
+      row.append(
+        td(queue.queueRef, "id"),
+        td(String(queue.callsOffered)),
+        td(String(queue.callsAnswered)),
+        td(String(queue.callsAbandoned)),
+        td(String(queue.bucketCount)),
+      );
+      return row;
+    }),
+  );
+  const daily = ok && Array.isArray(extras.daily) ? extras.daily : [];
+  fill(
+    document.getElementById("pw-calls-day-rows"),
+    daily.map((day) => {
+      const row = document.createElement("tr");
+      row.append(
+        td(day.dayLabel, "subj"),
+        td(String(day.callsOffered)),
+        td(String(day.callsAnswered)),
+        td(String(day.callsAbandoned)),
+        td(String(day.bucketCount)),
+      );
+      return row;
+    }),
+  );
+  const firstQueue = queues[0];
+  if (firstQueue) setText("pw-calls-queue-rule", firstQueue.countingRule);
+  const firstDay = daily[0];
+  if (firstDay) setText("pw-calls-day-rule", firstDay.countingRule);
+  const totals = extras.totals;
+  if (totals) {
+    setText(
+      "pw-calls-totals",
+      `Offered ${totals.callsOffered}, answered ${totals.callsAnswered}, abandoned ${totals.callsAbandoned}, measured ${totals.measured}. Counting rule: ${totals.countingRule}`,
+    );
+  }
+  /** Excluded because it must not exist, not because nobody got to it. */
+  if (extras.excludedFamilies) setText("pw-calls-excluded", `Basis: ${extras.excludedFamilies}`);
+}
+
+async function loadPublicWorksLens(cityKey) {
+  const projects = (await loadDomain("cip-projects", cityKey)) || unreadRegion("Capital projects", cityKey);
+  const calls = (await loadDomain("call-analytics", cityKey)) || unreadRegion("Call analytics", cityKey);
+  renderCapitalProjects(projects);
+  renderCallAnalytics(calls);
+  const regions = [projects, calls];
+  applyLensState("pw-state-chip", "public-works", sourcedLabel(regions));
+  setText("pw-region-rule", sourcedRule(regions));
+}
+
+/* ------------------------------------------------------------ lens state */
+
+/** The lens label. Same vocabulary the pipeline already uses on the shell. */
+function sourcedLabel(regions) {
+  return regions.some((region) => region.status === "ok") ? "Demo records" : "Empty";
+}
+
+/** The figure, with its denominator and its counting rule at the point of use. */
+function sourcedRule(regions) {
+  const sourced = regions.filter((region) => region.status === "ok").length;
+  const noun = regions.length === 1 ? "region" : "regions";
+  return `${sourced} of ${regions.length} ${noun} sourced; a region is sourced when its kind is granted on this pack and it returned records`;
+}
+
+/**
+ * The page chip and the nav badge are one paired control, so they read one
+ * function and cannot diverge at runtime the way two careful edits would.
+ */
+function applyLensState(chipId, lensId, label) {
+  const chip = document.getElementById(chipId);
+  if (chip) chip.textContent = label;
+  const badge = document.querySelector(`.navitem[data-lens="${lensId}"] .badge`);
+  if (badge) badge.textContent = label;
+}
+
 /* ------------------------------------------------------------------- boot */
 
 const staffLens = resolveStaffLensQuery(window.location.search);
@@ -1763,4 +2004,6 @@ loadIdentity(staffMap.cityKey);
 composeGoldMap(staffMap.parcelNodeId, staffMap.cityKey);
 loadPipeline(staffMap.cityKey);
 loadDevelopmentServices(staffMap.cityKey);
+loadFleetLens(staffMap.cityKey);
+loadPublicWorksLens(staffMap.cityKey);
 if (resettle) resettle();
