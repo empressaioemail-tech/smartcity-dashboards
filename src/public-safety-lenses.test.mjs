@@ -335,18 +335,30 @@ describe("G-97 R2 accessibility is a merge gate in this lane", () => {
     }
   });
 
-  it("renders a resolved status quiet, which is the visual law and also the kit's limit", () => {
+  it("renders a resolved status quiet, which is the visual law", () => {
     /**
      * Inherited from G-97 R3 rather than re-decided here, and reused rather than
      * re-implemented: statusLabelsFor maps a resolved band to the quiet carrier,
      * so twelve online cameras and eight in-service trucks are not the loudest
-     * thing on their pages. It also keeps these lenses off the measured kit
-     * defect: --sc-ok #2F7A52 on --sc-ok-wash #E3F0E8 is 4.44:1 in the light
-     * theme against 12px/500 text, which needs 4.5:1. That token lives in
-     * web/sc-kit.css, byte-identical across three repos, and no Dashboards PR can
-     * fix it. Development services still renders ready-to-issue through p-ok, so
-     * one severity vocabulary has two renderings across the product; that is
-     * named in this lane's close as a product-line call, not settled here.
+     * thing on their pages.
+     *
+     * TWO CLAIMS THAT STOOD HERE ARE NOW FALSE AND ARE CORRECTED RATHER THAN
+     * QUIETLY DROPPED, because a stale comment is how a measurement outlives its
+     * subject. (1) The kit defect this comment cited - --sc-ok #2F7A52 on
+     * --sc-ok-wash #E3F0E8 at 4.44:1 against a 4.5:1 floor - was fixed by G-98,
+     * which raised the light token to #2E7750 for a computed 4.623:1 in all four
+     * repos as identical bytes. The carrier rule therefore rests on the visual
+     * law alone and no longer on a contrast limit. (2) Development services no
+     * longer renders ready-to-issue through p-ok: G-97 R1 routed renderPipeline
+     * through this same statusLabelsFor at web/app.js:710 and said so in its own
+     * comment there, so the resolved axis has ONE rendering product-wide.
+     *
+     * What remains, and it is a different axis rather than the same divergence:
+     * src/adapters.mjs INSPECTION_RESULT_VALUES carries an `inspected` flag, not
+     * a `resolved` flag, so `passed` still renders through p-ok. G-98 routed
+     * that to the planner rather than settling it, because `inspected` is true
+     * for failed and corrections as well and quieting on it would quiet a failed
+     * inspection.
      */
     assert.match(app, /severity: metric\.resolved \? "quiet" : metric\.severity/);
     for (const payload of [CAMERAS, APPARATUS]) {

@@ -346,19 +346,37 @@ describe("G-97 accessibility is a merge gate in this lane", () => {
     }
   });
 
-  it("renders a resolved status quiet, which is the visual law and also the kit's limit", () => {
+  it("renders a resolved status quiet on the visual law alone, now that the kit's limit is gone", () => {
     /**
-     * MEASURED, and the measurement is the point. --sc-ok #2F7A52 on
-     * --sc-ok-wash #E3F0E8 is 4.44:1 in the light theme, against 12px/500 text
-     * that needs 4.5:1. Every other pill pair passes in both themes. The failing
-     * pair lives in web/sc-kit.css, which is byte-identical across three repos,
-     * so it cannot be fixed from here.
+     * THE SELF-RETIRING TEST FIRED, AND THIS IS WHAT IT FORCED.
      *
-     * The carrier decision is made on the visual law - quiet surfaces, loud
-     * exceptions, a pass is quiet - and the contrast measurement is stated beside
-     * it so the reason is not later mistaken for the other one. The ratio is
-     * COMPUTED here rather than quoted, so a kit fix that raises the token makes
-     * this assertion fail and forces the decision to be re-taken in the open.
+     * G-97 R3 wrote this assertion as `ratio < 4.5` and said why: the carrier
+     * decision was taken while --sc-ok #2F7A52 on --sc-ok-wash #E3F0E8 measured
+     * 4.44:1 against 12px/500 text that needs 4.5:1, and a decision taken partly
+     * on a defect must not outlive the defect silently. The ratio was COMPUTED
+     * rather than quoted so that a kit fix would turn this red and force the
+     * decision to be re-taken in the open. G-98 raised the token to #2E7750,
+     * the assertion went red exactly as designed, and the decision was re-taken.
+     *
+     * IT WAS RE-TAKEN THE SAME WAY, AND THE TWO REASONS ARE NOW SEPARATED.
+     * A resolved status renders quiet because the visual law says applicability
+     * is inverted - quiet surfaces, loud exceptions, a pass is quiet - and on a
+     * roster where eight of fourteen vehicles are in service, eight coloured
+     * pills are the loudest thing on the page and they are the rows that need
+     * nobody. That reason never depended on the contrast measurement. The
+     * contrast measurement was the second reason, it has expired, and the rule
+     * stands on the first one alone. The token fix and this rendering rule are
+     * INDEPENDENT; they are not coupled and must not be read as coupled.
+     *
+     * THE ASSERTION IS KEPT AND INVERTED RATHER THAN DELETED, because the pair
+     * is still one hex digit from failing and nothing else in this product
+     * computes a contrast ratio. It now fails if the kit ever regresses below
+     * the floor, which is the same control pointing the other way.
+     *
+     * Counting rule for the ratio below: WCAG 2.x sRGB relative luminance,
+     * (Llighter+0.05)/(Ldarker+0.05), against the 4.5:1 floor that applies
+     * because web/shell.css declares .pill at font: 500 12px/16px, which is
+     * neither large nor large-bold text.
      */
     const kit = readSource("web/sc-kit.css");
     const okHex = kit.match(/--sc-ok:(#[0-9A-Fa-f]{6})/)?.[1];
@@ -374,8 +392,8 @@ describe("G-97 accessibility is a merge gate in this lane", () => {
     const b = lum(washHex);
     const ratio = (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
     assert.ok(
-      ratio < 4.5,
-      `the light p-ok pair is now ${ratio.toFixed(2)}:1 and passes AA; the quiet carrier below was chosen while it did not, so re-take the decision rather than leaving it`,
+      ratio >= 4.5,
+      `the light p-ok pair is ${ratio.toFixed(3)}:1 and no longer meets the 4.5:1 floor for 12px/500 text; the kit has regressed below the value G-98 raised it to`,
     );
     assert.match(app, /severity: metric\.resolved \? "quiet" : metric\.severity/);
   });
