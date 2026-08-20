@@ -563,33 +563,108 @@
               </div>
             </section>
 
-            <section class="lens roster-lens" id="lens-public-works">
+            <section class="lens" id="lens-public-works">
               <header class="pagehead">
                 <div class="crumb"><b data-pack-name>This city</b> <span>/</span> Public works</div>
-                <div class="titlerow"><h1>Public works</h1><span class="pill p-quiet">Not built</span></div>
+                <div class="titlerow"><h1>Public works</h1><span class="pill p-quiet" id="pw-state-chip">Empty</span><span class="grow"></span><span class="t-caption" id="pw-region-rule">No region has been read for this pack</span></div>
+                <p class="lede">Capital projects and call handling. Each region states its own source, carries its own counting rule, and prints no figure this pack has not made.</p>
               </header>
               <div class="shell-regions solo">
-                <div class="panel">
-                  <div class="state">
-                    <span class="st-k">Lens on the roster</span>
-                    <h5>Public works is named, and not built.</h5>
-                    <p>The department is on the roster so the navigation never implies coverage the product does not have. Capital projects, reporting, and phone analytics land here when the lens is built.</p>
-                    <span class="basis">Basis: no view designed for this lens. Its jobs are listed on Connections with their homes.</span>
+                <div class="colstack" tabindex="0" role="region" aria-label="Public works regions">
+                  <div class="metrics" id="pw-cip-metrics">
+                    <div class="metric" data-metric="stalled"><span class="k">Stalled</span><span class="v word">Not read</span><span class="n">No projects source</span></div>
+                    <div class="metric" data-metric="at-risk"><span class="k">At risk</span><span class="v word">Not read</span><span class="n">No projects source</span></div>
+                    <div class="metric" data-metric="in-progress"><span class="k">In progress</span><span class="v word">Not read</span><span class="n">No projects source</span></div>
+                    <div class="metric" data-metric="complete"><span class="k">Complete</span><span class="v word">Not read</span><span class="n">No projects source</span></div>
                   </div>
-                  <div class="roster-note">
-                    <span class="t-label">Jobs waiting on this lens</span>
-                    <div class="roster-list">
-                      <span class="prov"><b>CIP / projects</b></span>
-                      <span class="prov"><b>Reporting</b></span>
-                      <span class="prov"><b>Phones</b></span>
-                      <span class="prov"><b>Reports centre</b></span>
-                      <span class="prov"><b>Call analytics</b></span>
+                  <div class="panel">
+                    <div class="panel-head"><span class="t">Capital projects</span><span class="grow"></span><span class="pill p-warn" id="pw-cip-mark" hidden>Demo records</span><span class="prov" id="pw-cip-prov" hidden><b>Generated fixture</b><span class="sep">|</span>Reporting output contract</span><span class="t-caption" id="pw-cip-caption">Not read</span></div>
+                    <div class="state" id="pw-cip-state">
+                      <span class="st-k" id="pw-cip-kicker">Region unread</span>
+                      <h2 id="pw-cip-head">The capital projects register has not been read for this pack.</h2>
+                      <p>A capital improvement register is a budget document everywhere else. This one carries no budget figure, no spend and no percent of budget, because a money number beside a city name is a claim about that city's finances.</p>
+                      <span class="basis" id="pw-cip-basis">Basis: no region payload has been read for this pack</span>
+                    </div>
+                    <div id="pw-cip-records" hidden>
+                      <table class="dt">
+                        <thead>
+                          <tr>
+                            <th scope="col">Project</th>
+                            <th scope="col">Subject</th>
+                            <th scope="col">Phase</th>
+                            <th scope="col">Place</th>
+                            <th scope="col">Schedule</th>
+                            <th scope="col">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody id="pw-cip-rows"></tbody>
+                      </table>
+                      <div class="panel-body">
+                        <span class="basis" id="pw-cip-schedule">Schedule variance has not been read for this pack</span>
+                        <span class="basis" id="pw-cip-budget">The budget position has not been read for this pack</span>
+                      </div>
+                      <div class="panel-head"><span class="t">Phase</span><span class="grow"></span><span class="t-caption" id="pw-cip-phase-rule">Where each project sits in its own lifecycle</span></div>
+                      <table class="dt">
+                        <thead>
+                          <tr>
+                            <th scope="col">Phase</th>
+                            <th scope="col">Projects</th>
+                          </tr>
+                        </thead>
+                        <tbody id="pw-cip-phase-rows"></tbody>
+                      </table>
+                      <div class="panel-body">
+                        <span class="basis" id="pw-cip-recordsbasis">Basis: generated fixture records</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="panel">
+                    <div class="panel-head"><span class="t">Call analytics</span><span class="grow"></span><span class="pill p-warn" id="pw-calls-mark" hidden>Demo records</span><span class="prov" id="pw-calls-prov" hidden><b>Generated fixture</b><span class="sep">|</span>Phone output contract</span><span class="t-caption" id="pw-calls-caption">Not read</span></div>
+                    <div class="state" id="pw-calls-state">
+                      <span class="st-k" id="pw-calls-kicker">Region unread</span>
+                      <h2 id="pw-calls-head">Call handling has not been read for this pack.</h2>
+                      <p>The unit here is a queue volume for one relative day and never a call. No call detail, no recording and no mapping from a line to the person who answers it is generated, and none is displayed.</p>
+                      <span class="basis" id="pw-calls-basis">Basis: no region payload has been read for this pack</span>
+                    </div>
+                    <div id="pw-calls-records" hidden>
+                      <div class="panel-body">
+                        <span class="basis" id="pw-calls-totals">Call volume has not been read for this pack</span>
+                        <span class="basis" id="pw-calls-excluded">The excluded families have not been read for this pack</span>
+                      </div>
+                      <div class="panel-head"><span class="t">By queue</span><span class="grow"></span><span class="t-caption" id="pw-calls-queue-rule">A queue is a function, never a desk</span></div>
+                      <table class="dt">
+                        <thead>
+                          <tr>
+                            <th scope="col">Queue</th>
+                            <th scope="col">Offered</th>
+                            <th scope="col">Answered</th>
+                            <th scope="col">Abandoned</th>
+                            <th scope="col">Buckets</th>
+                          </tr>
+                        </thead>
+                        <tbody id="pw-calls-queue-rows"></tbody>
+                      </table>
+                      <div class="panel-head"><span class="t">By relative day</span><span class="grow"></span><span class="t-caption" id="pw-calls-day-rule">No calendar date is printed</span></div>
+                      <table class="dt">
+                        <thead>
+                          <tr>
+                            <th scope="col">Day</th>
+                            <th scope="col">Offered</th>
+                            <th scope="col">Answered</th>
+                            <th scope="col">Abandoned</th>
+                            <th scope="col">Buckets</th>
+                          </tr>
+                        </thead>
+                        <tbody id="pw-calls-day-rows"></tbody>
+                      </table>
+                      <div class="panel-body">
+                        <span class="basis" id="pw-calls-recordsbasis">Basis: generated fixture records</span>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
             </section>
-
             <section class="lens roster-lens" id="lens-parks">
               <header class="pagehead">
                 <div class="crumb"><b data-pack-name>This city</b> <span>/</span> Parks</div>
@@ -659,32 +734,63 @@
               </div>
             </section>
 
-            <section class="lens roster-lens" id="lens-fleet">
+            <section class="lens" id="lens-fleet">
               <header class="pagehead">
                 <div class="crumb"><b data-pack-name>This city</b> <span>/</span> Fleet</div>
-                <div class="titlerow"><h1>Fleet</h1><span class="pill p-quiet">Not built</span></div>
+                <div class="titlerow"><h1>Fleet</h1><span class="pill p-quiet" id="fleet-state-chip">Empty</span><span class="grow"></span><span class="t-caption" id="fleet-region-rule">No region has been read for this pack</span></div>
+                <p class="lede">Vehicles and the operators they group under. A vehicle on a telemetry contract is a fleet record on this lens and never a city-owned asset record.</p>
               </header>
               <div class="shell-regions solo">
-                <div class="panel">
-                  <div class="state">
-                    <span class="st-k">Lens on the roster</span>
-                    <h5>Fleet is named, and not built.</h5>
-                    <p>Vehicles, drivers, utilisation, and safety land here. A vehicle on a telemetry feed is a fleet record on this lens; it is never a city-owned asset record on Assets.</p>
-                    <span class="basis">Basis: no view designed for this lens. Fleet telemetry does not fill the Assets inventory.</span>
+                <div class="colstack" tabindex="0" role="region" aria-label="Fleet regions">
+                  <div class="metrics" id="fleet-metrics">
+                    <div class="metric" data-metric="out-of-service"><span class="k">Out of service</span><span class="v word">Not read</span><span class="n">No fleet source</span></div>
+                    <div class="metric" data-metric="inspection-due"><span class="k">Inspection due</span><span class="v word">Not read</span><span class="n">No fleet source</span></div>
+                    <div class="metric" data-metric="in-shop"><span class="k">In shop</span><span class="v word">Not read</span><span class="n">No fleet source</span></div>
+                    <div class="metric" data-metric="in-service"><span class="k">In service</span><span class="v word">Not read</span><span class="n">No fleet source</span></div>
                   </div>
-                  <div class="roster-note">
-                    <span class="t-label">Jobs waiting on this lens</span>
-                    <div class="roster-list">
-                      <span class="prov"><b>Vehicles</b></span>
-                      <span class="prov"><b>Drivers</b></span>
-                      <span class="prov"><b>Utilisation</b></span>
-                      <span class="prov"><b>Safety</b></span>
+                  <div class="panel">
+                    <div class="panel-head"><span class="t">Vehicle roster</span><span class="grow"></span><span class="pill p-warn" id="fleet-roster-mark" hidden>Demo records</span><span class="prov" id="fleet-roster-prov" hidden><b>Generated fixture</b><span class="sep">|</span>Telemetry output contract</span><span class="t-caption" id="fleet-roster-caption">Not read</span></div>
+                    <div class="state" id="fleet-roster-state">
+                      <span class="st-k" id="fleet-roster-kicker">Region unread</span>
+                      <h2 id="fleet-roster-head">The vehicle roster has not been read for this pack.</h2>
+                      <p>Vehicles, the operators they group under, and the condition each one is in. Nothing on this lens is written to the city inventory and nothing here counts toward Assets.</p>
+                      <span class="basis" id="fleet-roster-basis">Basis: no region payload has been read for this pack</span>
+                    </div>
+                    <div id="fleet-roster-records" hidden>
+                      <table class="dt">
+                        <thead>
+                          <tr>
+                            <th scope="col">Vehicle</th>
+                            <th scope="col">Unit</th>
+                            <th scope="col">Status</th>
+                            <th scope="col">Operator</th>
+                            <th scope="col">Odometer</th>
+                          </tr>
+                        </thead>
+                        <tbody id="fleet-roster-rows"></tbody>
+                      </table>
+                      <div class="panel-body">
+                        <span class="basis" id="fleet-roster-inventory">The inventory position has not been read for this pack</span>
+                      </div>
+                      <div class="panel-head"><span class="t">Operators</span><span class="grow"></span><span class="t-caption" id="fleet-operator-rule">An opaque reference, never a person</span></div>
+                      <table class="dt">
+                        <thead>
+                          <tr>
+                            <th scope="col">Operator</th>
+                            <th scope="col">Vehicles</th>
+                          </tr>
+                        </thead>
+                        <tbody id="fleet-operator-rows"></tbody>
+                      </table>
+                      <div class="panel-body">
+                        <span class="basis" id="fleet-operator-basis">The operator dimension has not been read for this pack</span>
+                        <span class="basis" id="fleet-roster-recordsbasis">Basis: generated fixture records</span>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
             </section>
-
             <section class="lens" id="work-review">
               <header class="pagehead">
                 <div class="crumb"><b data-pack-name>This city</b> <span>/</span> Plan review</div>
