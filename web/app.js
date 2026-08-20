@@ -1773,16 +1773,30 @@ function renderRegionMetrics(strip, payload) {
  * on every status vocabulary since G-77 and no renderer had ever read it; this
  * is the first one that does.
  *
- * IT ALSO AVOIDS A MEASURED KIT DEFECT, and that is said here rather than left
- * for someone to discover as the real reason. --sc-ok #2F7A52 on --sc-ok-wash
- * #E3F0E8 is 4.44:1 in the light theme against 12px/500 text, which needs 4.5:1.
- * It is 0.06 short, it lives in web/sc-kit.css, that file is byte-identical
- * across three repos, and a Dashboards PR that edits a token forks the product
- * line - so this lane cannot fix it and does not pretend to. The finding is
- * carried to the planner with its measurement. Development services still
- * renders ready-to-issue through p-ok, so one severity vocabulary currently has
- * two renderings across two lenses; that divergence is named in the close and is
- * a product-line call, not something to settle quietly here.
+ * IT ALSO AVOIDED A MEASURED KIT DEFECT, WHICH IS NOW FIXED, and the retired
+ * reason is recorded rather than deleted so that nobody re-derives it. When this
+ * rule was written, --sc-ok #2F7A52 on --sc-ok-wash #E3F0E8 was 4.44:1 in the
+ * light theme against 12px/500 text needing 4.5:1 - 0.06 short - and the token
+ * lived in web/sc-kit.css, byte-identical across three repos, so no Dashboards
+ * PR could touch it. G-98 fixed it as a product-line change: the light token is
+ * #2E7750, a computed 4.623:1, landed as identical bytes in smartcity-dashboards,
+ * smart-files, plan-review and the kit's vendored copy. The dark pair never
+ * failed (#55BE86 composites to 6.171:1 as rendered) and did not move.
+ *
+ * SO THIS RULE NOW RESTS ON THE VISUAL LAW ALONE. The two reasons were always
+ * separate and only one has expired; the rendering rule and the token fix are
+ * INDEPENDENT and must not be read as coupled. src/render-lenses.test.mjs
+ * computes the ratio live and now asserts the floor is MET, so a kit regression
+ * turns the suite red from the other direction.
+ *
+ * ONE AXIS IS STILL UNSETTLED, and it is a different one rather than the same
+ * divergence. src/adapters.mjs INSPECTION_RESULT_VALUES declares `inspected`
+ * rather than `resolved`, so this function cannot see it and `passed` renders
+ * through p-ok while every resolved band renders quiet. G-98 routed that to the
+ * planner instead of settling it: `inspected` is also true for `failed` and
+ * `corrections`, so quieting on that flag would quiet a failed inspection, and
+ * the correct generalisation - one satisfied-band predicate across both
+ * vocabularies - is a rule change rather than a value change.
  */
 function statusLabelsFor(payload) {
   const out = {};
