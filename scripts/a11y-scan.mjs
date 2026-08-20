@@ -61,20 +61,56 @@
  *      lever itself, and it is what makes "both themes were scanned" a measured
  *      claim rather than a described one.
  *
+ * TWO VIEWPORTS, AND THE BOUND IS DECLARED (G-99). axe does not report less
+ * outside the viewport - it does not EVALUATE outside it, and an element it does
+ * not evaluate lands in no bucket at all, not even the incomplete one. Measured
+ * on one surface with height as the only variable, the whole color-contrast
+ * population (passes + violations + incomplete) was 143 nodes at 1440x900, 182
+ * at 1200, 213 at 1600 and 234 at 2400, matching the in-viewport element count
+ * exactly at every height. So G-95's "0 conformance nodes over 46 scans" covered
+ * 72.5% of the product's rendered text and the other 27.5% held five real AA
+ * failures. Every surface is now scanned twice from ONE page load: at the
+ * reference viewport a person reads at, and at a viewport GROWN until nothing is
+ * left outside the clipping box. Both figures are reported, neither is merged
+ * into the other, and the coverage ratio is printed beside the node count.
+ *
+ * THE ENVIRONMENT IS PART OF THE CONTRACT (G-99). The same commit produced 0
+ * unresolved nodes on Windows with the remote webfont blocked and 88 with it
+ * allowed, and 2 on a Linux CI runner. The cause is font metrics: the real Inter
+ * face renders 9.35% wider, which wraps the sticky nav footer to one more line,
+ * which slides a nav item's edge across a footer figure, and axe will not
+ * composite a background through a partial overlap. So this scanner records a
+ * TYPEFACE witness and a GEOMETRY witness on every run, refuses a run whose
+ * typeface did not land, and DECLARES which environment is the figure of record -
+ * printing an INDICATIVE banner, top and bottom, on any run that is not.
+ *
  * COUNTING RULES, stated here because this is where the numbers are read:
  *   SURFACE      one URL this product serves. A lens, a lens+tab, a work view,
  *                a work view+tab, or a pack chosen by cityKey.
- *   SCAN         one surface under one THEME. Both themes are scanned, so the
- *                denominator is surfaces x themes and every node count below is
+ *   SCAN         one surface under one THEME at one VIEWPORT. Both themes and
+ *                both viewports are scanned, so the denominator is
+ *                surfaces x themes x viewports and every node count below is
  *                summed over that, never over surfaces alone.
+ *   ARM          one theme at one viewport. Every ceiling in the ledgers is
+ *                pinned per arm, so a full-extent regression cannot hide behind
+ *                a reference improvement any more than a dark one can hide
+ *                behind a light one.
  *   VIOLATION    one axe rule failing on at least one scan.
  *   NODES        the sum of failing DOM elements across all scans. One element
  *                failing on ten scans counts ten.
  *   CONFORMANCE  a rule carrying wcag2a / wcag2aa / wcag21a / wcag21aa. Anything
  *                else is best-practice and is NOT a conformance failure, though
  *                it is still reported.
+ *   RENDERED     an element carrying its own non-empty text node, with at least
+ *                one client rect, whose computed visibility is not hidden. This
+ *                is the coverage DENOMINATOR.
+ *   IN-VIEWPORT  a rendered element whose bounding box intersects the viewport
+ *                box. This is the coverage NUMERATOR, and it is what axe
+ *                evaluates.
  *   FOCUSABLE    an element reached by pressing Tab from the top of the
- *                document, up to a bounded number of presses.
+ *                document, up to a bounded number of presses, AT THE REFERENCE
+ *                VIEWPORT - the tab ring and a computed focus style are both
+ *                independent of window height, so the walk is not repeated.
  * ---------------------------------------------------------------------------
  */
 
@@ -86,10 +122,18 @@ import { server } from "../src/server.mjs";
 import { A11Y_TARGETS, expectedTitle, PRODUCT_TITLE } from "../src/a11y-surfaces.mjs";
 import { THEMES, THEME_STORAGE_KEY } from "../src/theme.mjs";
 import {
+  AUTHORITATIVE,
   CONFORMANCE_TAGS,
+  FULL_EXTENT_VIEWPORT,
   GATED_BEST_PRACTICE,
+  REFERENCE_VIEWPORT,
   REVIEW_ITEMS,
+  VIEWPORTS,
+  VIEWPORT_IDS,
   WAIVERS,
+  armId,
+  authorityOf,
+  isSubjectBounded,
   summarize,
   verdict,
   waivedTotal,
@@ -98,6 +142,15 @@ import {
 
 const require = createRequire(import.meta.url);
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
+
+/**
+ * The elements every adjudication in the ledger makes a claim about, DERIVED
+ * from the ledger rather than restated here. An adjudication says a pair reads
+ * acceptably; the scanner recomputes exactly those pairs on every run so the
+ * verdict can refuse the entry when the measurement contradicts it. Restating
+ * the list would be two implementations of one rule, which is the CTRL-1 shape.
+ */
+const ADJUDICATED_SUBJECTS = [...new Set(REVIEW_ITEMS.flatMap((r) => r.subjects || []))];
 
 export const PLANTS = {
   "scrollable-region-focusable": {
@@ -188,6 +241,115 @@ export const PLANTS = {
     apply: () => {
       const style = document.createElement("style");
       style.textContent = ":focus-visible { outline: none !important; box-shadow: none !important; }";
+      document.head.appendChild(style);
+    },
+  },
+  /**
+   * ---------------------------------------------------------------------------
+   * G-99's plants. Each one refuses a class this scanner did not have before,
+   * and the first is the whole row: a defect that the reference viewport cannot
+   * see and the full-extent viewport must.
+   * ---------------------------------------------------------------------------
+   */
+  "below-the-fold-contrast": {
+    what: "low-contrast text placed BELOW the reference fold, which the old single-viewport gate could not see at all",
+    /**
+     * DELIBERATELY NOT position:fixed, which is the opposite of every plant
+     * above. Those are pinned into view because the shell does not scroll and an
+     * unseen node proves nothing; this one has to be genuinely out of the
+     * reference viewport or it does not test what it claims to. It is placed at
+     * a document position past 900px and inside no overflow-hidden box smaller
+     * than the shell, so at the reference viewport axe's matcher drops it before
+     * the check runs, and at full extent the growth loop reaches it because the
+     * coverage probe counts it as outside.
+     */
+    apply: () => {
+      const p = document.createElement("p");
+      p.setAttribute(
+        "style",
+        "position:absolute;left:24px;top:1400px;z-index:99999;color:#8a8a8a;background:#909090;font-size:14px;padding:4px",
+      );
+      p.textContent = "planted low contrast text below the fold";
+      document.body.appendChild(p);
+    },
+  },
+  "viewport-growth-changed-the-page": {
+    what: "a finding that DISAPPEARS when the viewport grows, which would mean growing it altered the layout instead of revealing it",
+    /**
+     * The plant for the divergence test on the technique itself. Growing the
+     * viewport is only a legitimate instrument if it reveals; if a finding can
+     * vanish, every full-extent number in the run is suspect. This plants an
+     * element whose contrast is a function of window height, which is exactly
+     * the shape that would break the assumption, and the gate must refuse it.
+     */
+    apply: () => {
+      const style = document.createElement("style");
+      style.textContent =
+        ".k2-height-dependent { color: #8a8a8a; background: #909090; }" +
+        "@media (min-height: 1000px) { .k2-height-dependent { color: #000000; background: #ffffff; } }";
+      document.head.appendChild(style);
+      const p = document.createElement("p");
+      p.className = "k2-height-dependent";
+      p.setAttribute("style", `${window.__plantChrome}font-size:14px;padding:4px`);
+      p.textContent = "planted height dependent contrast";
+      document.body.appendChild(p);
+    },
+  },
+  "unreachable-extent": {
+    what: "content past the growth cap, so the full-extent scan cannot actually reach full extent and must say so rather than reporting a clean figure",
+    apply: () => {
+      const p = document.createElement("p");
+      p.setAttribute("style", "position:absolute;left:24px;top:99000px;color:#111;background:#fff;font-size:14px");
+      p.textContent = "planted content past the growth cap";
+      document.body.appendChild(p);
+    },
+  },
+  "punctuation-contrast": {
+    what: "a low-contrast punctuation glyph, which axe excludes from color-contrast by design and therefore reports in NO bucket at all",
+    /**
+     * The plant for the class the SECOND instrument exists for, and it is
+     * planted as the real thing rather than as a synthetic: a span whose only
+     * text is punctuation, at a ratio no one could read. axe returns nothing for
+     * it - measured by bisect on a live element, "|" NOT EVALUATED against "XY"
+     * VIOLATION with the character as the only variable - so a gate built on axe
+     * alone reports this page clean. If the independent sweep is ever removed or
+     * narrowed past this class, this plant reports the gate passing and says so.
+     */
+    apply: () => {
+      const p = document.createElement("p");
+      p.className = "sep";
+      p.setAttribute("style", `${window.__plantChrome}color:#8a8a8a;background:#909090;font-size:13px;padding:2px`);
+      p.textContent = "|";
+      document.body.appendChild(p);
+    },
+  },
+  "adjudication-refuted": {
+    what: "an adjudicated element repainted below its threshold, so the ledger's recorded basis is contradicted by the run's own measurement",
+    /**
+     * An adjudication says "axe could not settle this, but a human read it and
+     * it reads acceptably" - which is a claim about a ratio that nothing used to
+     * check. This repaints the adjudicated subjects to an unreadable pair and
+     * leaves the ledger untouched; the gate must refuse its own entry rather
+     * than keep believing it.
+     */
+    apply: () => {
+      const style = document.createElement("style");
+      style.textContent = "#nav-demonstrated, #nav-sources-rule { color: #8a8a8a !important; background: #909090 !important; }";
+      document.head.appendChild(style);
+    },
+  },
+  "typeface-fallback": {
+    what: "the shipped typeface not rendering, which silently changes every wrap point and therefore every overlap axe judges",
+    /**
+     * document.fonts.check("14px Inter") returns TRUE whether or not the face
+     * loaded, because the fallback can render the string - measured, in both
+     * arms. So the landing test is an advance-width comparison and this plant
+     * moves exactly that: it repoints the product's own token at a generic
+     * family, so the stack and the named face stop measuring alike.
+     */
+    apply: () => {
+      const style = document.createElement("style");
+      style.textContent = ":root { --sc-font-ui: sans-serif !important; --sc-font-data: monospace !important; }";
       document.head.appendChild(style);
     },
   },
@@ -443,8 +605,480 @@ async function tabWalk(page, limit = 400) {
  * cleanest of the run. The paint assertion below is what turned it into a
  * failure instead.
  */
+/**
+ * ---------------------------------------------------------------------------
+ * THE COVERAGE PROBE. G-99, and it is the denominator every node count in this
+ * file is quoted against.
+ *
+ * RENDERED counts an element carrying its OWN non-empty text node, with at
+ * least one client rect, whose computed visibility is not hidden. IN-VIEWPORT
+ * counts a rendered element whose bounding box intersects the viewport box.
+ * OVERFLOW-BELOW is how much further the viewport would have to reach to hold
+ * everything, taken as the larger of the deepest element bottom past the fold
+ * and the deepest hidden scroll extent.
+ *
+ * Both halves are needed and the second one is not decoration: on the
+ * work-connections surface at 1440x3000 every scroll-extent probe reported ZERO
+ * hidden pixels while 96 of 283 rendered elements were still outside the box,
+ * because that content sits in an overflow:HIDDEN container rather than a
+ * scrollable one. A growth loop driven by scroll extents alone would have
+ * stopped there and certified the surface as fully covered.
+ * ---------------------------------------------------------------------------
+ */
+const COVERAGE_PROBE = () => {
+  const inView = (r) =>
+    !(r.bottom <= 0 || r.top >= innerHeight || r.right <= 0 || r.left >= innerWidth) &&
+    r.width > 0 &&
+    r.height > 0;
+  const rendered = [...document.querySelectorAll("h1,h2,h3,h4,h5,h6,p,span,b,strong,em,a,button,td,th,li,label,caption,dt,dd")].filter(
+    (el) =>
+      [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim()) &&
+      el.getClientRects().length > 0 &&
+      getComputedStyle(el).visibility !== "hidden",
+  );
+  let deepest = 0;
+  let inside = 0;
+  for (const el of rendered) {
+    const r = el.getBoundingClientRect();
+    if (inView(r)) inside += 1;
+    else deepest = Math.max(deepest, r.bottom - innerHeight);
+  }
+  let scrollHidden = 0;
+  for (const el of document.querySelectorAll("*")) {
+    const gap = el.scrollHeight - el.clientHeight;
+    if (gap > 2 && /auto|scroll/.test(getComputedStyle(el).overflowY)) scrollHidden = Math.max(scrollHidden, gap);
+  }
+  return {
+    height: innerHeight,
+    rendered: rendered.length,
+    inViewport: inside,
+    outside: rendered.length - inside,
+    overflowBelow: Math.ceil(Math.max(deepest, scrollHidden)),
+  };
+};
+
+/**
+ * THE TYPEFACE PROBE. G-99.
+ *
+ * document.fonts.check("14px Inter") returns TRUE whether or not the face
+ * loaded - measured, in both arms - because the fallback can render the string,
+ * so it is a broken-open indicator and is recorded only as a curiosity. The
+ * reliable witness is an advance width: the product's own token stack against
+ * the named face alone. Equal means the named face is what rendered; different
+ * means something else did, and every wrap point in the product is then
+ * different from the shipped one.
+ */
+const TYPEFACE_PROBE = () => {
+  const width = (family, size) => {
+    const s = document.createElement("span");
+    s.textContent = "Development services staff review";
+    s.setAttribute(
+      "style",
+      `position:absolute;left:-9999px;top:-9999px;white-space:nowrap;font-weight:400;font-size:${size}px;font-family:${family}`,
+    );
+    document.body.appendChild(s);
+    const w = Math.round(s.getBoundingClientRect().width * 100) / 100;
+    s.remove();
+    return w;
+  };
+  const uiWidth = width("var(--sc-font-ui)", 14);
+  const namedUiWidth = width('"Inter"', 14);
+  const dataWidth = width("var(--sc-font-data)", 12);
+  const namedDataWidth = width('"IBM Plex Mono"', 12);
+  return {
+    ui: uiWidth === namedUiWidth ? "shipped" : "fallback",
+    data: dataWidth === namedDataWidth ? "shipped" : "fallback",
+    uiWidth,
+    namedUiWidth,
+    dataWidth,
+    namedDataWidth,
+    genericWidth: width("sans-serif", 14),
+    faceCount: document.fonts ? document.fonts.size : null,
+    /** Recorded to keep the broken indicator visible rather than forgotten. */
+    checkSaysInterIsAvailable: document.fonts ? document.fonts.check("14px Inter") : null,
+  };
+};
+
+/**
+ * THE GEOMETRY WITNESS. G-99.
+ *
+ * The one class of finding this gate cannot pin a number to is the sticky nav
+ * footer overlapping the scrolling nav list, because whether it overlaps is a
+ * function of where the footer's sentence wraps. These are the numbers that
+ * change when it does, recorded on every run so two machines that disagree are
+ * diagnosed from one log line rather than reproduced. It is the same move the
+ * colour witness made in G-95, which turned "two machines disagree" into a
+ * one-line diagnosis instead of a theory.
+ */
+const GEOMETRY_PROBE = () => {
+  const nav = document.querySelector("#shell-nav");
+  const foot = document.querySelector(".nav-foot");
+  const dem = document.querySelector("#nav-demonstrated");
+  if (!nav || !foot) return null;
+  const fr = foot.getBoundingClientRect();
+  const items = [...nav.querySelectorAll(".navitem")];
+  const last = items.length ? items[items.length - 1].getBoundingClientRect() : null;
+  const prov = foot.querySelector(".prov");
+  return {
+    dpr: devicePixelRatio,
+    navHiddenPx: nav.scrollHeight - nav.clientHeight,
+    navFootTop: Math.round(fr.top),
+    navFootHeight: Math.round(fr.height),
+    provHeight: prov ? Math.round(prov.getBoundingClientRect().height) : null,
+    lastNavItemBottom: last ? Math.round(last.bottom) : null,
+    overlapPx: last ? Math.round(last.bottom - fr.top) : null,
+    demonstratedTop: dem ? Math.round(dem.getBoundingClientRect().top) : null,
+  };
+};
+
+/**
+ * ---------------------------------------------------------------------------
+ * THE SECOND INSTRUMENT, IN PAGE. G-99, second pass.
+ *
+ * A sibling lane found a 1.74:1 ratio on a glyph that appears on every surface
+ * in this product, and no bucket of axe reports it - not violations, not passes,
+ * not incomplete. Bisected on one element with the character as the only
+ * variable: text "|" NOT EVALUATED, "X" incomplete, "||" NOT EVALUATED, "XY"
+ * VIOLATION. axe-core excludes punctuation-only text from color-contrast by
+ * design (axe.js:28714, `removeUnicodeOptions = { emoji: true, nonBmp: false,
+ * punctuations: true }` feeding hasRealTextChildren).
+ *
+ * That is axe working as documented, and it is also why a gate built on one tool
+ * inherits that tool's exclusion set silently. So this composites backgrounds and
+ * computes WCAG ratios directly, and it reports what axe never looked at.
+ *
+ * CONSERVATIVE BY CONSTRUCTION, because an instrument that guesses in ambiguous
+ * cases cries wolf and gets switched off. It computes only where the answer is
+ * unambiguous - opaque foreground, opaque background reached without crossing an
+ * image, a gradient, a filter or a translucent layer, and an element whose own
+ * centre hit-tests back to itself - and counts everything else as could-not-
+ * compute. It also computes the ratio for a NAMED SUBJECT LIST, which is what
+ * lets the verdict re-measure an adjudication instead of believing it.
+ * ---------------------------------------------------------------------------
+ */
+const CONTRAST_SWEEP = (subjects, groups) => {
+  const parse = (c) => {
+    const m = String(c).match(/rgba?\(([^)]+)\)/);
+    if (!m) return null;
+    const p = m[1].split(",").map((x) => parseFloat(x.trim()));
+    return { r: p[0], g: p[1], b: p[2], a: p.length > 3 ? p[3] : 1 };
+  };
+  const lum = (c) => {
+    const f = (v) => {
+      const x = v / 255;
+      return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4);
+    };
+    return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b);
+  };
+  const over = (fg, bg) => ({
+    r: fg.r * fg.a + bg.r * (1 - fg.a),
+    g: fg.g * fg.a + bg.g * (1 - fg.a),
+    b: fg.b * fg.a + bg.b * (1 - fg.a),
+    a: 1,
+  });
+  const ratioOf = (a, b) => {
+    const l1 = lum(a);
+    const l2 = lum(b);
+    return Number(((Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05)).toFixed(3));
+  };
+  /** Walk to an opaque background, refusing the moment anything is ambiguous. */
+  const resolveBg = (el) => {
+    let node = el;
+    let acc = null;
+    while (node && node.nodeType === 1) {
+      const cs = getComputedStyle(node);
+      if (cs.backgroundImage && cs.backgroundImage !== "none") return { ambiguous: "background-image" };
+      if (cs.filter && cs.filter !== "none") return { ambiguous: "filter" };
+      if (parseFloat(cs.opacity) < 1) return { ambiguous: "opacity" };
+      const c = parse(cs.backgroundColor);
+      if (c && c.a > 0) {
+        if (c.a < 1 && !acc) acc = c;
+        else acc = acc ? over(acc, c) : c;
+        if (acc.a >= 1) return { color: acc };
+      }
+      node = node.parentElement;
+    }
+    return { ambiguous: "no opaque background in the ancestor chain" };
+  };
+  const inView = (r) =>
+    !(r.bottom <= 0 || r.top >= innerHeight || r.right <= 0 || r.left >= innerWidth) && r.width > 0 && r.height > 0;
+  const required = (px, weight) => {
+    const bold = Number(weight) >= 700;
+    return px >= 24 || (bold && px >= 18.66) ? 3 : 4.5;
+  };
+  const sel = (el) =>
+    el.id
+      ? "#" + el.id
+      : el.tagName.toLowerCase() + (String(el.className || "").trim() ? "." + String(el.className).trim().split(/\s+/).join(".") : "");
+
+  const measure = (el) => {
+    const cs = getComputedStyle(el);
+    if (cs.visibility === "hidden") return { skip: "not rendered" };
+    const rect = el.getBoundingClientRect();
+    if (!el.getClientRects().length || !inView(rect)) return { skip: "outside the viewport" };
+    const fg = parse(cs.color);
+    if (!fg) return { ambiguous: "unparseable foreground" };
+    const bg = resolveBg(el);
+    if (bg.ambiguous) return { ambiguous: bg.ambiguous };
+    /** The same hit-test the legible-text floor uses: if something else is on
+     *  top, the composited answer is not what a person sees. */
+    const hit = document.elementFromPoint(
+      Math.min(Math.max(rect.left + rect.width / 2, 0), innerWidth - 1),
+      Math.min(Math.max(rect.top + rect.height / 2, 0), innerHeight - 1),
+    );
+    if (!hit || !(hit === el || el.contains(hit) || hit.contains(el))) return { ambiguous: "obscured by another element" };
+    const px = parseFloat(cs.fontSize);
+    return {
+      ratio: ratioOf(fg.a < 1 ? over(fg, bg.color) : fg, bg.color),
+      required: required(px, cs.fontWeight),
+      color: cs.color,
+      bg: `rgb(${Math.round(bg.color.r)}, ${Math.round(bg.color.g)}, ${Math.round(bg.color.b)})`,
+      font: `${cs.fontWeight} ${cs.fontSize}`,
+    };
+  };
+
+  /** Which elements axe put in NO bucket, by identity rather than by selector
+   *  string - a selector heuristic silently mislabels anything axe addressed by
+   *  :nth-child, which is most of a table. */
+  const seen = new WeakSet();
+  if (window.__k2AxeSeen) for (const el of window.__k2AxeSeen) seen.add(el);
+
+  const out = {
+    computed: 0,
+    passed: 0,
+    failed: 0,
+    couldNotCompute: 0,
+    excludedAriaHidden: 0,
+    skippedByAxe: 0,
+    ambiguousReasons: {},
+    failures: [],
+    subjects: [],
+  };
+  const failuresByGroup = new Map();
+  for (const [group, query] of Object.entries(groups)) {
+    for (const el of document.querySelectorAll(query)) {
+      if (![...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim())) continue;
+      if (el.closest('[aria-hidden="true"]')) {
+        out.excludedAriaHidden += 1;
+        continue;
+      }
+      const m = measure(el);
+      if (m.skip) continue;
+      if (m.ambiguous) {
+        out.couldNotCompute += 1;
+        out.ambiguousReasons[m.ambiguous] = (out.ambiguousReasons[m.ambiguous] || 0) + 1;
+        continue;
+      }
+      out.computed += 1;
+      if (!seen.has(el)) out.skippedByAxe += 1;
+      if (m.ratio >= m.required) {
+        out.passed += 1;
+        continue;
+      }
+      out.failed += 1;
+      /**
+       * EVERY below-threshold element is reported here, including ones axe also
+       * judged, and the first draft skipped the latter to avoid double-counting.
+       * That was wrong twice over. It made the two instruments' numbers
+       * uncomparable - the whole value of a second instrument is that two
+       * measurements of one thing can be reconciled - and it made the finding
+       * DISAPPEAR on whichever environment axe happened to evaluate the element
+       * on, which is the silent-fallback shape this gate exists to refuse. The
+       * .p-ok pair at 4.444:1 vanished from this list on Linux for exactly that
+       * reason while remaining a real defect.
+       *
+       * The two numbers are not merged and never summed: they carry different
+       * counting rules and are printed under different headings, and
+       * skippedByAxe records how much of this population axe never saw.
+       */
+      const prev = failuresByGroup.get(group) || {
+        group,
+        nodes: 0,
+        ratio: m.ratio,
+        required: m.required,
+        sample: `${sel(el)} ${m.color} on ${m.bg} at ${m.font}`,
+      };
+      prev.nodes += 1;
+      prev.ratio = Math.min(prev.ratio, m.ratio);
+      failuresByGroup.set(group, prev);
+    }
+  }
+  out.failures = [...failuresByGroup.values()];
+  for (const subject of subjects) {
+    for (const el of document.querySelectorAll(subject)) {
+      const m = measure(el);
+      if (m.skip || m.ambiguous) continue;
+      out.subjects.push({ subject, ratio: m.ratio, required: m.required, color: m.color, bg: m.bg });
+    }
+  }
+  return out;
+};
+
+/**
+ * The element groups the second instrument sweeps, DECLARED rather than "every
+ * element", because a whole-document sweep on 46 scans is slow and, worse,
+ * unreadable: a finding has to name a class a person can go and fix. Every group
+ * here is a class that carries text through a kit token.
+ */
+const CONTRAST_GROUPS = {
+  ".sep": ".sep",
+  ".prov": ".prov",
+  ".pill": ".pill",
+  ".badge": ".badge",
+  ".basis": ".basis",
+  ".t-caption": ".t-caption",
+  ".kicker": ".kicker",
+  ".metric .n": ".metric .n",
+  ".dt .id": ".dt .id",
+  ".navitem": ".navitem",
+};
+
+/** One layout settle, so a measurement after a resize is of the new layout. */
+const settle = (page) =>
+  page.evaluate(
+    () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(null)))),
+  );
+
+/**
+ * GROW UNTIL NOTHING IS OUTSIDE THE BOX, and stop on the thing that matters.
+ *
+ * The stop condition IS the coverage assertion: the loop ends when the count of
+ * rendered elements outside the viewport reaches zero, or when the declared cap
+ * is hit, and it says which. A cap hit is not silently treated as full extent -
+ * coverageFindings() in src/a11y-gate.mjs refuses the build on it, because axe
+ * evaluates nothing outside the box and an unexamined element is not a clean
+ * one.
+ *
+ * The height is DERIVED rather than fixed because the saturation height is a
+ * property of the surface: development-services/inspections saturates at 2400,
+ * work-connections needs past 3000, and a constant tall height would ship a
+ * second undeclared bound in place of the first one.
+ */
+async function growToFullExtent(page, viewport) {
+  let height = Math.max(viewport.startHeight, REFERENCE_VIEWPORT.height);
+  let steps = 0;
+  let measured = await page.evaluate(COVERAGE_PROBE);
+  while (measured.outside > 0 && steps < viewport.growthSteps) {
+    const next = Math.min(viewport.maxHeight, height + measured.overflowBelow + 64);
+    if (next <= height) break;
+    height = next;
+    steps += 1;
+    await page.setViewportSize({ width: viewport.width, height });
+    await settle(page);
+    measured = await page.evaluate(COVERAGE_PROBE);
+  }
+  const stoppedBecause =
+    measured.outside === 0
+      ? "grew until nothing was left outside the clipping box"
+      : height >= viewport.maxHeight
+        ? `hit the declared cap of ${viewport.maxHeight}px with ${measured.overflowBelow}px still below the fold`
+        : `used all ${viewport.growthSteps} growth step(s) with ${measured.overflowBelow}px still below the fold`;
+  return { ...measured, steps, stoppedBecause };
+}
+
+/**
+ * The independent sweep, run AFTER axe so it can ask which elements axe put in
+ * no bucket. Identity, not selector strings: runAxe stashes the actual DOM nodes
+ * axe reported on window.__k2AxeSeen, because matching axe's CSS targets against
+ * selector strings silently mislabels everything axe addressed by :nth-child,
+ * which is most of a table. That mistake was made once in this lane's own
+ * measurement and caught by redoing it on identity.
+ */
+async function sweepContrast(page) {
+  return page.evaluate(
+    ([sweepSrc, subjects, groups]) =>
+      new Function("return (" + sweepSrc + ")")()(subjects, groups),
+    [CONTRAST_SWEEP.toString(), ADJUDICATED_SUBJECTS, CONTRAST_GROUPS],
+  );
+}
+
+/** One axe run against the document as it currently stands. */
+async function runAxe(page, tags) {
+  return page.evaluate(async (t) => {
+    const run = await window.axe.run(document, {
+      elementRef: true,
+      resultTypes: ["violations", "incomplete", "passes"],
+      runOnly: { type: "tag", values: [...t, "best-practice"] },
+    });
+    /**
+     * Every element AXE'S CONTRAST RULES actually judged, in any bucket, kept by
+     * IDENTITY so the second instrument can ask "did axe look at this at all"
+     * without guessing from a selector string.
+     *
+     * SCOPED TO THE CONTRAST RULES, and the first draft was not - it collected
+     * nodes from every rule in the run, so a span that merely passed
+     * `aria-allowed-attr` counted as "axe looked at its contrast". The effect was
+     * total: on a full run the sweep computed 4,908 elements, found 341 below
+     * threshold, and reported ZERO of them, because every one of them was in
+     * some other rule's pass list. A silent fail-open in the instrument built to
+     * catch silent fail-opens, found by running it rather than by reading it.
+     */
+    const CONTRAST_RULES = ["color-contrast", "color-contrast-enhanced"];
+    window.__k2AxeSeen = [];
+    for (const group of ["violations", "incomplete", "passes"]) {
+      for (const res of run[group]) {
+        if (!CONTRAST_RULES.includes(res.id)) continue;
+        for (const n of res.nodes) if (n.element) window.__k2AxeSeen.push(n.element);
+      }
+    }
+    const shape = (v) => ({
+      id: v.id,
+      impact: v.impact,
+      tags: v.tags,
+      help: v.help,
+      nodes: v.nodes.length,
+      sample: v.nodes.slice(0, 3).map((n) => String(n.target)),
+      /**
+       * EVERY target, not a sample, bounded at 200. A subject-bounded
+       * adjudication has to be able to ask whether a node is on a named element
+       * and a three-item sample cannot answer that - it would accept a stray
+       * finding merely because it sorted fourth.
+       */
+      targets: v.nodes.slice(0, 200).map((n) => String(n.target)),
+      /**
+       * NODES AND TARGETS SPLIT BY REASON, because a rule can land in the
+       * incomplete bucket for several different reasons at once and they are
+       * different findings with different adjudications. Aggregating them under
+       * the rule alone made the gate compare a shortTextContent entry pinned at
+       * 1 against the whole rule's 44, and test an elmPartiallyObscuring subject
+       * set against targets that belonged to the other reason entirely. Both
+       * were wrong in the same run.
+       */
+      byReason: v.nodes.reduce((acc, n) => {
+        const reason =
+          [...(n.any || []), ...(n.all || []), ...(n.none || [])]
+            .map((c) => c.data?.messageKey || c.message || c.id)
+            .filter(Boolean)[0] || "unknown";
+        acc[reason] = acc[reason] || { nodes: 0, targets: [] };
+        acc[reason].nodes += 1;
+        if (acc[reason].targets.length < 200) acc[reason].targets.push(String(n.target));
+        return acc;
+      }, {}),
+      /**
+       * WHY, not just WHERE. An unresolved check that names only its element
+       * tells a reader it exists and nothing about what to do; axe already
+       * knows the reason (bgOverlap, bgImage, fgAlpha and friends) and it was
+       * being thrown away. Carried for incomplete results in particular,
+       * because those are the ones nobody can reproduce from the element name.
+       */
+      reasons: [
+        ...new Set(
+          v.nodes.slice(0, 20).flatMap((n) =>
+            [...(n.any || []), ...(n.all || []), ...(n.none || [])].map(
+              (c) => c.data?.messageKey || c.message || c.id,
+            ),
+          ),
+        ),
+      ].filter(Boolean).slice(0, 4),
+    });
+    return { violations: run.violations.map(shape), incomplete: run.incomplete.map(shape) };
+  }, tags);
+}
+
 async function scanOnce(browser, base, target, axe, plant) {
-  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const ctx = await browser.newContext({
+    viewport: { width: REFERENCE_VIEWPORT.width, height: REFERENCE_VIEWPORT.height },
+  });
   /**
    * The theme lever. addInitScript runs before any script in the document, so
    * the value is in storage by the time the inline head script reads it - which
@@ -493,80 +1127,86 @@ async function scanOnce(browser, base, target, axe, plant) {
      * and that is precisely how a light-theme regression stays invisible
      * forever behind a green build.
      */
-    const painted = await page.evaluate(() => ({
-      theme: document.documentElement.getAttribute("data-theme"),
-      canvas: getComputedStyle(document.body).backgroundColor,
-      sheets: [...document.styleSheets].filter((sheet) => {
-        try {
-          return sheet.cssRules.length > 0;
-        } catch {
-          return false;
-        }
-      }).length,
-      /**
-       * A NAMED WITNESS, recorded on every scan.
-       *
-       * The first CI run of this gate reported color-contrast ZERO across all 46
-       * scans while the same commit reported 1002 on the author's machine. Two
-       * numbers that should agree and did not, which is the cheapest kind of
-       * finding there is (DEV_PROCESS 1.4) - but nothing in the output could
-       * say WHICH of the two candidate explanations it was: a different palette,
-       * or a rule that ran and could not resolve a background. So one element
-       * that is known to fail carries its own resolved colours into the log, and
-       * the next run answers the question instead of inviting a theory.
-       */
-      /**
-       * HOW MUCH OF THIS PAGE IS ACTUALLY VISIBLE, and the plant that forced it.
-       *
-       * The unresolved-contrast plant drops a translucent full-viewport overlay
-       * and the gate PASSED it. Not because the overlay was harmless - because
-       * axe treats everything under it as obscured and evaluates nothing, so the
-       * run came back with no violations, no incomplete results, and no reason to
-       * refuse. A page that renders nothing measurable was scoring clean, which
-       * is the same defect as the unstyled scan one layer up: silence read as
-       * success.
-       *
-       * Counting rule: elements carrying their own non-empty text whose centre
-       * point hit-tests back to themselves or to one of their descendants. An
-       * overlay takes that to zero because every hit-test lands on the overlay.
-       */
-      visibleTextNodes: (() => {
-        let n = 0;
-        for (const el of document.querySelectorAll("h1,h2,p,span,b,a,button,td,th,li")) {
-          const text = (el.textContent || "").trim();
-          if (!text) continue;
-          const r = el.getBoundingClientRect();
-          if (r.width === 0 || r.height === 0) continue;
-          if (r.bottom < 0 || r.top > innerHeight || r.right < 0 || r.left > innerWidth) continue;
-          const hit = document.elementFromPoint(
-            Math.min(Math.max(r.left + r.width / 2, 0), innerWidth - 1),
-            Math.min(Math.max(r.top + r.height / 2, 0), innerHeight - 1),
-          );
-          if (hit && (hit === el || el.contains(hit) || hit.contains(el))) n += 1;
-        }
-        return n;
-      })(),
-      witness: (() => {
-        const el = document.querySelector(".navitem.roster") || document.querySelector(".p-quiet");
-        if (!el) return null;
-        const cs = getComputedStyle(el);
-        const root = getComputedStyle(document.documentElement);
+    const geometry = await page.evaluate(GEOMETRY_PROBE);
+    const painted = await page.evaluate(
+      () => {
         return {
-          selector: el.getAttribute("class"),
-          color: cs.color,
-          background: cs.backgroundColor,
-          fontSize: cs.fontSize,
-          fontFamily: cs.fontFamily.split(",")[0],
-          quiet: root.getPropertyValue("--sc-quiet").trim(),
-          ink3: root.getPropertyValue("--sc-ink-3").trim(),
-          behindIt: (() => {
-            const r = el.getBoundingClientRect();
-            const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
-            return hit ? hit.tagName.toLowerCase() + (hit.id ? "#" + hit.id : "") : "nothing";
+          theme: document.documentElement.getAttribute("data-theme"),
+          canvas: getComputedStyle(document.body).backgroundColor,
+          sheets: [...document.styleSheets].filter((sheet) => {
+            try {
+              return sheet.cssRules.length > 0;
+            } catch {
+              return false;
+            }
+          }).length,
+          /**
+           * A NAMED WITNESS, recorded on every scan.
+           *
+           * The first CI run of this gate reported color-contrast ZERO across all 46
+           * scans while the same commit reported 1002 on the author's machine. Two
+           * numbers that should agree and did not, which is the cheapest kind of
+           * finding there is (DEV_PROCESS 1.4) - but nothing in the output could
+           * say WHICH of the two candidate explanations it was: a different palette,
+           * or a rule that ran and could not resolve a background. So one element
+           * that is known to fail carries its own resolved colours into the log, and
+           * the next run answers the question instead of inviting a theory.
+           */
+          /**
+           * HOW MUCH OF THIS PAGE IS ACTUALLY VISIBLE, and the plant that forced it.
+           *
+           * The unresolved-contrast plant drops a translucent full-viewport overlay
+           * and the gate PASSED it. Not because the overlay was harmless - because
+           * axe treats everything under it as obscured and evaluates nothing, so the
+           * run came back with no violations, no incomplete results, and no reason to
+           * refuse. A page that renders nothing measurable was scoring clean, which
+           * is the same defect as the unstyled scan one layer up: silence read as
+           * success.
+           *
+           * Counting rule: elements carrying their own non-empty text whose centre
+           * point hit-tests back to themselves or to one of their descendants. An
+           * overlay takes that to zero because every hit-test lands on the overlay.
+           */
+          visibleTextNodes: (() => {
+            let n = 0;
+            for (const el of document.querySelectorAll("h1,h2,p,span,b,a,button,td,th,li")) {
+              const text = (el.textContent || "").trim();
+              if (!text) continue;
+              const r = el.getBoundingClientRect();
+              if (r.width === 0 || r.height === 0) continue;
+              if (r.bottom < 0 || r.top > innerHeight || r.right < 0 || r.left > innerWidth) continue;
+              const hit = document.elementFromPoint(
+                Math.min(Math.max(r.left + r.width / 2, 0), innerWidth - 1),
+                Math.min(Math.max(r.top + r.height / 2, 0), innerHeight - 1),
+              );
+              if (hit && (hit === el || el.contains(hit) || hit.contains(el))) n += 1;
+            }
+            return n;
+          })(),
+          witness: (() => {
+            const el = document.querySelector(".navitem.roster") || document.querySelector(".p-quiet");
+            if (!el) return null;
+            const cs = getComputedStyle(el);
+            const root = getComputedStyle(document.documentElement);
+            return {
+              selector: el.getAttribute("class"),
+              color: cs.color,
+              background: cs.backgroundColor,
+              fontSize: cs.fontSize,
+              fontFamily: cs.fontFamily.split(",")[0],
+              quiet: root.getPropertyValue("--sc-quiet").trim(),
+              ink3: root.getPropertyValue("--sc-ink-3").trim(),
+              behindIt: (() => {
+                const r = el.getBoundingClientRect();
+                const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+                return hit ? hit.tagName.toLowerCase() + (hit.id ? "#" + hit.id : "") : "nothing";
+              })(),
+            };
           })(),
         };
-      })(),
-    }));
+      },
+    );
+    painted.geometry = geometry;
     if (painted.theme !== target.theme) {
       throw new Error(
         `theme did not land: asked ${target.theme}, the document painted ${painted.theme}. The scan measured the wrong palette, so it is recorded as unmeasured rather than clean.`,
@@ -594,41 +1234,56 @@ async function scanOnce(browser, base, target, axe, plant) {
         `the page rendered nothing legible: ${painted.visibleTextNodes} text elements hit-test to themselves, under the floor of ${VISIBLE_TEXT_FLOOR}. Everything is obscured or absent, so axe evaluated nothing and the scan would otherwise report no findings at all - silence, read as success.`,
       );
     }
+    /**
+     * THE THIRD LANDING ASSERTION (G-99), beside the theme and the paint: WHICH
+     * TYPEFACE rendered. Recorded per scan rather than thrown here, because
+     * "the shipped face did not land" is a property of the RUN - a single scan
+     * cannot tell a CDN outage from a per-scan flake, and the two need different
+     * words. typefaceFindings() in src/a11y-gate.mjs judges it over the whole
+     * run and refuses both a fallback run and a mixed one.
+     */
+    const typeface = await page.evaluate(TYPEFACE_PROBE);
     const title = await page.title();
     await page.addScriptTag({ content: axe.source });
-    const axed = await page.evaluate(async (tags) => {
-      const run = await window.axe.run(document, {
-        resultTypes: ["violations", "incomplete"],
-        runOnly: { type: "tag", values: [...tags, "best-practice"] },
-      });
-      const shape = (v) => ({
-        id: v.id,
-        impact: v.impact,
-        tags: v.tags,
-        help: v.help,
-        nodes: v.nodes.length,
-        sample: v.nodes.slice(0, 3).map((n) => String(n.target)),
-        /**
-         * WHY, not just WHERE. An unresolved check that names only its element
-         * tells a reader it exists and nothing about what to do; axe already
-         * knows the reason (bgOverlap, bgImage, fgAlpha and friends) and it was
-         * being thrown away. Carried for incomplete results in particular,
-         * because those are the ones nobody can reproduce from the element name.
-         */
-        reasons: [
-          ...new Set(
-            v.nodes.slice(0, 5).flatMap((n) =>
-              [...(n.any || []), ...(n.all || []), ...(n.none || [])].map(
-                (c) => c.data?.messageKey || c.message || c.id,
-              ),
-            ),
-          ),
-        ].filter(Boolean).slice(0, 4),
-      });
-      return { violations: run.violations.map(shape), incomplete: run.incomplete.map(shape) };
-    }, CONFORMANCE_TAGS);
-    const violations = axed.violations;
-    const incomplete = axed.incomplete;
+
+    const rows = [];
+    /** The reference pass: the height a person reads at, measured first. */
+    const referenceCoverage = await page.evaluate(COVERAGE_PROBE);
+    const referenceAxe = await runAxe(page, CONFORMANCE_TAGS);
+    const referenceContrast = await sweepContrast(page);
+    rows.push({
+      viewport: REFERENCE_VIEWPORT.id,
+      coverage: { ...referenceCoverage, steps: 0, stoppedBecause: REFERENCE_VIEWPORT.basis },
+      violations: referenceAxe.violations,
+      incomplete: referenceAxe.incomplete,
+      independentContrast: referenceContrast,
+    });
+
+    /**
+     * The full-extent pass, IN THE SAME PAGE LOAD. A second navigation would
+     * double the run's wall clock and, worse, would measure a second render of
+     * the page rather than the same one at a different size - which is the only
+     * thing that makes the superset assertion in src/a11y-gate.mjs meaningful.
+     */
+    const grown = await growToFullExtent(page, FULL_EXTENT_VIEWPORT);
+    const fullAxe = await runAxe(page, CONFORMANCE_TAGS);
+    const fullContrast = await sweepContrast(page);
+    rows.push({
+      viewport: FULL_EXTENT_VIEWPORT.id,
+      coverage: grown,
+      violations: fullAxe.violations,
+      incomplete: fullAxe.incomplete,
+      independentContrast: fullContrast,
+    });
+
+    /**
+     * Back to the reference viewport for the keyboard walk. 2.4.7 is answered by
+     * the tab ring and a computed focus style, neither of which is a function of
+     * window height, so the walk is not repeated - and that bound is declared in
+     * the report rather than left to be inferred.
+     */
+    await page.setViewportSize({ width: REFERENCE_VIEWPORT.width, height: REFERENCE_VIEWPORT.height });
+    await settle(page);
     const visible = await page.evaluate(() =>
       [...document.querySelectorAll(".lens")]
         .filter((e) => getComputedStyle(e).display !== "none")
@@ -636,19 +1291,22 @@ async function scanOnce(browser, base, target, axe, plant) {
     );
     const walk = await tabWalk(page);
     return {
-      ...target,
       ok: true,
-      title,
-      painted,
-      visibleLens: visible,
-      violations,
-      incomplete,
-      focus: walk.stops,
-      focusNotes: walk.notes,
-      focusCrossings: walk.crossings,
+      rows: rows.map((row) => ({
+        ...target,
+        ...row,
+        ok: true,
+        title,
+        painted,
+        typeface,
+        visibleLens: visible,
+        focus: row.viewport === REFERENCE_VIEWPORT.id ? walk.stops : [],
+        focusNotes: row.viewport === REFERENCE_VIEWPORT.id ? walk.notes : [],
+        focusCrossings: row.viewport === REFERENCE_VIEWPORT.id ? walk.crossings : [],
+      })),
     };
   } catch (err) {
-    return { ...target, ok: false, error: String(err).slice(0, 300) };
+    return { ok: false, error: String(err).slice(0, 300) };
   } finally {
     await ctx.close();
   }
@@ -658,29 +1316,89 @@ async function scanOnce(browser, base, target, axe, plant) {
  * Retried ONCE, and only once. A second consecutive failure is reported as a
  * failed scan and fails the build: an empty result is not an absence, and a
  * surface that would not load twice is a finding rather than a flake.
+ *
+ * Returns one row PER VIEWPORT, so a page load that never happened is recorded
+ * as an unmeasured scan at every viewport rather than as a missing row - an
+ * absent scan and a clean one must not look the same in the denominator.
  */
 async function scanSurface(browser, base, target, axe, plant) {
   const first = await scanOnce(browser, base, target, axe, plant);
-  if (first.ok) return first;
+  if (first.ok) return first.rows;
   const second = await scanOnce(browser, base, target, axe, plant);
-  if (second.ok) return { ...second, retried: first.error };
-  return { ...second, error: `${second.error} (retried once; first attempt: ${first.error})` };
+  if (second.ok) return second.rows.map((r) => ({ ...r, retried: first.error }));
+  return VIEWPORT_IDS.map((viewport) => ({
+    ...target,
+    viewport,
+    ok: false,
+    error: `${second.error} (retried once; first attempt: ${first.error})`,
+  }));
+}
+
+/**
+ * THE CONDITIONS BANNER. G-99.
+ *
+ * Printed at the TOP and at the BOTTOM of every run, pass or fail, because a
+ * reader who scrolls to the verdict must not be able to reach it without the
+ * two conditions the number depends on. A figure whose bound is not stated
+ * beside it is the DEV_PROCESS 1.2 defect, and this figure lands in an
+ * Accessibility Conformance Report.
+ */
+function conditions(summary) {
+  const cov = summary.coverageByViewport || {};
+  const tf = summary.environment?.typefaceWitness;
+  return [
+    summary.environment?.authority?.line || "",
+    `BOUNDED BY: ${summary.viewports.map((v) => `${v.id} ${v.width}x${v.derived ? "derived" : v.height} covering ${cov[v.id]?.inViewport ?? "?"}/${cov[v.id]?.rendered ?? "?"} rendered text elements (${cov[v.id]?.pct ?? "?"}%)`).join("  |  ")}`,
+    `RENDERED BY: ${summary.environment?.platform || "?"} ${summary.environment?.arch || ""} chromium ${summary.environment?.chromium || "?"} axe ${summary.axeVersion} dpr ${summary.environment?.geometryWitness?.dpr ?? "?"} typeface ${JSON.stringify(summary.environment?.typefaceStates || [])}${tf ? ` (ui ${tf.uiWidth}px vs named ${tf.namedUiWidth}px, data ${tf.dataWidth}px vs named ${tf.namedDataWidth}px, ${tf.faceCount} face(s) registered)` : ""}`,
+    `GEOMETRY WITNESS: ${JSON.stringify(summary.environment?.geometryWitness || null)}`,
+  ];
 }
 
 function report(summary, out = process.stdout) {
   const w = (s) => out.write(s + "\n");
   w("");
   w(`a11y gate  axe-core ${summary.axeVersion}  ${summary.base}`);
+  for (const line of conditions(summary)) w(line);
+  w("");
   w(`counting rule: ${summary.countingRule}`);
   if (summary.retriedScans.length) {
     w(`RETRIED (first attempt did not paint, second did): ${summary.retriedScans.length}`);
     for (const r of summary.retriedScans) w(`  ${r.surface}: ${r.reason}`);
   }
-  w(`scans ${summary.surfacesOk}/${summary.surfacesScanned}  (${summary.surfaceCount} surfaces x ${summary.themes.length} themes: ${summary.themes.join(", ")})`);
+  w(`scans ${summary.surfacesOk}/${summary.surfacesScanned}  (${summary.surfaceCount} surfaces x ${summary.themes.length} themes x ${summary.viewports.length} viewports: ${summary.arms.join(", ")})`);
   w(
     `theme lever: ${summary.themeLeverFinding ? "DID NOT MOVE - " + summary.themeLeverFinding : "proven, the palette differs between themes"}`,
   );
-  w(`conformance nodes by theme: ${Object.entries(summary.conformanceNodesByTheme).map(([t, n]) => `${t} ${n}`).join(", ")}`);
+  w(`conformance nodes by ARM: ${Object.entries(summary.conformanceNodesByArm).map(([a, n]) => `${a} ${n}`).join(", ")}`);
+  /**
+   * The line this whole row exists for: what the reference viewport could not
+   * see. Printed even when it is zero, because "we looked and it was zero" and
+   * "we could not look" have to be different sentences.
+   */
+  {
+    const ref = summary.coverageByViewport?.[REFERENCE_VIEWPORT.id];
+    const full = summary.coverageByViewport?.[FULL_EXTENT_VIEWPORT.id];
+    const hidden = ref && full ? full.inViewport - ref.inViewport : null;
+    w(
+      `viewport bound: the ${REFERENCE_VIEWPORT.id} viewport left ${hidden === null ? "?" : hidden} rendered text element(s) UNEVALUATED that full extent reached. axe evaluates nothing outside the clipping box, so those were not judged clean - they were not judged. Full extent grew to at most ${full?.maxHeight ?? "?"}px.`,
+    );
+  }
+  {
+    const ic = summary.independentContrastCoverage || {};
+    w(
+      `SECOND INSTRUMENT (contrast computed here, not by axe): ${ic.computed} element(s) computed, ${ic.passed} pass, ${ic.failed} FAIL, ${ic.couldNotCompute} could not be computed, ${ic.excludedAriaHidden} excluded as decorative (aria-hidden), ${ic.skippedByAxe} of the computed ones were in NO axe bucket.`,
+    );
+    w(`      why it exists: ${ic.note}`);
+    for (const f of summary.independentContrast || []) {
+      w(
+        `  INDEPENDENT CONTRAST [${f.group}] ${f.nodes} element(s) at ${JSON.stringify(f.ratios)}:1 against ${f.required}:1 required. axe reported these in NO bucket. sample ${f.sample}`,
+      );
+    }
+    for (const f of summary.adjudicationBasisFindings || []) w(`  ADJUDICATION [${f.kind}] ${f.rule}: ${f.detail}`);
+  }
+  for (const f of summary.coverageFindings || []) w(`  COVERAGE [${f.kind}] ${f.surface}: ${f.detail}`);
+  for (const f of summary.supersetFindings || []) w(`  VIEWPORT GROWTH [${f.kind}] ${f.surface}: ${f.detail}`);
+  for (const f of summary.typefaceFindings || []) w(`  TYPEFACE [${f.kind}] ${f.detail}`);
   for (const wit of summary.witnesses) w(`witness [${wit.theme}] ${JSON.stringify(wit.witness)}`);
   w("");
   w(`CONFORMANCE (WCAG A/AA) rules failing: ${summary.conformanceViolations.length}, nodes: ${summary.conformanceNodes}`);
@@ -689,29 +1407,38 @@ function report(summary, out = process.stdout) {
     w(
       `  ${v.id.padEnd(30)} ${String(v.nodes).padStart(4)} nodes  ${v.impact}  [${v.tags.join(" ")}]${
         waived
-          ? `  WAIVED ceiling ${JSON.stringify(waived.nodesByTheme)} (total ${waivedTotal(waived)}), owner ${waived.owner}`
+          ? `  WAIVED ceiling ${JSON.stringify(waived.nodesByArm)} (total ${waivedTotal(waived)}), owner ${waived.owner}`
           : ""
       }`,
     );
+    w(`      per arm: ${JSON.stringify(Object.fromEntries(summary.arms.map((a) => [a, (summary.conformanceNodesByArmRule?.[a] || {})[v.id] || 0])))}`);
     w(`      on: ${[...new Set(v.surfaces)].join(", ")}`);
+    if (waived) w(`      basis: ${waived.basis}`);
     if (waived) w(`      remove when: ${waived.remove}`);
   }
   w(
     `UNRESOLVED conformance checks (axe could not settle these; not a pass): ${summary.incompleteConformance.length} rule(s), ${summary.incompleteConformance.reduce((n, x) => n + x.nodes, 0)} node(s)`,
   );
   for (const inc of summary.incompleteConformance) {
-    const item = REVIEW_ITEMS.find((r) => r.rule === inc.id && inc.reasons.includes(r.reason));
+    const item = REVIEW_ITEMS.find((r) => r.rule === inc.id && r.reason === inc.reason);
     w(
-      `  ${inc.id.padEnd(30)} ${String(inc.nodes).padStart(4)} nodes  sample ${JSON.stringify(inc.sample)}  reason ${JSON.stringify(inc.reasons)}${
-        item ? "  ADJUDICATED" : "  NOT ADJUDICATED"
+      `  ${(inc.id + "/" + inc.reason).padEnd(38)} ${String(inc.nodes).padStart(4)} nodes  sample ${JSON.stringify(inc.sample)}${
+        item ? (isSubjectBounded(item) ? "  ADJUDICATED BY SUBJECT (count unpinned, still reported)" : "  ADJUDICATED BY COUNT") : "  NOT ADJUDICATED"
       }`,
     );
+    w(`      per arm: ${JSON.stringify(Object.fromEntries(summary.arms.map((a) => [a, (summary.incompleteNodesByArmRule?.[a] || {})[inc.key] || 0])))}`);
+    w(`      distinct targets: ${JSON.stringify([...new Set(inc.targets || [])].slice(0, 8))}`);
     w(`      on: ${[...new Set(inc.surfaces)].slice(0, 6).join(", ")}${inc.surfaces.length > 6 ? " ..." : ""}`);
     if (item) {
       w(`      ${item.adjudication}`);
+      if (isSubjectBounded(item)) {
+        w(`      SUBJECT SET: ${JSON.stringify(item.subjects)}. A node on any other element FAILS the build.`);
+        w(`      ENVIRONMENT DEPENDENT: ${item.environmentDependent}`);
+      }
       w(`      routed to: ${item.routedTo}`);
       w(`      remove when: ${item.remove}`);
     }
+    if (!item) w("      an unresolved conformance check is NOT a pass and is not counted as one.");
   }
   w(`best-practice rules failing: ${summary.bestPracticeViolations.length}`);
   for (const v of summary.bestPracticeViolations) {
@@ -733,14 +1460,19 @@ function report(summary, out = process.stdout) {
   w(`UNMEASURED, reported rather than scored: ${summary.unmeasuredMounts.length} cross-origin mount(s)`);
   for (const m of summary.unmeasuredMounts) w(`  ${m}  (the mounted product answers for its own focus indicator)`);
   w("");
-  w("per scan  (conformance nodes | focus stops | stops with no indicator | title)");
+  w("per scan  (conformance nodes | unresolved | evaluated/rendered | viewport height | focus stops | no indicator | title)");
   for (const s of summary.perSurface) {
     w(
-      `  ${s.surface.padEnd(48)} ${String(s.conformanceNodes ?? "ERR").padStart(4)} | ${String(
-        s.focusStops ?? "-",
-      ).padStart(3)} | ${String(s.focusWithoutIndicator ?? "-").padStart(3)} | ${s.title ?? s.url}`,
+      `  ${s.surface.padEnd(56)} ${String(s.conformanceNodes ?? "ERR").padStart(4)} | ${String(
+        s.unresolvedNodes ?? "-",
+      ).padStart(3)} | ${String(s.coverage ? `${s.coverage.inViewport}/${s.coverage.rendered}` : "-").padStart(9)} | ${String(
+        s.coverage?.height ?? "-",
+      ).padStart(5)} | ${String(s.focusStops ?? "-").padStart(3)} | ${String(s.focusWithoutIndicator ?? "-").padStart(3)} | ${s.title ?? s.url}`,
     );
   }
+  w("");
+  w(`2.4.7 was walked at the ${summary.focusViewport} viewport only, which is declared rather than implied: the tab ring and a computed focus style are both independent of window height.`);
+  for (const line of conditions(summary)) w(line);
   w("");
 }
 
@@ -749,7 +1481,8 @@ function report(summary, out = process.stdout) {
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const axe = axeSource();
-  /** Surfaces x themes, both derived. Neither list is written down here. */
+  /** Surfaces x themes, both derived. Neither list is written down here. The
+   *  viewport axis is added inside scanSurface, from one page load per pair. */
   const targets = THEMES.flatMap((theme) =>
     A11Y_TARGETS.map((t) => ({ ...t, theme, expectedTitle: expectedTitle(t) })),
   );
@@ -757,17 +1490,29 @@ async function main() {
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   const base = `http://127.0.0.1:${server.address().port}`;
   const browser = await launchChromium();
+  /**
+   * THE ENVIRONMENT, CAPTURED RATHER THAN ASSUMED. Everything here was a
+   * candidate explanation for two machines disagreeing by 88 nodes, and every
+   * one of them is now in the log instead of in a theory.
+   */
+  const env = {
+    platform: process.platform,
+    arch: process.arch,
+    node: process.version,
+    ci: Boolean(process.env.CI),
+    chromium: browser.version(),
+  };
   let results = [];
   try {
     for (const t of targets) {
-      results.push(await scanSurface(browser, base, t, axe, args.plant));
+      results.push(...(await scanSurface(browser, base, t, axe, args.plant)));
     }
   } finally {
     await browser.close();
     await new Promise((resolve) => server.close(resolve));
   }
 
-  const summary = summarize(results, axe, base);
+  const summary = summarize(results, axe, base, env);
   const v = verdict(summary);
   if (!args.quiet) report(summary);
   if (args.json) {
@@ -780,17 +1525,37 @@ async function main() {
     );
     process.exit(v.pass ? 1 : 0);
   }
-  for (const line of v.stale) process.stdout.write(`a11y gate STALE WAIVER: ${line}\n`);
+  const auth = summary.environment.authority;
+  for (const line of v.stale) process.stdout.write(`a11y gate STALE: ${line}\n`);
   if (!v.pass) {
+    /**
+     * A FAILURE ON A NON-AUTHORITATIVE MACHINE SAYS SO, in its own message.
+     * This is the line that stops a developer reading 44 as a real number: the
+     * geometry-dependent half of a local figure does not transfer, and a run
+     * that does not say which half is which invites exactly the wrong fix.
+     */
     process.stderr.write(`a11y gate FAILED: ${v.reasons.join("; ")}\n`);
+    process.stderr.write(`${auth.line}\n`);
     process.exit(1);
   }
   const waivedNodes = summary.conformanceViolations.reduce(
     (sum, x) => sum + (waiverFor(x.id) ? x.nodes : 0),
     0,
   );
+  const unresolved = (summary.incompleteConformance || []).reduce((s, x) => s + x.nodes, 0);
+  const cov = summary.coverageByViewport || {};
+  /**
+   * THE PASS LINE CARRIES ITS CONDITIONS, and it names the unresolved count
+   * rather than omitting it. "Measured clean" and "could not settle" are
+   * different results and a pass line that mentions only the first is the same
+   * silence-read-as-success this gate exists to refuse.
+   */
   process.stdout.write(
-    `a11y gate PASSED: ${summary.conformanceNodes - waivedNodes} unwaived conformance node(s) and ${waivedNodes} waived over ${summary.surfacesOk} surfaces, ${summary.titleFindings.length} title findings, ${summary.focusFindings.length} focus findings over ${summary.focusStopsWalked} keyboard stops\n`,
+    `a11y gate PASSED: ${summary.conformanceNodes - waivedNodes} unwaived conformance node(s), ${waivedNodes} waived, and ${unresolved} UNRESOLVED node(s) that axe could not settle and a human has adjudicated (adjudicated is not measured-clean). ` +
+      `Over ${summary.surfacesOk}/${summary.surfacesScanned} scans = ${summary.surfaceCount} surfaces x ${summary.themes.length} themes x ${summary.viewports.length} viewports. ` +
+      `${summary.titleFindings.length} title findings, ${summary.focusFindings.length} focus findings over ${summary.focusStopsWalked} keyboard stops at the ${summary.focusViewport} viewport. ` +
+      `BOUND: ${VIEWPORT_IDS.map((id) => `${id} covered ${cov[id]?.inViewport}/${cov[id]?.rendered} rendered text elements (${cov[id]?.pct}%)`).join("; ")}. ` +
+      `${auth.line}\n`,
   );
 }
 
