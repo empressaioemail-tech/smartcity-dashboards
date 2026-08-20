@@ -81,7 +81,12 @@ export function isChipLabelException(selector, sizePx) {
 export const RAMP = [
   { selector: ".panel-head .t", step: "head", weight: 620, size: 15, line: "22px", tracking: "-0.008em", mono: false },
   { selector: ".srcreg .nm b", step: "body-em", weight: 600, size: 14, line: "20px", tracking: null, mono: false },
-  { selector: ".state h2, .state h5", step: "head", weight: 620, size: 15, line: "22px", tracking: "-0.008em", mono: false },
+  /* G-95 moved this expectation with the selector rather than dropping the
+     guard, which is what the ramp-missing message asks for. The h5 half went
+     because every one of these headlines sits directly under the page h1 and an
+     h5 skipped three levels; the step, the weight and the metrics are
+     unchanged, so the reading order of the product did not move. */
+  { selector: ".state h2", step: "head", weight: 620, size: 15, line: "22px", tracking: "-0.008em", mono: false },
   { selector: ".pagehead h1", step: "title", weight: 620, size: 19, line: "26px", tracking: "-0.015em", mono: false },
   { selector: ".cz h1", step: "display", weight: 650, size: 26, line: "32px", tracking: "-0.022em", mono: false },
 ];
@@ -365,7 +370,7 @@ describe("G-76 type conformance, web/shell.css", () => {
 const CONFORMANT_RAMP = `
 .panel-head .t { font: 620 15px/22px var(--sc-font-ui); letter-spacing: -0.008em; }
 .srcreg .nm b { font: 600 14px/20px var(--sc-font-ui); }
-.state h2, .state h5 { font: 620 15px/22px var(--sc-font-ui); letter-spacing: -0.008em; }
+.state h2 { font: 620 15px/22px var(--sc-font-ui); letter-spacing: -0.008em; }
 .pagehead h1 { font: 620 19px/26px var(--sc-font-ui); letter-spacing: -0.015em; }
 .cz h1 { font: 650 26px/32px var(--sc-font-ui); letter-spacing: -0.022em; }
 `;

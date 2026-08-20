@@ -18,6 +18,17 @@ a { color: var(--sc-accent); }
   outline-offset: 2px;
   border-radius: 3px;
 }
+/* G-95, and the rule that is deliberately NOT here.
+   The first draft of this card added iframe:focus with the same outline, on the
+   reading that Tab lands on each mount frame and paints nothing. Measured, that
+   rule can never match: with document.activeElement === #map-site, the frame
+   itself reports matches(":focus") false and matches(":focus-visible") false,
+   because focus has crossed into the mounted document and the element carrying
+   :focus lives there. A rule that cannot fire is decorative, and shipping one
+   would have read as a fix in the diff and changed no pixel. The indicator for
+   a control inside a mount is painted by the mounted product, which answers for
+   its own conformance; scripts/a11y-scan.mjs reports each crossing by name
+   rather than scoring it clean. */
 
 /* ---------- the hidden attribute ---------- */
 
@@ -301,7 +312,14 @@ a.prov:hover { border-color: var(--sc-line-strong); background: var(--sc-surface
   text-transform: uppercase;
   color: var(--sc-ink-3);
 }
-.state h2, .state h5 { font: 620 15px/22px var(--sc-font-ui); letter-spacing: -0.008em; margin: 0; color: var(--sc-ink); }
+/* G-95. The state headline is an h2, and h5 is deliberately NOT in this
+   selector any more. Every one of these sits directly under the page h1, so an
+   h5 skipped three levels and misrepresented the document outline - 1.3.1 Info
+   and Relationships, and 2.4.6 Headings and Labels in a conformance report.
+   Leaving h5 styled here would have made a re-introduced skip look correct on
+   the screen while the gate went red, which is the quietest way for a fix to
+   rot. */
+.state h2 { font: 620 15px/22px var(--sc-font-ui); letter-spacing: -0.008em; margin: 0; color: var(--sc-ink); }
 .state p { font: 400 14px/20px var(--sc-font-ui); color: var(--sc-ink-2); margin: 0; max-width: none; }
 /* A basis line reads the same wherever it appears, inside an empty state or
    under a panel paragraph. Scoping it to .state left the loose ones unstyled. */

@@ -44,8 +44,15 @@ import {
   WORK_IDS,
   DS_TABS,
   ASSET_TABS,
+  ASSET_TAB_LABELS,
   CITY_MANAGER_LENS,
+  LENS_LABELS,
+  PRODUCT_TITLE,
+  TAB_LABELS,
+  TITLE_SEP,
+  WORK_LABELS,
   resolveStaffLensQuery,
+  surfaceTitle,
 } from "./staff-review.mjs";
 import { FALLBACK_THEME, THEMES, THEME_STORAGE_KEY, resolveTheme } from "./theme.mjs";
 
@@ -118,6 +125,15 @@ function rootElement(html) {
   return { tag: "html", id: attrs.id || "", classes: new Set(), attrs };
 }
 
+/**
+ * The title the static document carries, which is what a browser with scripting
+ * off is left with and what the head script overwrites.
+ */
+function staticTitle(html) {
+  const m = /<title>([\s\S]*?)<\/title>/.exec(html);
+  return m ? m[1] : "";
+}
+
 /** The inline classless script in <head>, or null when the document has none. */
 function inlineHeadScript(html) {
   for (const m of html.matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/g)) {
@@ -135,6 +151,13 @@ function inlineHeadScript(html) {
 /** Symbol-keyed so it can never collide with an attribute name or be compared
  *  against one by accident. */
 const STORAGE_WRITES = Symbol("storage writes");
+
+/**
+ * G-95. The document title the head script left behind. Symbol-keyed for the
+ * same reason STORAGE_WRITES is: it must never collide with an attribute name
+ * or be compared against one by accident.
+ */
+const DOCUMENT_TITLE = Symbol("document title");
 
 /**
  * G-90. The storage the head script sees.
@@ -167,8 +190,12 @@ function sandboxStorage({ stored, storageThrows } = {}) {
   };
 }
 
-function stampedAttrs(scriptSrc, search, storage = {}) {
-  if (scriptSrc === null) return {};
+function stampedAttrs(scriptSrc, search, storage = {}, { initialTitle = "" } = {}) {
+  if (scriptSrc === null) {
+    const none = {};
+    none[DOCUMENT_TITLE] = initialTitle;
+    return none;
+  }
   const stamped = {};
   const documentElement = {
     setAttribute(name, value) {
@@ -181,7 +208,12 @@ function stampedAttrs(scriptSrc, search, storage = {}) {
   const store = sandboxStorage(storage);
   const sandbox = {
     location: { search },
-    document: { documentElement },
+    /**
+     * The document is seeded with the STATIC title, so a build that never sets
+     * one models a real browser rather than an empty string. That is what makes
+     * the late-title arm below fail on a value a reader recognises.
+     */
+    document: { documentElement, title: initialTitle },
     localStorage: store.api,
     URLSearchParams,
     console,
@@ -190,6 +222,7 @@ function stampedAttrs(scriptSrc, search, storage = {}) {
   vm.createContext(sandbox);
   new vm.Script(scriptSrc, { filename: "index.html#inline-head-script" }).runInContext(sandbox);
   stamped[STORAGE_WRITES] = store.writes;
+  stamped[DOCUMENT_TITLE] = sandbox.document.title;
   return stamped;
 }
 
@@ -713,6 +746,20 @@ function scriptLiterals(scriptSrc) {
   };
   const fb = /var\s+FALLBACK_LENS\s*=\s*"([^"]+)"/.exec(scriptSrc);
   if (!fb) throw new Error("could not read FALLBACK_LENS out of the inline head script");
+  /**
+   * G-95. The four label maps the script carries a second copy of. Read as
+   * objects rather than as a blob, so a drifted VALUE - Overview renamed in one
+   * place and not the other - is caught, not just a missing key.
+   */
+  const map = (name) => {
+    const m = new RegExp(`var\\s+${name}\\s*=\\s*\\{([\\s\\S]*?)\\n\\s*\\};`).exec(scriptSrc);
+    if (!m) throw new Error(`could not read ${name} out of the inline head script`);
+    const out = {};
+    for (const e of m[1].matchAll(/(?:"([^"]+)"|([A-Za-z_$][\w$]*))\s*:\s*"([^"]*)"/g)) {
+      out[e[1] === undefined ? e[2] : e[1]] = e[3];
+    }
+    return out;
+  };
   return {
     LENS: list("LENS"),
     WORK: list("WORK"),
@@ -723,6 +770,13 @@ function scriptLiterals(scriptSrc) {
     THEMES: list("THEMES"),
     FALLBACK_THEME: str("FALLBACK_THEME"),
     THEME_KEY: str("THEME_KEY"),
+    // G-95. The title vocabulary.
+    PRODUCT_TITLE: str("PRODUCT_TITLE"),
+    TITLE_SEP: str("TITLE_SEP"),
+    LENS_LABELS: map("LENS_LABELS"),
+    TAB_LABELS: map("TAB_LABELS"),
+    WORK_LABELS: map("WORK_LABELS"),
+    ASSET_TAB_LABELS: map("ASSET_TAB_LABELS"),
   };
 }
 
@@ -731,7 +785,7 @@ function scriptLiterals(scriptSrc) {
  * same function can be run against a mutated copy and watched failing. Returns
  * the list of disagreements; empty means the two implementations agree.
  */
-function whitelistDivergences(scriptSrc) {
+function whitelistDivergences(scriptSrc, initialTitle = staticTitle(HTML)) {
   const out = [];
   const eq = (a, b) => JSON.stringify([...a].sort()) === JSON.stringify([...b].sort());
   let lit;
@@ -765,6 +819,33 @@ function whitelistDivergences(scriptSrc) {
   }
   if (lit.THEME_KEY !== THEME_STORAGE_KEY) {
     out.push(`THEME_KEY ${lit.THEME_KEY} != ${THEME_STORAGE_KEY}`);
+  }
+
+  /**
+   * G-95. The title vocabulary, on the same terms and for the same reason: the
+   * head script cannot import src/staff-review.mjs, because an importing script
+   * is a module and a module is deferred.
+   *
+   * Compared as MAPS rather than as key sets. A key set would have passed a
+   * build where the head script said "Overview" and the nav said "Home", which
+   * is the drift that actually matters here - the title would name a surface by
+   * a word appearing nowhere on the screen.
+   */
+  if (lit.PRODUCT_TITLE !== PRODUCT_TITLE) {
+    out.push(`PRODUCT_TITLE ${JSON.stringify(lit.PRODUCT_TITLE)} != ${JSON.stringify(PRODUCT_TITLE)}`);
+  }
+  if (lit.TITLE_SEP !== TITLE_SEP) {
+    out.push(`TITLE_SEP ${JSON.stringify(lit.TITLE_SEP)} != ${JSON.stringify(TITLE_SEP)}`);
+  }
+  for (const [name, script, module] of [
+    ["LENS_LABELS", lit.LENS_LABELS, LENS_LABELS],
+    ["TAB_LABELS", lit.TAB_LABELS, TAB_LABELS],
+    ["WORK_LABELS", lit.WORK_LABELS, WORK_LABELS],
+    ["ASSET_TAB_LABELS", lit.ASSET_TAB_LABELS, ASSET_TAB_LABELS],
+  ]) {
+    if (JSON.stringify(script) !== JSON.stringify(module)) {
+      out.push(`${name} diverged: script ${JSON.stringify(script)} vs module ${JSON.stringify(module)}`);
+    }
   }
 
   /**
@@ -820,7 +901,7 @@ function whitelistDivergences(scriptSrc) {
     };
     let got;
     try {
-      got = stampedAttrs(scriptSrc, search);
+      got = stampedAttrs(scriptSrc, search, {}, { initialTitle });
     } catch (err) {
       out.push(`${search || "(no query)"} threw: ${err.message}`);
       continue;
@@ -829,6 +910,13 @@ function whitelistDivergences(scriptSrc) {
       if (got[key] !== want[key]) {
         out.push(`${search || "(no query)"}: ${key} script=${JSON.stringify(got[key])} module=${JSON.stringify(want[key])}`);
       }
+    }
+    // G-95. The title the script resolves, against the one resolver.
+    const wantTitle = surfaceTitle(model);
+    if (got[DOCUMENT_TITLE] !== wantTitle) {
+      out.push(
+        `${search || "(no query)"}: title script=${JSON.stringify(got[DOCUMENT_TITLE])} module=${JSON.stringify(wantTitle)}`,
+      );
     }
   }
   return out;
@@ -1079,6 +1167,49 @@ describe("G-89 first paint", () => {
       whitelistDivergences(injectedWriter).some((d) => d.includes("wrote storage")),
       "a head script that writes storage must be caught",
     );
+
+    /**
+     * G-95. The title legs, injected the same way. Two disagreements, and the
+     * second is the one a key-set comparison would have missed: a label RENAMED
+     * in the script and not in the module puts a word in the title that appears
+     * nowhere on the screen, while every id still resolves and nothing throws.
+     */
+    const labelDropped = scriptSrc.replace('          finance: "Finance",\n', "");
+    assert.notEqual(labelDropped, scriptSrc, "the label probe must actually change the script");
+    const labelDroppedOut = whitelistDivergences(labelDropped);
+    assert.ok(
+      labelDroppedOut.some((d) => d.includes("LENS_LABELS diverged")),
+      `the textual arm must name the map; got ${JSON.stringify(labelDroppedOut)}`,
+    );
+    assert.ok(
+      labelDroppedOut.some((d) => d.includes("?lens=finance") && d.includes("title")),
+      `and the behavioural arm must name the query whose title is now wrong; got ${JSON.stringify(labelDroppedOut)}`,
+    );
+
+    const labelRenamed = scriptSrc.replace('"city-manager": "Overview",', '"city-manager": "Home",');
+    assert.notEqual(labelRenamed, scriptSrc);
+    const labelRenamedOut = whitelistDivergences(labelRenamed);
+    assert.ok(
+      labelRenamedOut.some((d) => d.includes("LENS_LABELS diverged") && d.includes("Home")),
+      `a renamed label must be caught by VALUE, not only by key; got ${JSON.stringify(labelRenamedOut)}`,
+    );
+
+    const sepDrifted = scriptSrc.replace('var TITLE_SEP = " \u00b7 ";', 'var TITLE_SEP = " - ";');
+    assert.notEqual(sepDrifted, scriptSrc, "the separator probe must actually change the script");
+    assert.ok(
+      whitelistDivergences(sepDrifted).some((d) => d.includes("TITLE_SEP")),
+      "a drifted separator makes first paint and the post-identity title disagree and must be caught",
+    );
+
+    const productDrifted = scriptSrc.replace(
+      'var PRODUCT_TITLE = "SmartCity Dashboards";',
+      'var PRODUCT_TITLE = "SmartCity";',
+    );
+    assert.notEqual(productDrifted, scriptSrc);
+    assert.ok(
+      whitelistDivergences(productDrifted).some((d) => d.includes("PRODUCT_TITLE")),
+      "the product name is one literal and a second copy of it must agree",
+    );
   });
 
   it("keeps the CSS enumeration in step with the panels, in three directions", () => {
@@ -1311,6 +1442,164 @@ describe("G-89 first paint", () => {
     assert.equal(preFix.theme, "dark");
     assert.equal(preFix.canvas, dark.canvas);
     assert.notEqual(preFix.canvas, light.canvas);
+  });
+
+  it("G-95: resolves the TITLE before first paint, and the late build is watched failing", () => {
+    /**
+     * THE ACCEPTANCE PREDICATE for 2.4.2 Page Titled, and it is about first
+     * paint rather than about the eventual title.
+     *
+     * Counting rule for every value below: the value of document.title after
+     * the inline head script has run and BEFORE the module has, with the
+     * document seeded with the static title web/index.html ships, for the query
+     * named in each case.
+     *
+     * Why first paint is the whole question. The product already set a title
+     * from web/app.js, so a test asking "does the title end up right" would
+     * have passed on the build this card replaced. It was wrong twice over: it
+     * named the PACK and not the SURFACE, so twenty-three pages shared one
+     * title; and it arrived after the module loaded, so a screen reader
+     * announced the old one on arrival and a bookmark taken during load
+     * recorded it. Only a first-paint check can tell the two builds apart,
+     * because after the module has run they are identical.
+     *
+     * Expected values are read from surfaceTitle() in src/staff-review.mjs
+     * rather than spelled out here, because a spelled-out title would be this
+     * file holding a third copy of the rule the divergence test above exists to
+     * keep at two.
+     */
+    const scriptSrc = inlineHeadScript(HTML);
+    const STATIC = staticTitle(HTML);
+    const titleAt = (src, search) =>
+      stampedAttrs(src, search, {}, { initialTitle: STATIC })[DOCUMENT_TITLE];
+
+    /**
+     * Every surface a person can navigate to, built from the same id sets the
+     * gate derives its scan list from. Every nav item and every tab is a real
+     * anchor with an href, so each of these IS a page under 2.4.2.
+     */
+    const surfaces = [
+      ...ALL_LENS_IDS.filter((l) => l !== "development-services").map((l) => `?lens=${l}`),
+      ...DS_TABS.map((t) => `?lens=development-services&tab=${t}`),
+      ...WORK_IDS.filter((w) => w !== "assets").map((w) => `?work=${w}`),
+      ...ASSET_TABS.map((a) => `?work=assets&atab=${a}`),
+    ];
+    /**
+     * The three ALIASES, named rather than left to collide. A bare
+     * ?lens=development-services resolves to its default tab, so it is a second
+     * URL for a surface already in the list above, not a twenty-fourth surface.
+     * Asserting the equality is the point: a title that differed between a
+     * surface and its own default-tab alias would be two names for one page.
+     */
+    const aliases = [
+      ["", "?lens=city-manager"],
+      ["?lens=development-services", "?lens=development-services&tab=pipeline"],
+      ["?work=assets", "?work=assets&atab=inventory"],
+    ];
+    const check = (src) => {
+      for (const search of surfaces) {
+        assert.equal(
+          titleAt(src, search),
+          surfaceTitle(resolveStaffLensQuery(search)),
+          search || "(no query)",
+        );
+      }
+    };
+    check(scriptSrc);
+
+    /**
+     * And the titles are DISTINCT, which is the criterion itself rather than
+     * the mechanism. Asserted over the same population and reported with its
+     * denominator, so a future label collision names both surfaces.
+     */
+    for (const [alias, canonical] of aliases) {
+      assert.equal(titleAt(scriptSrc, alias), titleAt(scriptSrc, canonical), `${alias || "(no query)"} is an alias of ${canonical}`);
+    }
+    const byTitle = new Map();
+    for (const search of surfaces) {
+      const title = titleAt(scriptSrc, search);
+      byTitle.set(title, [...(byTitle.get(title) || []), search]);
+    }
+    const collisions = [...byTitle.entries()].filter(([, qs]) => qs.length > 1);
+    assert.deepEqual(
+      collisions,
+      [],
+      `${byTitle.size} distinct titles over ${surfaces.length} surfaces; collisions above`,
+    );
+    assert.equal(byTitle.size, surfaces.length, "one title per surface, none shared");
+
+    /**
+     * The surface name comes FIRST, which is a product decision rather than a
+     * mechanism: a screen reader announces the title on arrival and reads left
+     * to right, so the word that says where you are must not be behind the
+     * city and the product name.
+     */
+    assert.match(titleAt(scriptSrc, "?lens=finance"), /^Finance/);
+    assert.match(titleAt(scriptSrc, "?work=assets&atab=map"), /^Map/);
+    assert.ok(titleAt(scriptSrc, "?lens=finance").endsWith(PRODUCT_TITLE));
+
+    /**
+     * ARM B. THE SAME PREDICATE against a build where the title is set LATE -
+     * the head script stamps the surface and the theme and stops, and web/app.js
+     * sets the title after the module loads. That is the build this card exists
+     * to prevent and the one a "does the title work" test cannot tell apart.
+     *
+     * The mutation is asserted to have changed the source before it is trusted,
+     * and the failure is matched on its VALUES, so weakening the acceptance
+     * above breaks this arm too rather than leaving a failing arm that proves
+     * nothing.
+     */
+    const lateHtml = HTML.replace(
+      /\n\s*document\.title = titleParts\.join\(TITLE_SEP\);/,
+      "",
+    );
+    assert.notEqual(lateHtml, HTML, "the late-title probe must actually change the document");
+    const lateScript = inlineHeadScript(lateHtml);
+    assert.ok(lateScript, "the probe must keep the head script, only its title leg goes");
+    assert.deepEqual(
+      firstPaintVisible({ html: lateHtml, css: CSS, search: "?lens=finance" }),
+      ["lens-finance"],
+      "the probe must leave the G-89 surface fix intact, or it is testing two things at once",
+    );
+    assert.throws(
+      () => check(lateScript),
+      (err) =>
+        err.code === "ERR_ASSERTION" &&
+        err.actual === STATIC &&
+        err.expected === surfaceTitle(resolveStaffLensQuery("")),
+      `the late-title build must fail the predicate, serving ${JSON.stringify(STATIC)} where ${JSON.stringify(surfaceTitle(resolveStaffLensQuery("")))} was asked for`,
+    );
+    // And it fails the criterion the way the shipped product did: one title on
+    // every surface, present and identical, which is why axe could not see it.
+    const lateTitles = new Set([...surfaces, ""].map((search) => titleAt(lateScript, search)));
+    assert.deepEqual([...lateTitles], [STATIC]);
+    assert.equal(lateTitles.size, 1, `the late build serves one title across ${surfaces.length + 1} URLs`);
+
+    /**
+     * ARM C, free, over real historical bytes: the frozen pre-fix build has no
+     * inline head script at all, so it cannot resolve a title either.
+     */
+    assert.equal(inlineHeadScript(FIXTURE_HTML), null);
+    assert.equal(titleAt(inlineHeadScript(FIXTURE_HTML), "?lens=finance"), STATIC);
+  });
+
+  it("G-95: keeps the static title, which is the right one when no script runs", () => {
+    /**
+     * The static title is NOT removed and it is NOT a surface name. With
+     * scripting off nothing stamps data-surface, so the attribute rules in
+     * web/shell.css never fire and the class in the static markup governs: every
+     * URL shows Overview. The document really is one page in that mode, so one
+     * product-level title is the honest answer rather than a fallback that
+     * claims a surface the browser is not showing.
+     */
+    assert.equal(staticTitle(HTML), PRODUCT_TITLE);
+    const noScriptHtml = HTML.replace(/<script>[\s\S]*?<\/script>/, "");
+    assert.equal(inlineHeadScript(noScriptHtml), null);
+    assert.deepEqual(
+      firstPaintVisible({ html: noScriptHtml, css: CSS, search: "?lens=finance" }),
+      ["lens-city-manager"],
+      "with no script every URL paints Overview, which is why one title is correct there",
+    );
   });
 
   it("G-90: keeps the static default so a scripting-disabled browser still has a theme", () => {

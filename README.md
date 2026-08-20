@@ -15,3 +15,7 @@ GitHub: https://github.com/empressaioemail-tech/smartcity-dashboards
 Do not deploy into `smartcity-os-prod`, `hauska-prod-497015`, or `legacy-design-tools-prod`. Neon/GCP not created on the housing lock. Live Bastrop stays on `smartcityos.io` until a named cutover.
 
 G-61 / OPS-17. WDLL: doc_repo `_inbox/2026-08-17_g61_dashboards_template_WDLL.md`. Wire: `_decisions/2026-08-17_g13_consumer_contract.md`. Housing: `_decisions/2026-08-17_smartcity_dashboards_housing.md`.
+
+## Accessibility gate (G-95)
+
+`npm run test:a11y` runs axe through a real Chromium against every surface this product serves, in every theme, and fails at any WCAG A or AA violation. Surfaces are derived from `src/staff-review.mjs` and themes from `src/theme.mjs`, so a lens or a theme added later is scanned with no edit to the scanner. It is a required CI job of its own because it needs a browser; the pure half is `src/a11y-gate.mjs` and is proven able to fail on the bare-Node `npm test` job.

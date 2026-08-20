@@ -71,16 +71,80 @@
         */
         var work = pick(WORK, params.get("work"), "");
         var lens = pick(LENS, params.get("lens"), FALLBACK_LENS);
+        var tab = lens === "development-services" ? pick(DS_TABS, params.get("tab"), "pipeline") : "";
+        var atab = work === "assets" ? pick(ASSET_TABS, params.get("atab"), "inventory") : "";
         var root = document.documentElement;
         root.setAttribute("data-surface", work ? "work-" + work : "lens-" + lens);
-        root.setAttribute(
-          "data-tab",
-          lens === "development-services" ? pick(DS_TABS, params.get("tab"), "pipeline") : "",
-        );
-        root.setAttribute(
-          "data-atab",
-          work === "assets" ? pick(ASSET_TABS, params.get("atab"), "inventory") : "",
-        );
+        root.setAttribute("data-tab", tab);
+        root.setAttribute("data-atab", atab);
+        /*
+          G-95. 2.4.2 Page Titled, resolved here for the same reason the surface
+          and the theme are, and it is the one of the three that axe could never
+          have found.
+
+          Every nav item and every tab in this product is a real anchor with an
+          href, so each of the twenty-three surfaces IS a distinct page, and each
+          one owes the reader a title saying which. The product served one title
+          on all of them. axe scans a page at a time, a title was present on
+          every page it scanned, and its document-title rule passed everywhere -
+          the criterion fails only when the surfaces are compared, which no
+          single-page scan does.
+
+          Stamped BEFORE the parser reaches the body, because a title set after
+          the module loads is a title a screen reader announces wrong on arrival
+          and a bookmark records wrong. web/app.js appends the city once the pack
+          reads; the part that distinguishes the pages is here and is never late.
+
+          The four maps below are a SECOND implementation of one rule, forced by
+          the same constraint as the id lists above: an importing script is a
+          module and a module is deferred. src/first-paint.test.mjs is the
+          divergence test that holds them equal to src/staff-review.mjs, both
+          textually and by comparing the resolved title for every query.
+        */
+        var PRODUCT_TITLE = "SmartCity Dashboards";
+        var TITLE_SEP = " · ";
+        var LENS_LABELS = {
+          "city-manager": "Overview",
+          "development-services": "Development services",
+          finance: "Finance",
+          citizen: "Citizen",
+          "public-works": "Public works",
+          parks: "Parks",
+          police: "Police",
+          "fire-ems": "Fire and EMS",
+          fleet: "Fleet",
+        };
+        var TAB_LABELS = {
+          pipeline: "Pipeline",
+          place: "Place",
+          inspections: "Inspections",
+          "work-orders": "Work orders",
+          "code-enforcement": "Code enforcement",
+          licenses: "Licenses",
+        };
+        var WORK_LABELS = {
+          files: "Files",
+          review: "Plan review",
+          records: "Records search",
+          assets: "Assets",
+          connections: "Connections",
+          people: "People and access",
+        };
+        var ASSET_TAB_LABELS = {
+          inventory: "Inventory",
+          map: "Map",
+          fixture: "Demo fixture record",
+        };
+        var titleParts = [];
+        if (work) {
+          if (work === "assets" && atab) titleParts.push(ASSET_TAB_LABELS[atab]);
+          titleParts.push(WORK_LABELS[work] || work);
+        } else {
+          if (lens === "development-services" && tab) titleParts.push(TAB_LABELS[tab]);
+          titleParts.push(LENS_LABELS[lens] || lens);
+        }
+        titleParts.push(PRODUCT_TITLE);
+        document.title = titleParts.join(TITLE_SEP);
         /*
           G-90. Theme, resolved here for exactly the reason the surface is.
 
@@ -201,7 +265,7 @@
                   <div class="actionbar">
                     <button type="button" class="btn btn-primary btn-sm" id="feedback-send">Send</button>
                   </div>
-                  <span class="basis" id="feedback-result">Basis: nothing has been sent from this session</span>
+                  <span class="basis" id="feedback-result" aria-live="polite">Basis: nothing has been sent from this session</span>
                 </div>
                 <div class="pop-group">
                   <button type="button" class="pop-item" id="acct-signin" disabled>Sign in</button>
@@ -262,7 +326,7 @@
                 <p class="lede">Where am I, what needs me, and what is missing. Nothing on this page is a count until a source reads.</p>
               </header>
               <div class="shell-regions">
-                <div class="colstack">
+                <div class="colstack" tabindex="0">
                   <div class="metrics" id="overview-metrics">
                     <div class="metric"><span class="k">Needs a decision</span><span class="v word">Not read</span><span class="n">No operations source</span></div>
                     <div class="metric"><span class="k">Overdue reviews</span><span class="v word">Not read</span><span class="n">Review mount is preview</span></div>
@@ -273,7 +337,7 @@
                     <div class="panel-head"><span class="t">What needs you today</span><span class="grow"></span><span class="t-caption">Decision queue</span></div>
                     <div class="state">
                       <span class="st-k">No live operations</span>
-                      <h5>No decisions are waiting on <span data-pack-key>this pack</span>.</h5>
+                      <h2>No decisions are waiting on <span data-pack-key>this pack</span>.</h2>
                       <p>This queue would list items that need a call across connected departments. No operations feed is granted on <span data-pack-key>this pack</span>, so there is nothing to resolve here.</p>
                       <span class="basis">Basis: no operations grant on cityKey <span data-pack-key>this pack</span>. Gold parcel 48021:34137 is a demo fixture, not a city onboarded.</span>
                     </div>
@@ -282,7 +346,7 @@
                     <div class="panel-head"><span class="t">Public meetings</span><span class="grow"></span><span class="prov"><b>City clerk calendar</b> <span class="sep">|</span> <span id="overview-meetings-conn">unread</span></span><span class="pill p-warn" id="overview-meetings-honesty" hidden style="display:none">Partial</span></div>
                     <div class="state" id="overview-meetings-state">
                       <span class="st-k">Calendar unread</span>
-                      <h5>No meeting packet has been read.</h5>
+                      <h2>No meeting packet has been read.</h2>
                       <p>Public meetings list files records from a clerk calendar grant. No clerk source is granted on <span data-pack-key>this pack</span>, so this panel stays empty rather than showing another city's sessions.</p>
                       <span class="basis" id="overview-meetings-basis">Basis: no clerk calendar grant has been read for this pack</span>
                     </div>
@@ -312,7 +376,7 @@
                     </div>
                   </div>
                 </div>
-                <div class="colstack rail">
+                <div class="colstack rail" tabindex="0">
                   <div class="region">
                     <div class="region-bar">
                       <span class="t">The city</span>
@@ -661,11 +725,11 @@
                 <p class="lede">No metric strip on this lens. Four zeros in a header would be four false claims.</p>
               </header>
               <div class="shell-regions">
-                <div class="colstack">
+                <div class="colstack" tabindex="0">
                   <div class="panel">
                     <div class="state">
                       <span class="st-k">No source connected</span>
-                      <h5>No finance records for this city yet.</h5>
+                      <h2>No finance records for this city yet.</h2>
                       <p>This lens reads from the city's adopted budget, its fund ledger, permit fee revenue, and department spend. None of the four has been connected as a confirmed ledger, so there is nothing to report. That is not a zero balance.</p>
                       <span class="basis">Basis: 0 of 4 required sources connected, counted from the source register below. Contact: city finance director. Payments unclaimed.</span>
                     </div>
@@ -680,7 +744,7 @@
                     </div>
                   </div>
                 </div>
-                <div class="colstack">
+                <div class="colstack" tabindex="0">
                   <div class="panel">
                     <div class="panel-head"><span class="t">Once connected</span></div>
                     <div class="panel-body">
@@ -698,7 +762,7 @@
             </section>
 
             <section class="lens" id="lens-citizen">
-              <div class="cz-scroll sc-light">
+              <div class="cz-scroll sc-light" tabindex="0">
                 <div class="cz">
                   <div>
                     <div class="titlerow">
@@ -752,7 +816,7 @@
                 <div class="panel">
                   <div class="state">
                     <span class="st-k">Lens on the roster</span>
-                    <h5>Public works is named, and not built.</h5>
+                    <h2>Public works is named, and not built.</h2>
                     <p>The department is on the roster so the navigation never implies coverage the product does not have. Capital projects, reporting, and phone analytics land here when the lens is built.</p>
                     <span class="basis">Basis: no view designed for this lens. Its jobs are listed on Connections with their homes.</span>
                   </div>
@@ -779,7 +843,7 @@
                 <div class="panel">
                   <div class="state">
                     <span class="st-k">Lens on the roster</span>
-                    <h5>Parks is named, and not built.</h5>
+                    <h2>Parks is named, and not built.</h2>
                     <p>Parks is a department page on the live city roster. It is named here so the roster stays honest about coverage rather than hiding behind an overflow menu.</p>
                     <span class="basis">Basis: no view designed for this lens. Municipal court is ruled long-tail and stays on Connections.</span>
                   </div>
@@ -796,7 +860,7 @@
                 <div class="panel">
                   <div class="state">
                     <span class="st-k">Lens on the roster</span>
-                    <h5>Police is named, and not built.</h5>
+                    <h2>Police is named, and not built.</h2>
                     <p>The emergency operations jobs fold into this lens and Fire and EMS rather than a separate operations centre product. No incident wallpaper is drawn before a source exists.</p>
                     <span class="basis">Basis: no view designed for this lens. Vendor grants are later cards, not this chrome.</span>
                   </div>
@@ -822,7 +886,7 @@
                 <div class="panel">
                   <div class="state">
                     <span class="st-k">Lens on the roster</span>
-                    <h5>Fire and EMS is named, and not built.</h5>
+                    <h2>Fire and EMS is named, and not built.</h2>
                     <p>Occupancies, volunteer response, county dispatch, and flood and weather land here. Flood layers are records or map overlays on Place, never a separate product.</p>
                     <span class="basis">Basis: no view designed for this lens. Vendor grants are later cards, not this chrome.</span>
                   </div>
@@ -848,7 +912,7 @@
                 <div class="panel">
                   <div class="state">
                     <span class="st-k">Lens on the roster</span>
-                    <h5>Fleet is named, and not built.</h5>
+                    <h2>Fleet is named, and not built.</h2>
                     <p>Vehicles, drivers, utilisation, and safety land here. A vehicle on a telemetry feed is a fleet record on this lens; it is never a city-owned asset record on Assets.</p>
                     <span class="basis">Basis: no view designed for this lens. Fleet telemetry does not fill the Assets inventory.</span>
                   </div>
@@ -930,7 +994,7 @@
                 <div class="panel">
                   <div class="state">
                     <span class="st-k">Not built</span>
-                    <h5>City document search is not built on this product.</h5>
+                    <h2>City document search is not built on this product.</h2>
                     <p>Document search stays a named island on the live city until a records-search lens is designed. The top-bar search box is disabled for the same reason, so the chrome and this page say the same thing.</p>
                     <span class="basis">Basis: no records-search view designed. Named on Connections as an island, not as a home that exists.</span>
                   </div>
@@ -960,11 +1024,11 @@
               </div>
               <div class="assets-tab on" id="atab-inventory">
                 <div class="shell-regions">
-                  <div class="colstack">
+                  <div class="colstack" tabindex="0">
                     <div class="panel">
                       <div class="state">
                         <span class="st-k">No city-owned assets</span>
-                        <h5>No city-owned asset records for <span data-pack-key>this pack</span>.</h5>
+                        <h2>No city-owned asset records for <span data-pack-key>this pack</span>.</h2>
                         <p>This page is the inventory. Empty is the designed state. A truck on a vendor feed is not a city asset record, so nothing is painted here to look populated.</p>
                         <span class="basis">Basis: G-24 stays zero. No hydrant, fleet, or sample inventory on <span data-pack-key>this pack</span>. Contact: city public works director.</span>
                       </div>
@@ -980,7 +1044,7 @@
                       </div>
                     </div>
                   </div>
-                  <div class="colstack">
+                  <div class="colstack" tabindex="0">
                     <div class="panel">
                       <div class="panel-head"><span class="t">Counter</span><span class="grow"></span><span class="prov"><b>zero</b></span></div>
                       <div class="panel-body">
@@ -1015,7 +1079,7 @@
               </div>
               <div class="assets-tab" id="atab-fixture">
                 <div class="shell-regions">
-                  <div class="colstack">
+                  <div class="colstack" tabindex="0">
                     <div class="panel">
                       <div class="panel-head">
                         <span class="t">Asset record</span>
@@ -1040,7 +1104,7 @@
                       </div>
                     </div>
                   </div>
-                  <div class="colstack">
+                  <div class="colstack" tabindex="0">
                     <div class="panel">
                       <div class="panel-head"><span class="t">History</span><span class="grow"></span><span class="pill p-quiet">Unread</span></div>
                       <div class="panel-body">
@@ -1176,7 +1240,7 @@
                 <div class="panel">
                   <div class="state">
                     <span class="st-k">Not built</span>
-                    <h5>There is no staff session on this product yet.</h5>
+                    <h2>There is no staff session on this product yet.</h2>
                     <p>This page is where a city attorney reads every grant: who has access to what, who granted it, when, and every revoke including the ones that can be restored. It is also the home for the session, notifications, feedback, theme, and sign out.</p>
                     <span class="basis">Basis: no staff session card has been taken. Everything on this product is the unauthenticated view, which is why no staff name appears anywhere on it.</span>
                   </div>
