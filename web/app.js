@@ -23,8 +23,8 @@ const LENS_LABELS = {
 const TAB_LABELS = {
   pipeline: "Pipeline",
   place: "Place",
-  review: "Review",
   inspections: "Inspections",
+  "work-orders": "Work orders",
   "code-enforcement": "Code enforcement",
   licenses: "Licenses",
 };
@@ -659,6 +659,7 @@ function renderPipeline(pipeline) {
   const caption = document.getElementById("ds-pipeline-caption");
   const basis = document.getElementById("ds-pipeline-basis");
   const emptyHead = document.getElementById("ds-pipeline-empty-head");
+  const emptyKicker = document.getElementById("ds-pipeline-empty-kicker");
   const emptyBasis = document.getElementById("ds-pipeline-empty-basis");
 
   applyPackState(pipeline);
@@ -683,9 +684,15 @@ function renderPipeline(pipeline) {
     show(mark, false);
     show(prov, false);
     if (caption) caption.textContent = "Cases in flight";
-    if (emptyHead) {
-      emptyHead.textContent = `No cases are in flight on ${pipeline.cityKey || "this pack"}.`;
-    }
+    /**
+     * G-97. The pipeline said ONE sentence for all four source states, so an
+     * ungranted region and a city that generates nothing read identically. The
+     * headline now names which of the four this is. The pipeline compose has
+     * carried sourceStatus since G-91 and nothing had ever read it.
+     */
+    const sentence = sourceSentence(pipeline.sourceStatus);
+    if (emptyKicker) emptyKicker.textContent = sentence.kicker;
+    if (emptyHead) emptyHead.textContent = sentence.headline;
     /** The absence carries the basis the pack itself stated. */
     if (emptyBasis && pipeline.basis) emptyBasis.textContent = `Basis: ${pipeline.basis}`;
     return;
@@ -740,6 +747,553 @@ async function loadPipeline(cityKey) {
     return;
   }
   renderPipeline(data);
+}
+
+/* ------------------------------------------------- the four source states
+
+RULING 1 AT THE PIXEL (OPS-17 A-076, operator-approved 2026-08-19).
+
+A region is in one of four source states and they are four SENTENCES, not one
+sentence with four bases underneath it. The pair that matters is `ungranted`
+against `granted-empty`: "this city has granted no MyGov" and "this city granted
+MyGov and it returned nothing" are different things to say to a customer, and a
+single "empty" says neither. Collapsing them re-creates the exact defect the
+ruling exists to close.
+
+ONE map, read by every region on this lens INCLUDING the pipeline, which said
+one sentence for all four states until G-97. A per-region copy would be two
+implementations of one rule, which is the shape this repo has already paid for
+(DEV_PROCESS 2.4).
+
+`read-failed` is the fifth entry and it is not a source state: a fetch that did
+not answer is not a city with no records, and it must not borrow that sentence.
+`not-registered` is the surface that does not exist, which is the only surviving
+meaning of Not built.
+*/
+const SOURCE_STATE = {
+  ok: {
+    kicker: "Records",
+    headline: "Records are rendering from this pack.",
+    metricNote: "records read",
+  },
+  ungranted: {
+    kicker: "Built, no source",
+    headline: "This region is built and this pack has granted no source for it.",
+    metricNote: "Built, no source",
+  },
+  "granted-empty": {
+    kicker: "Source returned nothing",
+    headline: "The source is granted on this pack and it returned no records.",
+    metricNote: "Source returned nothing",
+  },
+  "no-fixture-source": {
+    kicker: "No source",
+    headline: "This pack generates no records and grants no source.",
+    metricNote: "No source on this pack",
+  },
+  "not-registered": {
+    kicker: "Not built",
+    headline: "This surface is not built.",
+    metricNote: "Not built",
+  },
+  "read-failed": {
+    kicker: "Read failed",
+    headline: "This region did not read, which is not the same as a pack with no records.",
+    metricNote: "Region did not read",
+  },
+};
+
+/** The state's sentence. An unknown status is a failed read, never a quiet pass. */
+function sourceSentence(status) {
+  return SOURCE_STATE[status] || SOURCE_STATE["read-failed"];
+}
+
+/**
+ * Writes the state sentence into one region's honest-empty block. Called with a
+ * literal prefix from every region, so the ids it composes resolve to concrete
+ * strings and the addressability gate can see all of them.
+ */
+function writeSourceSentence(prefix, payload) {
+  const sentence = sourceSentence(payload.status);
+  const kicker = document.getElementById(`${prefix}-empty-kicker`);
+  const head = document.getElementById(`${prefix}-empty-head`);
+  const basis = document.getElementById(`${prefix}-empty-basis`);
+  if (kicker) kicker.textContent = sentence.kicker;
+  if (head) head.textContent = sentence.headline;
+  if (basis) basis.textContent = `Basis: ${payload.basis || "no basis was stated"}`;
+}
+
+/* ------------------------------------------------------- region rendering */
+
+/** Status id to declared label and severity, taken from the payload's own tiles. */
+function labelsFrom(metrics) {
+  const out = {};
+  for (const metric of Array.isArray(metrics) ? metrics : []) {
+    out[metric.id] = { label: metric.label, severity: metric.severity };
+  }
+  return out;
+}
+
+function pillCell(label, severity) {
+  const cell = document.createElement("td");
+  const pill = document.createElement("span");
+  pill.className = `pill ${SEVERITY_PILL[severity] || "p-quiet"}`;
+  pill.textContent = label;
+  cell.append(pill);
+  return cell;
+}
+
+function dataCell(text) {
+  const cell = document.createElement("td");
+  const value = document.createElement("span");
+  value.className = "t-data";
+  value.textContent = text;
+  cell.append(value);
+  return cell;
+}
+
+/** A cell that carries an absence rather than a blank, in the record's own words. */
+function basisCell(text) {
+  const cell = document.createElement("td");
+  const note = document.createElement("span");
+  note.className = "t-caption";
+  note.textContent = text;
+  cell.append(note);
+  return cell;
+}
+
+function placeCell(record) {
+  return td(record.place && record.place.label ? record.place.label : "");
+}
+
+/**
+ * A stage id rendered for reading. Derived from the declared id rather than
+ * copied into a second vocabulary here: a display map for work-order stages
+ * would be a copy of WORK_ORDER_STAGE_VALUES that nothing keeps in step.
+ */
+function stageLabel(id) {
+  const value = String(id || "");
+  if (!value) return "";
+  const words = value.replace(/-/g, " ");
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+function extrasOf(payload) {
+  return payload && payload.extras && typeof payload.extras === "object" ? payload.extras : {};
+}
+
+/**
+ * The metric strip for a domain region.
+ *
+ * The tile LABEL is written from the payload rather than trusted from the
+ * markup, so the declared vocabulary and the screen cannot drift; the static
+ * markup is the pre-read fallback and nothing more. The counting rule travels
+ * with the number, in the note under it, exactly as the pipeline's does.
+ */
+function renderDomainMetrics(stripId, payload, noun) {
+  const strip = document.getElementById(stripId);
+  if (!strip) return;
+  const metrics = Array.isArray(extrasOf(payload).metrics) ? extrasOf(payload).metrics : [];
+  const ok = payload.status === "ok";
+  const sentence = sourceSentence(payload.status);
+  for (const metric of metrics) {
+    const el = strip.querySelector(`.metric[data-metric="${metric.id}"]`);
+    if (!el) continue;
+    const key = el.querySelector(".k");
+    const value = el.querySelector(".v");
+    const note = el.querySelector(".n");
+    if (key) key.textContent = metric.label;
+    if (!ok) continue;
+    el.classList.add("has-value");
+    if (value) {
+      value.classList.remove("word");
+      value.textContent = String(metric.count);
+    }
+    if (note) note.textContent = `of ${payload.recordCount} ${noun}`;
+  }
+  if (ok) return;
+  /**
+   * Not a zero. A region with no source states that it has no source, on every
+   * tile, and the sentence names WHICH of the four states it is.
+   */
+  for (const el of strip.querySelectorAll(".metric")) {
+    el.classList.remove("has-value");
+    const value = el.querySelector(".v");
+    const note = el.querySelector(".n");
+    if (value) {
+      value.classList.add("word");
+      value.textContent = "Not read";
+    }
+    if (note) note.textContent = sentence.metricNote;
+  }
+}
+
+/**
+ * The queue panel for a domain region: the demo mark, the provenance chip, the
+ * honest-empty block and the records table.
+ *
+ * `extraBases` are further absences the DOMAIN itself declared - the inspector
+ * held off an inspection, the assessed figure held off a case, the renewal
+ * charge held off a licence. They are the payload's own strings, joined rather
+ * than rewritten, so the region's basis line carries every absence it owns.
+ */
+function renderDomainQueue(prefix, payload, buildRow, noun, extraBases) {
+  const empty = document.getElementById(`${prefix}-empty`);
+  const wrap = document.getElementById(`${prefix}-records`);
+  const rows = document.getElementById(`${prefix}-rows`);
+  const mark = document.getElementById(`${prefix}-mark`);
+  const prov = document.getElementById(`${prefix}-prov`);
+  const caption = document.getElementById(`${prefix}-caption`);
+  const basis = document.getElementById(`${prefix}-basis`);
+
+  writeSourceSentence(prefix, payload);
+  const records = Array.isArray(payload.records) ? payload.records : [];
+
+  if (records.length === 0) {
+    show(empty, true);
+    show(wrap, false);
+    if (rows) rows.replaceChildren();
+    show(mark, false);
+    show(prov, false);
+    if (caption) caption.textContent = sourceSentence(payload.status).kicker;
+    /**
+     * The table's own basis is rewritten even though the table is hidden. A
+     * hidden element still carries its text into the DOM and into anything that
+     * reads it, and "Basis: generated fixture records" left standing under an
+     * unpopulated region is a claim this pack has not earned.
+     */
+    if (basis) basis.textContent = `Basis: ${payload.basis || "no basis was stated"}`;
+    return;
+  }
+
+  show(empty, false);
+  show(wrap, true);
+  show(mark, true);
+  show(prov, true);
+  if (caption) caption.textContent = `${records.length} ${noun}`;
+  if (basis) {
+    const parts = [payload.basis, ...(Array.isArray(extraBases) ? extraBases : [])].filter(Boolean);
+    basis.textContent = `Basis: ${parts.join(" | ")}`;
+  }
+  if (rows) rows.replaceChildren(...records.map((record) => buildRow(record, payload)));
+}
+
+/**
+ * A register of a region's second axis: the result classes, the escalation
+ * ladder, the daily slice, the expiry bands, the inspector load.
+ *
+ * When the region has no source the register is EMPTIED and its basis line
+ * carries the pack's own sentence. An empty container plus a stated basis is an
+ * absence; an empty container alone is a blank, and a blank is what ruling 1
+ * exists to stop.
+ */
+function renderRegister(containerId, basisId, payload, buildRows, rule) {
+  const container = document.getElementById(containerId);
+  const basis = document.getElementById(basisId);
+  const ok = payload.status === "ok";
+  if (container) {
+    container.replaceChildren(
+      ...(ok ? buildRows(payload) : []).map((row) => {
+        const el = document.createElement("div");
+        el.className = "srcreg";
+        const rail = document.createElement("i");
+        rail.className = "rail";
+        const name = document.createElement("span");
+        name.className = "nm";
+        const title = document.createElement("b");
+        title.textContent = row.title;
+        name.append(title);
+        if (row.sub) {
+          const sub = document.createElement("span");
+          sub.textContent = row.sub;
+          name.append(sub);
+        }
+        const pill = document.createElement("span");
+        pill.className = `pill ${SEVERITY_PILL[row.severity] || "p-quiet"}`;
+        pill.textContent = String(row.value);
+        el.append(rail, name, pill);
+        return el;
+      }),
+    );
+  }
+  if (basis) basis.textContent = `Basis: ${ok ? rule(payload) : payload.basis}`;
+}
+
+/** A key-value block for a region's summary figures. Same absence discipline. */
+function renderKeyValues(containerId, basisId, payload, buildPairs, rule) {
+  const container = document.getElementById(containerId);
+  const basis = document.getElementById(basisId);
+  const ok = payload.status === "ok";
+  if (container) {
+    const children = [];
+    for (const [key, value] of ok ? buildPairs(payload) : []) {
+      const dt = document.createElement("dt");
+      dt.textContent = key;
+      const dd = document.createElement("dd");
+      dd.textContent = String(value);
+      children.push(dt, dd);
+    }
+    container.replaceChildren(...children);
+  }
+  if (basis) basis.textContent = `Basis: ${ok ? rule(payload) : payload.basis}`;
+}
+
+/* ---------------------------------------------------------- inspections */
+
+function inspectionRow(record, payload) {
+  const row = document.createElement("tr");
+  const results = labelsFrom(extrasOf(payload).results);
+  const statuses = labelsFrom(extrasOf(payload).metrics);
+  const result = results[record.result] || { label: record.result, severity: "quiet" };
+  row.append(
+    td(record.recordId, "id"),
+    td(record.inspectionType, "subj"),
+    pillCell(result.label, result.severity),
+    placeCell(record),
+    /**
+     * An unscheduled inspection carries no day, so the cell carries the
+     * record's own scheduleBasis rather than a blank or an invented date.
+     */
+    record.dayLabel ? dataCell(record.dayLabel) : basisCell(record.scheduleBasis || ""),
+    statusCell(record, statuses),
+  );
+  return row;
+}
+
+function renderInspections(payload) {
+  const first = Array.isArray(payload.records) ? payload.records[0] : null;
+  renderDomainMetrics("ds-insp-metrics", payload, "generated inspections");
+  renderDomainQueue("ds-insp", payload, inspectionRow, "inspections on the board", [
+    first && first.inspectorBasis,
+  ]);
+  renderRegister(
+    "ds-insp-results",
+    "ds-insp-results-basis",
+    payload,
+    (data) =>
+      (extrasOf(data).results || []).map((result) => ({
+        title: result.label,
+        sub: result.basis || "",
+        value: result.count,
+        severity: result.severity,
+      })),
+    (data) => (extrasOf(data).results || []).map((r) => r.countingRule)[0] || data.basis,
+  );
+  renderRegister(
+    "ds-insp-load",
+    "ds-insp-load-basis",
+    payload,
+    (data) =>
+      (extrasOf(data).inspectorLoad || []).map((load) => ({
+        title: load.inspectorRef,
+        sub: `${load.openCount} open`,
+        value: load.inspectionCount,
+        severity: "quiet",
+      })),
+    (data) =>
+      [
+        (extrasOf(data).inspectorLoad || []).map((l) => l.countingRule)[0],
+        (extrasOf(data).inspectorLoad || []).map((l) => l.inspectorBasis)[0],
+      ]
+        .filter(Boolean)
+        .join(" | ") || data.basis,
+  );
+}
+
+/* --------------------------------------------------------- work orders */
+
+function workOrderRow(record, payload) {
+  const row = document.createElement("tr");
+  row.append(
+    td(record.recordId, "id"),
+    td(record.subject, "subj"),
+    td(stageLabel(record.stage)),
+    placeCell(record),
+    dueCell(record),
+    /** The target travels with the elapsed figure, so the number is readable. */
+    dataCell(`${record.slaElapsedHours} h of ${record.slaTargetHours} h`),
+    statusCell(record, labelsFrom(extrasOf(payload).metrics)),
+  );
+  return row;
+}
+
+function renderWorkOrders(payload) {
+  renderDomainMetrics("ds-wo-metrics", payload, "generated work orders");
+  renderDomainQueue("ds-wo", payload, workOrderRow, "orders in the queue", []);
+  renderKeyValues(
+    "ds-wo-sla",
+    "ds-wo-sla-basis",
+    payload,
+    (data) => {
+      const sla = extrasOf(data).sla || {};
+      return [
+        ["Target", `${sla.targetHours} hours`],
+        ["Breached", sla.breached],
+        ["At risk", sla.atRisk],
+        ["Within", sla.within],
+        ["Measured", sla.measured],
+      ];
+    },
+    (data) => (extrasOf(data).sla || {}).countingRule || data.basis,
+  );
+  renderRegister(
+    "ds-wo-daily",
+    "ds-wo-daily-basis",
+    payload,
+    (data) =>
+      (extrasOf(data).dailyQueue || []).map((day) => ({
+        title: day.dayLabel,
+        sub: "",
+        value: day.count,
+        severity: "quiet",
+      })),
+    (data) => (extrasOf(data).dailyQueue || []).map((d) => d.countingRule)[0] || data.basis,
+  );
+}
+
+/* ---------------------------------------------------- code enforcement */
+
+function codeViolationRow(record, payload) {
+  const row = document.createElement("tr");
+  const rungs = labelsFrom(extrasOf(payload).escalation);
+  const rung = rungs[record.escalation] || { label: record.escalation, severity: "quiet" };
+  row.append(
+    td(record.recordId, "id"),
+    td(record.violationType, "subj"),
+    pillCell(rung.label, rung.severity),
+    dataCell(String(record.escalationStep)),
+    placeCell(record),
+    dueCell(record),
+    statusCell(record, labelsFrom(extrasOf(payload).metrics)),
+  );
+  return row;
+}
+
+function renderCodeEnforcement(payload) {
+  const stats = extrasOf(payload).stats || {};
+  renderDomainMetrics("ds-ce-metrics", payload, "generated cases");
+  renderDomainQueue("ds-ce", payload, codeViolationRow, "cases on the ladder", [stats.penaltyBasis]);
+  renderRegister(
+    "ds-ce-ladder",
+    "ds-ce-ladder-basis",
+    payload,
+    (data) =>
+      (extrasOf(data).escalation || []).map((rung) => ({
+        title: rung.label,
+        /** The step is DATA on the rung, so the order is visible rather than
+         *  implied by the position of the row. */
+        sub: `Step ${rung.step}`,
+        value: rung.count,
+        severity: rung.severity,
+      })),
+    (data) => (extrasOf(data).escalation || []).map((r) => r.countingRule)[0] || data.basis,
+  );
+  renderKeyValues(
+    "ds-ce-stats",
+    "ds-ce-stats-basis",
+    payload,
+    (data) => {
+      const figures = extrasOf(data).stats || {};
+      return [
+        ["Open", figures.open],
+        ["Closed", figures.closed],
+        ["Measured", figures.measured],
+        ["Penalty", figures.penaltyBasis],
+      ];
+    },
+    (data) => (extrasOf(data).stats || {}).countingRule || data.basis,
+  );
+}
+
+/* ---------------------------------------------------------- licences */
+
+function licenceRow(record, payload) {
+  const row = document.createElement("tr");
+  row.append(
+    td(record.recordId, "id"),
+    td(record.licenseCategory, "subj"),
+    dataCell(record.holderRef),
+    placeCell(record),
+    dataCell(record.expiryLabel),
+    statusCell(record, labelsFrom(extrasOf(payload).metrics)),
+  );
+  return row;
+}
+
+/** An expiry band's bounds, read off the payload. Null is open-ended. */
+function bandBounds(band) {
+  if (band.from === null || band.from === undefined) return `up to ${band.to} days`;
+  if (band.to === null || band.to === undefined) return `${band.from} days and beyond`;
+  return `${band.from} to ${band.to} days`;
+}
+
+function renderLicences(payload) {
+  const extras = extrasOf(payload);
+  renderDomainMetrics("ds-lic-metrics", payload, "generated licences");
+  renderDomainQueue("ds-lic", payload, licenceRow, "licences on the roll", [
+    extras.chargesBasis,
+    Array.isArray(payload.records) && payload.records[0] ? payload.records[0].holderBasis : "",
+  ]);
+  renderRegister(
+    "ds-lic-expiry",
+    "ds-lic-expiry-basis",
+    payload,
+    (data) =>
+      (extrasOf(data).expiry || []).map((band) => ({
+        title: band.label,
+        sub: bandBounds(band),
+        value: band.count,
+        severity: band.severity,
+      })),
+    (data) => (extrasOf(data).expiry || []).map((w) => w.countingRule)[0] || data.basis,
+  );
+}
+
+/* ----------------------------------------------------------- the loader */
+
+/**
+ * One registered domain, in full, for a pack.
+ *
+ * The route has shipped since G-91 and this is its first consumer. No second
+ * data path: the browser renders what the seam composed and generates nothing.
+ *
+ * A read that did not answer is NOT a pack with no records, and it does not get
+ * to borrow that sentence. It renders as a stated failure with its own basis,
+ * which is the discipline loadPipeline already applies one region over.
+ */
+async function loadDomain(domainId, cityKey) {
+  const key = String(cityKey || "").trim();
+  try {
+    const res = await fetch(
+      `/api/domains/${encodeURIComponent(domainId)}?cityKey=${encodeURIComponent(key)}`,
+    );
+    const body = res.ok ? await res.json() : null;
+    if (body && typeof body.status === "string") return body;
+  } catch {
+    /* fall through to the stated failure below */
+  }
+  return {
+    domainId,
+    cityKey: key,
+    status: "read-failed",
+    recordCount: 0,
+    records: [],
+    extras: {},
+    basis: `the ${domainId} region did not read for ${key}`,
+  };
+}
+
+async function loadDevelopmentServices(cityKey) {
+  const [inspections, workOrders, codeViolations, licences] = await Promise.all([
+    loadDomain("inspections", cityKey),
+    loadDomain("work-orders", cityKey),
+    loadDomain("code-violations", cityKey),
+    loadDomain("business-licenses", cityKey),
+  ]);
+  renderInspections(inspections);
+  renderWorkOrders(workOrders);
+  renderCodeEnforcement(codeViolations);
+  renderLicences(licences);
 }
 
 /* ---------------------------------------------------------------- routing */
@@ -1193,4 +1747,5 @@ loadShellState(staffMap.cityKey);
 loadIdentity(staffMap.cityKey);
 composeGoldMap(staffMap.parcelNodeId, staffMap.cityKey);
 loadPipeline(staffMap.cityKey);
+loadDevelopmentServices(staffMap.cityKey);
 if (resettle) resettle();

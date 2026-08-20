@@ -266,7 +266,13 @@ describe("HTTP surface", () => {
     assert.match(html, /id="files-site"/);
     assert.equal(html.includes("compose-form"), false);
     assert.equal(html.includes("$0"), false);
-    const review = await (await fetch(`${base}/?lens=development-services&tab=review`)).text();
+    /**
+     * G-97: Review left Development services and Work / Plan review is the only
+     * door to the console now, so this probe follows it. The stage layer is
+     * document-level, which is why the map and overview markers still read from
+     * the same response.
+     */
+    const review = await (await fetch(`${base}/?work=review`)).text();
     assert.match(review, /id="review-site"/);
     assert.match(review, /id="map-site"/);
     assert.match(review, /id="anchor-overview-map"/);

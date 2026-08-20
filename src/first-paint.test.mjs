@@ -838,7 +838,7 @@ function whitelistDivergences(scriptSrc) {
  * The ids enumerated in one attribute-keyed show rule in the stylesheet.
  *
  * The value-to-id relation is asserted here rather than assumed, because a
- * mis-mapped pair - html[data-tab="review"] #tab-place - is exactly the defect
+ * mis-mapped pair - html[data-tab="work-orders"] #tab-place - is exactly the defect
  * an enumeration invites and it would not show up in a set comparison, since
  * both sets would still hold the same members.
  */
@@ -872,7 +872,7 @@ describe("G-89 first paint", () => {
     const cases = [
       ["?lens=finance", ["lens-finance"]],
       ["?work=connections", ["work-connections"]],
-      ["?lens=development-services&tab=review", ["lens-development-services"]],
+      ["?lens=development-services&tab=work-orders", ["lens-development-services"]],
       ["", ["lens-city-manager"]],
       ["?lens=bogus", ["lens-city-manager"]],
     ];
@@ -933,8 +933,8 @@ describe("G-89 first paint", () => {
     assert.equal(panels(HTML, "ds-tab").length, 6);
     assert.equal(panels(HTML, "assets-tab").length, 3);
     assert.deepEqual(
-      firstPaintVisible({ html: HTML, css: CSS, search: "?lens=development-services&tab=review", panelClass: "ds-tab" }),
-      ["tab-review"],
+      firstPaintVisible({ html: HTML, css: CSS, search: "?lens=development-services&tab=work-orders", panelClass: "ds-tab" }),
+      ["tab-work-orders"],
     );
     assert.deepEqual(
       firstPaintVisible({ html: HTML, css: CSS, search: "?work=assets&atab=map", panelClass: "assets-tab" }),
@@ -945,7 +945,7 @@ describe("G-89 first paint", () => {
       firstPaintVisible({
         html: FIXTURE_HTML,
         css: FIXTURE_CSS,
-        search: "?lens=development-services&tab=review",
+        search: "?lens=development-services&tab=work-orders",
         panelClass: "ds-tab",
       }),
       ["tab-pipeline"],
@@ -975,8 +975,8 @@ describe("G-89 first paint", () => {
     );
     for (const cls of ["ds-tab", "assets-tab"]) {
       assert.deepEqual(
-        firstPaintVisible({ html: noScriptHtml, css: CSS, search: "?lens=development-services&tab=review", panelClass: cls }),
-        firstPaintVisible({ html: FIXTURE_HTML, css: FIXTURE_CSS, search: "?lens=development-services&tab=review", panelClass: cls }),
+        firstPaintVisible({ html: noScriptHtml, css: CSS, search: "?lens=development-services&tab=work-orders", panelClass: cls }),
+        firstPaintVisible({ html: FIXTURE_HTML, css: FIXTURE_CSS, search: "?lens=development-services&tab=work-orders", panelClass: cls }),
         cls,
       );
     }
@@ -1134,13 +1134,13 @@ describe("G-89 first paint", () => {
     // above. This is the one defect an enumeration invites that set comparison
     // is structurally blind to.
     const misMapped = CSS.replace(
-      'html[data-tab="review"] #tab-review',
-      'html[data-tab="review"] #tab-place',
+      'html[data-tab="work-orders"] #tab-work-orders',
+      'html[data-tab="work-orders"] #tab-place',
     );
     assert.notEqual(misMapped, CSS, "the mis-map probe must actually change the stylesheet");
     assert.throws(
       () => enumeratedShowIds(misMapped, "data-tab", "tab-"),
-      /keys attribute value review to panel #tab-place/,
+      /keys attribute value work-orders to panel #tab-place/,
     );
   });
 
