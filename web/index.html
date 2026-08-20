@@ -746,52 +746,189 @@
               </div>
             </section>
 
-            <section class="lens roster-lens" id="lens-police">
+            <section class="lens" id="lens-police">
               <header class="pagehead">
                 <div class="crumb"><b data-pack-name>This city</b> <span>/</span> Police</div>
-                <div class="titlerow"><h1>Police</h1><span class="pill p-quiet">Not built</span></div>
+                <div class="titlerow"><h1>Police</h1><span class="pill p-quiet" id="police-state-chip">Empty</span><span class="grow"></span><span class="t-caption" id="police-region-rule">No region has been read for this pack</span></div>
+                <p class="lede">Cameras and the patrol roster. Each region states its own source, and the roster is the one region in this product that is BUILT with no source at all, which is a different sentence from a region that does not exist.</p>
               </header>
               <div class="shell-regions solo">
-                <div class="panel">
-                  <div class="state">
-                    <span class="st-k">Lens on the roster</span>
-                    <h2>Police is named, and not built.</h2>
-                    <p>The emergency operations jobs fold into this lens and Fire and EMS rather than a separate operations centre product. No incident wallpaper is drawn before a source exists.</p>
-                    <span class="basis">Basis: no view designed for this lens. Vendor grants are later cards, not this chrome.</span>
+                <div class="colstack" tabindex="0">
+                  <div class="metrics" id="police-cameras-metrics">
+                    <div class="metric" data-metric="offline"><span class="k">Offline</span><span class="v word">Not read</span><span class="n">No camera source</span></div>
+                    <div class="metric" data-metric="signal-loss"><span class="k">Signal loss</span><span class="v word">Not read</span><span class="n">No camera source</span></div>
+                    <div class="metric" data-metric="firmware-due"><span class="k">Firmware due</span><span class="v word">Not read</span><span class="n">No camera source</span></div>
+                    <div class="metric" data-metric="online"><span class="k">Online</span><span class="v word">Not read</span><span class="n">No camera source</span></div>
                   </div>
-                  <div class="roster-note">
-                    <span class="t-label">Jobs waiting on this lens</span>
-                    <div class="roster-list">
-                      <span class="prov"><b>Patrol</b></span>
-                      <span class="prov"><b>Cameras</b></span>
-                      <span class="prov"><b>Incident log</b></span>
-                      <span class="prov"><b>Regional operations map</b></span>
+                  <div class="panel">
+                    <div class="panel-head"><span class="t">Camera inventory</span><span class="grow"></span><span class="pill p-warn" id="police-cameras-mark" hidden>Demo records</span><span class="prov" id="police-cameras-prov" hidden><b>Generated fixture</b><span class="sep">|</span>Camera output contract</span><span class="t-caption" id="police-cameras-caption">Not read</span></div>
+                    <div class="state" id="police-cameras-state">
+                      <span class="st-k" id="police-cameras-kicker">Region unread</span>
+                      <h2 id="police-cameras-head">The camera inventory has not been read for this pack.</h2>
+                      <p>Devices, the sites they group under, and how each one is reporting. No plate read and no person of interest is carried here: those are surveillance records about identifiable people, and the record contract declares both as fields a generated record never has.</p>
+                      <span class="basis" id="police-cameras-basis">Basis: no region payload has been read for this pack</span>
+                    </div>
+                    <div id="police-cameras-records" hidden>
+                      <table class="dt">
+                        <thead>
+                          <tr>
+                            <th scope="col">Device</th>
+                            <th scope="col">Status</th>
+                            <th scope="col">Site</th>
+                            <th scope="col">Placement</th>
+                            <th scope="col">Occupancy</th>
+                          </tr>
+                        </thead>
+                        <tbody id="police-cameras-rows"></tbody>
+                      </table>
+                      <div class="panel-body">
+                        <span class="basis" id="police-cameras-privacy">The excluded record families have not been read for this pack</span>
+                        <span class="basis" id="police-cameras-inventory">The inventory position has not been read for this pack</span>
+                      </div>
+                      <div class="panel-head"><span class="t">Sites</span><span class="grow"></span><span class="t-caption" id="police-cameras-sites-rule">An opaque site reference, never an address</span></div>
+                      <table class="dt">
+                        <thead>
+                          <tr>
+                            <th scope="col">Site</th>
+                            <th scope="col">Placement</th>
+                            <th scope="col">Cameras</th>
+                          </tr>
+                        </thead>
+                        <tbody id="police-cameras-site-rows"></tbody>
+                      </table>
+                      <div class="panel-head"><span class="t">Occupancy</span><span class="grow"></span><span class="t-caption" id="police-cameras-occupancy-rule">A band, never a head count</span></div>
+                      <table class="dt">
+                        <thead>
+                          <tr>
+                            <th scope="col">Band</th>
+                            <th scope="col">Cameras</th>
+                          </tr>
+                        </thead>
+                        <tbody id="police-cameras-occupancy-rows"></tbody>
+                      </table>
+                      <div class="panel-body">
+                        <span class="basis" id="police-cameras-occupancy-basis">The occupancy dimension has not been read for this pack</span>
+                        <span class="basis" id="police-cameras-recordsbasis">Basis: generated fixture records</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="metrics" id="patrol-vehicles-metrics">
+                    <div class="metric" data-metric="out-of-service"><span class="k">Out of service</span><span class="v word">Not read</span><span class="n">No patrol source</span></div>
+                    <div class="metric" data-metric="inspection-due"><span class="k">Inspection due</span><span class="v word">Not read</span><span class="n">No patrol source</span></div>
+                    <div class="metric" data-metric="in-shop"><span class="k">In shop</span><span class="v word">Not read</span><span class="n">No patrol source</span></div>
+                    <div class="metric" data-metric="in-service"><span class="k">In service</span><span class="v word">Not read</span><span class="n">No patrol source</span></div>
+                  </div>
+                  <div class="panel">
+                    <div class="panel-head"><span class="t">Patrol roster</span><span class="grow"></span><span class="pill p-warn" id="patrol-vehicles-mark" hidden>Demo records</span><span class="prov" id="patrol-vehicles-prov" hidden><b>Generated fixture</b><span class="sep">|</span>Telemetry output contract</span><span class="t-caption" id="patrol-vehicles-caption">Not read</span></div>
+                    <div class="state" id="patrol-vehicles-state">
+                      <span class="st-k" id="patrol-vehicles-kicker">Region unread</span>
+                      <h2 id="patrol-vehicles-head">The patrol roster has not been read for this pack.</h2>
+                      <p>This region is BUILT. It declares a record shape, it carries a working generator, and its tiles are the instrument it ships with. What it does not have on this pack is a source, and that is what the basis below says. Nothing is drawn to fill the space and the tiles stay unread rather than showing a zero, because a zero would be a claim about a fleet nobody has read.</p>
+                      <span class="basis" id="patrol-vehicles-basis">Basis: no region payload has been read for this pack</span>
+                    </div>
+                    <div id="patrol-vehicles-records" hidden>
+                      <table class="dt">
+                        <thead>
+                          <tr>
+                            <th scope="col">Unit</th>
+                            <th scope="col">Status</th>
+                            <th scope="col">Operator</th>
+                          </tr>
+                        </thead>
+                        <tbody id="patrol-vehicles-rows"></tbody>
+                      </table>
+                      <div class="panel-body">
+                        <span class="basis" id="patrol-vehicles-operator">The operator reference has not been read for this pack</span>
+                        <span class="basis" id="patrol-vehicles-recordsbasis">Basis: generated fixture records</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="panel">
+                    <div class="panel-head"><span class="t">Not built on this lens</span><span class="grow"></span><span class="pill p-quiet">Not built</span></div>
+                    <div class="panel-body">
+                      <p>Two more Police jobs are named on the live city roster and are not regions on this product yet. They are listed rather than hidden, so the lens never implies coverage it does not have.</p>
+                      <div class="roster-note">
+                        <span class="t-label">Not a region on this product</span>
+                        <div class="roster-list">
+                          <span class="prov"><b>Incident log</b></span>
+                          <span class="prov"><b>Regional operations map</b></span>
+                        </div>
+                      </div>
+                      <span class="basis">Basis: neither job is a registered region, so the surface does not exist. A registered region with no source says something else, and the patrol roster above is saying it.</span>
                     </div>
                   </div>
                 </div>
               </div>
             </section>
 
-            <section class="lens roster-lens" id="lens-fire-ems">
+            <section class="lens" id="lens-fire-ems">
               <header class="pagehead">
                 <div class="crumb"><b data-pack-name>This city</b> <span>/</span> Fire and EMS</div>
-                <div class="titlerow"><h1>Fire and EMS</h1><span class="pill p-quiet">Not built</span></div>
+                <div class="titlerow"><h1>Fire and EMS</h1><span class="pill p-quiet" id="fire-ems-state-chip">Empty</span><span class="grow"></span><span class="t-caption" id="fire-ems-region-rule">No region has been read for this pack</span></div>
+                <p class="lede">Apparatus readiness, counted per station rather than city wide. A city with every out of service truck in one station is a different fact from a city with one in each, and a rollup cannot say which.</p>
               </header>
               <div class="shell-regions solo">
-                <div class="panel">
-                  <div class="state">
-                    <span class="st-k">Lens on the roster</span>
-                    <h2>Fire and EMS is named, and not built.</h2>
-                    <p>Occupancies, volunteer response, county dispatch, and flood and weather land here. Flood layers are records or map overlays on Place, never a separate product.</p>
-                    <span class="basis">Basis: no view designed for this lens. Vendor grants are later cards, not this chrome.</span>
+                <div class="colstack" tabindex="0">
+                  <div class="metrics" id="fire-apparatus-metrics">
+                    <div class="metric" data-metric="out-of-service"><span class="k">Out of service</span><span class="v word">Not read</span><span class="n">No apparatus source</span></div>
+                    <div class="metric" data-metric="inspection-due"><span class="k">Inspection due</span><span class="v word">Not read</span><span class="n">No apparatus source</span></div>
+                    <div class="metric" data-metric="in-shop"><span class="k">In shop</span><span class="v word">Not read</span><span class="n">No apparatus source</span></div>
+                    <div class="metric" data-metric="in-service"><span class="k">In service</span><span class="v word">Not read</span><span class="n">No apparatus source</span></div>
                   </div>
-                  <div class="roster-note">
-                    <span class="t-label">Jobs waiting on this lens</span>
-                    <div class="roster-list">
-                      <span class="prov"><b>Occupancies</b></span>
-                      <span class="prov"><b>Volunteer response</b></span>
-                      <span class="prov"><b>County dispatch</b></span>
-                      <span class="prov"><b>Flood and weather</b></span>
+                  <div class="panel">
+                    <div class="panel-head"><span class="t">Apparatus and stations</span><span class="grow"></span><span class="pill p-warn" id="fire-apparatus-mark" hidden>Demo records</span><span class="prov" id="fire-apparatus-prov" hidden><b>Generated fixture</b><span class="sep">|</span>Apparatus output contract</span><span class="t-caption" id="fire-apparatus-caption">Not read</span></div>
+                    <div class="state" id="fire-apparatus-state">
+                      <span class="st-k" id="fire-apparatus-kicker">Region unread</span>
+                      <h2 id="fire-apparatus-head">Apparatus readiness has not been read for this pack.</h2>
+                      <p>Apparatus, the stations they are housed in, and the readiness band each one is in. No crew is carried here: a granted feed is where an assigned crew would come from, and a roster of real firefighters is not a fixture.</p>
+                      <span class="basis" id="fire-apparatus-basis">Basis: no region payload has been read for this pack</span>
+                    </div>
+                    <div id="fire-apparatus-records" hidden>
+                      <table class="dt">
+                        <thead>
+                          <tr>
+                            <th scope="col">Unit</th>
+                            <th scope="col">Type</th>
+                            <th scope="col">Status</th>
+                            <th scope="col">Station</th>
+                          </tr>
+                        </thead>
+                        <tbody id="fire-apparatus-rows"></tbody>
+                      </table>
+                      <div class="panel-body">
+                        <span class="basis" id="fire-apparatus-crew">The crew position has not been read for this pack</span>
+                      </div>
+                      <div class="panel-head"><span class="t">Stations</span><span class="grow"></span><span class="t-caption" id="fire-apparatus-stations-rule">Readiness per station, never a city-wide rollup</span></div>
+                      <table class="dt">
+                        <thead>
+                          <tr>
+                            <th scope="col">Station</th>
+                            <th scope="col">Apparatus</th>
+                            <th scope="col">In service</th>
+                          </tr>
+                        </thead>
+                        <tbody id="fire-apparatus-station-rows"></tbody>
+                      </table>
+                      <div class="panel-body">
+                        <span class="basis" id="fire-apparatus-ready-rule">The readiness counting rule has not been read for this pack</span>
+                        <span class="basis" id="fire-apparatus-recordsbasis">Basis: generated fixture records</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="panel">
+                    <div class="panel-head"><span class="t">Not built on this lens</span><span class="grow"></span><span class="pill p-quiet">Not built</span></div>
+                    <div class="panel-body">
+                      <p>Four more Fire and EMS jobs are named on the live city roster and are not regions on this product yet. Flood layers are records or map overlays on Place when they arrive, never a separate product.</p>
+                      <div class="roster-note">
+                        <span class="t-label">Not a region on this product</span>
+                        <div class="roster-list">
+                          <span class="prov"><b>Occupancies</b></span>
+                          <span class="prov"><b>Volunteer response</b></span>
+                          <span class="prov"><b>County dispatch</b></span>
+                          <span class="prov"><b>Flood and weather</b></span>
+                        </div>
+                      </div>
+                      <span class="basis">Basis: none of the four is a registered region, so the surface does not exist. A registered region with no source says something else, and the Police lens carries one of those.</span>
                     </div>
                   </div>
                 </div>
