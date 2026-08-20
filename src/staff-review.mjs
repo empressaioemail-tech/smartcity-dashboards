@@ -31,11 +31,32 @@ export const ROSTER_LENS_IDS = ["public-works", "parks", "police", "fire-ems", "
 
 export const ALL_LENS_IDS = [...LEAD_LENS_IDS, ...ROSTER_LENS_IDS];
 
+/**
+ * The Development services tabs.
+ *
+ * `review` LEFT this list at G-97 (OPS-17 A-076 / A-081, operator ruling
+ * 2026-08-19). DS mirrors what the MyGov system a city already runs shows, and
+ * Plan review is the native console that aspirationally replaces it and is a
+ * long way from doing so, so it is its own Work lens rather than a second door
+ * inside the lens it intends to supersede. The MOUNT is not cut: Work / Plan
+ * review keeps #anchor-work-review carrying data-stage="review", so the stage
+ * still resolves an anchor and the live path is intact. What left is a
+ * duplicate door, not a product.
+ *
+ * `work-orders` JOINED, because the domain existed and had no tab at all. It is
+ * one of the five Development services domains in DOMAIN_REGISTRY and the live
+ * dashboard reads it across work-orders/{daily-queue,geo-clusters,sla,stats}.
+ *
+ * The inline head script in web/index.html carries a SECOND COPY of this list,
+ * because a script that imports is a module and a module is deferred, which is
+ * the G-89 defect. src/first-paint.test.mjs is the divergence test that holds
+ * the two equal, textually and behaviourally.
+ */
 export const DS_TABS = [
   "pipeline",
   "place",
-  "review",
   "inspections",
+  "work-orders",
   "code-enforcement",
   "licenses",
 ];
@@ -150,8 +171,8 @@ export const LENS_LABELS = {
 export const TAB_LABELS = {
   pipeline: "Pipeline",
   place: "Place",
-  review: "Review",
   inspections: "Inspections",
+  "work-orders": "Work orders",
   "code-enforcement": "Code enforcement",
   licenses: "Licenses",
 };

@@ -791,8 +791,8 @@ html[data-surface="work-people"] #work-people {
 html[data-tab] .ds-tab { display: none; }
 html[data-tab="pipeline"] #tab-pipeline,
 html[data-tab="place"] #tab-place,
-html[data-tab="review"] #tab-review,
 html[data-tab="inspections"] #tab-inspections,
+html[data-tab="work-orders"] #tab-work-orders,
 html[data-tab="code-enforcement"] #tab-code-enforcement,
 html[data-tab="licenses"] #tab-licenses {
   display: flex;

@@ -49,8 +49,8 @@
         var DS_TABS = [
           "pipeline",
           "place",
-          "review",
           "inspections",
+          "work-orders",
           "code-enforcement",
           "licenses",
         ];
@@ -117,8 +117,8 @@
         var TAB_LABELS = {
           pipeline: "Pipeline",
           place: "Place",
-          review: "Review",
           inspections: "Inspections",
+          "work-orders": "Work orders",
           "code-enforcement": "Code enforcement",
           licenses: "Licenses",
         };
@@ -413,125 +413,305 @@
                   <h1>Development services</h1>
                   <span class="pill p-quiet" id="ds-state-chip">Empty</span>
                 </div>
+                <p class="lede">What the permitting system this city already runs is carrying. Every region below states whether it has a source, and says which of the four it is rather than going blank.</p>
               </header>
               <div class="tabs" role="tablist" aria-label="Development services">
                 <a role="tab" aria-selected="true" data-tab="pipeline" href="/?lens=development-services&amp;tab=pipeline">Pipeline</a>
                 <a role="tab" aria-selected="false" data-tab="place" href="/?lens=development-services&amp;tab=place">Place</a>
-                <a role="tab" aria-selected="false" data-tab="review" href="/?lens=development-services&amp;tab=review">Review</a>
                 <a role="tab" aria-selected="false" data-tab="inspections" href="/?lens=development-services&amp;tab=inspections">Inspections</a>
+                <a role="tab" aria-selected="false" data-tab="work-orders" href="/?lens=development-services&amp;tab=work-orders">Work orders</a>
                 <a role="tab" aria-selected="false" data-tab="code-enforcement" href="/?lens=development-services&amp;tab=code-enforcement">Code enforcement</a>
                 <a role="tab" aria-selected="false" data-tab="licenses" href="/?lens=development-services&amp;tab=licenses">Licenses</a>
               </div>
               <div class="ds-tab on" id="tab-pipeline">
                 <div class="shell-regions solo">
                   <div class="colstack" tabindex="0">
-                    <div class="metrics" id="ds-metrics">
-                      <div class="metric" data-metric="overdue"><span class="k">Overdue</span><span class="v word">Not read</span><span class="n">No permit source</span></div>
-                      <div class="metric" data-metric="in-review"><span class="k">In review</span><span class="v word">Not read</span><span class="n">No permit source</span></div>
-                      <div class="metric" data-metric="awaiting-applicant"><span class="k">Awaiting applicant</span><span class="v word">Not read</span><span class="n">No permit source</span></div>
-                      <div class="metric" data-metric="ready-to-issue"><span class="k">Ready to issue</span><span class="v word">Not read</span><span class="n">No permit source</span></div>
+                  <div class="metrics" id="ds-metrics">
+                    <div class="metric" data-metric="overdue"><span class="k">Overdue</span><span class="v word">Not read</span><span class="n">No permit source</span></div>
+                    <div class="metric" data-metric="in-review"><span class="k">In review</span><span class="v word">Not read</span><span class="n">No permit source</span></div>
+                    <div class="metric" data-metric="awaiting-applicant"><span class="k">Awaiting applicant</span><span class="v word">Not read</span><span class="n">No permit source</span></div>
+                    <div class="metric" data-metric="ready-to-issue"><span class="k">Ready to issue</span><span class="v word">Not read</span><span class="n">No permit source</span></div>
+                  </div>
+                  <div class="panel">
+                    <div class="panel-head"><span class="t">Pipeline</span><span class="grow"></span><span class="pill p-warn" id="ds-pipeline-mark" hidden style="display:none">Demo records</span><span class="prov" id="ds-pipeline-prov" hidden style="display:none"><b>Generated fixture</b><span class="sep">|</span>MyGov output contract</span><span class="t-caption" id="ds-pipeline-caption">Cases in flight</span></div>
+                    <div class="state" id="ds-pipeline-empty">
+                      <span class="st-k" id="ds-pipeline-empty-kicker">Pipeline unread</span>
+                      <h2 id="ds-pipeline-empty-head">No cases are in flight on this pack.</h2>
+                      <p>The queue is first-class once a permit source is granted or the pack generates records. Until then this tab stays empty. Stage names are not invented, and no internal routing is shown.</p>
+                      <span class="basis" id="ds-pipeline-empty-basis">Basis: no adapter granted and no records generated</span>
                     </div>
-                    <div class="panel">
-                      <div class="panel-head"><span class="t">Pipeline</span><span class="grow"></span><span class="pill p-warn" id="ds-pipeline-mark" hidden style="display:none">Demo records</span><span class="prov" id="ds-pipeline-prov" hidden style="display:none"><b>Generated fixture</b><span class="sep">|</span>MyGov output contract</span><span class="t-caption" id="ds-pipeline-caption">Cases in flight</span></div>
-                      <div class="state" id="ds-pipeline-empty">
-                        <span class="st-k">Pipeline unread</span>
-                        <h2 id="ds-pipeline-empty-head">No cases are in flight on this pack.</h2>
-                        <p>The queue is first-class once a permit source is granted or the pack generates records. Until then this tab stays empty. Stage names are not invented, and no internal routing is shown.</p>
-                        <span class="basis" id="ds-pipeline-empty-basis">Basis: no adapter granted and no records generated</span>
-                      </div>
-                      <div id="ds-pipeline-records" hidden>
-                        <table class="dt">
-                          <thead>
-                            <tr>
-                              <th scope="col">Case</th>
-                              <th scope="col">Subject</th>
-                              <th scope="col">Stage</th>
-                              <th scope="col">Place</th>
-                              <th scope="col">Due</th>
-                              <th scope="col">Status</th>
-                            </tr>
-                          </thead>
-                          <tbody id="ds-pipeline-rows"></tbody>
-                        </table>
-                        <div class="panel-body">
-                          <span class="basis" id="ds-pipeline-basis">Basis: generated fixture records</span>
-                        </div>
+                    <div id="ds-pipeline-records" hidden>
+                      <table class="dt">
+                        <thead>
+                          <tr>
+                            <th scope="col">Case</th>
+                            <th scope="col">Subject</th>
+                            <th scope="col">Stage</th>
+                            <th scope="col">Place</th>
+                            <th scope="col">Due</th>
+                            <th scope="col">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody id="ds-pipeline-rows"></tbody>
+                      </table>
+                      <div class="panel-body">
+                        <span class="basis" id="ds-pipeline-basis">Basis: generated fixture records</span>
                       </div>
                     </div>
+                  </div>
                   </div>
                 </div>
               </div>
               <div class="ds-tab" id="tab-place">
                 <div class="shell-regions">
                   <div class="colstack" tabindex="0">
-                    <div class="panel">
-                      <div class="panel-head"><span class="t">Place</span><span class="grow"></span><span class="t-caption">Selected parcel</span></div>
-                      <div class="state">
-                        <span class="st-k">Place</span>
-                        <h2>Parcel resolves from the map, not a typed form.</h2>
-                        <p>Click the map to select a place. The identifier appears in the region footer as a consequence. Gold 48021:34137 is the demo fixture.</p>
-                        <span class="basis">Basis: public record on the SmartSite mount. No parcel form on this product.</span>
-                      </div>
+                  <div class="panel">
+                    <div class="panel-head"><span class="t">Place</span><span class="grow"></span><span class="t-caption">Selected parcel</span></div>
+                    <div class="state">
+                      <span class="st-k">Place</span>
+                      <h2>Parcel resolves from the map, not a typed form.</h2>
+                      <p>Click the map to select a place. The identifier appears in the region footer as a consequence. Gold 48021:34137 is the demo fixture.</p>
+                      <span class="basis">Basis: public record on the SmartSite mount. No parcel form on this product.</span>
                     </div>
-                    <div class="panel">
-                      <div class="panel-head"><span class="t">On this place</span><span class="grow"></span><span class="t-caption">Related records</span></div>
-                      <div class="panel-body flush">
-                        <div class="srcreg"><i class="rail"></i><span class="nm"><b>Reviews</b><span>Submittals against this parcel</span></span><span class="pill p-quiet">Not connected</span></div>
-                        <div class="srcreg"><i class="rail"></i><span class="nm"><b>Cases</b><span>Permits, inspections, code enforcement</span></span><span class="pill p-quiet">Not connected</span></div>
-                        <div class="srcreg"><i class="rail"></i><span class="nm"><b>Files</b><span>Documents referenced onto this place</span></span><span class="pill p-restricted">Preview</span></div>
-                        <div class="srcreg"><i class="rail"></i><span class="nm"><b>Assets</b><span>City-owned records at this place</span></span><span class="pill p-quiet">Empty</span></div>
-                      </div>
+                  </div>
+                  <div class="panel">
+                    <div class="panel-head"><span class="t">On this place</span><span class="grow"></span><span class="t-caption">Related records</span></div>
+                    <div class="panel-body flush">
+                      <div class="srcreg"><i class="rail"></i><span class="nm"><b>Reviews</b><span>Submittals against this parcel</span></span><span class="pill p-quiet">Not connected</span></div>
+                      <div class="srcreg"><i class="rail"></i><span class="nm"><b>Cases</b><span>Permits, inspections, code enforcement</span></span><span class="pill p-quiet">Not connected</span></div>
+                      <div class="srcreg"><i class="rail"></i><span class="nm"><b>Files</b><span>Documents referenced onto this place</span></span><span class="pill p-restricted">Preview</span></div>
+                      <div class="srcreg"><i class="rail"></i><span class="nm"><b>Assets</b><span>City-owned records at this place</span></span><span class="pill p-quiet">Empty</span></div>
                     </div>
+                  </div>
                   </div>
                   <div class="colstack rail" tabindex="0">
-                    <div class="region">
-                      <div class="region-bar">
-                        <span class="t">Place</span>
-                        <span class="grow"></span>
-                        <span class="t-caption">SmartSite</span>
-                        <button type="button" class="btn btn-ghost btn-sm" data-stage-present="map">Expand</button>
-                        <button type="button" class="btn btn-ghost btn-sm" data-stage-max="map">Full</button>
-                      </div>
-                      <div class="region-canvas" id="anchor-place-map" data-stage="map">
-                        <span class="mount-note">The place map mounts here.</span>
-                      </div>
-                      <div class="region-foot">
-                        <span class="t-data">48021:34137</span>
-                        <span class="t-caption">Demo fixture</span>
-                        <span class="grow"></span>
-                        <span class="prov"><b>Public record</b></span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div class="ds-tab" id="tab-review">
-                <div class="shell-regions solo">
                   <div class="region">
                     <div class="region-bar">
-                      <span class="t">Review</span>
+                      <span class="t">Place</span>
                       <span class="grow"></span>
-                      <span class="t-caption">Plan Review, mounted at city altitude</span>
-                      <a class="btn btn-ghost btn-sm" href="/?work=review">Open in Work</a>
-                      <button type="button" class="btn btn-ghost btn-sm" data-stage-max="review">Full</button>
+                      <span class="t-caption">SmartSite</span>
+                      <button type="button" class="btn btn-ghost btn-sm" data-stage-present="map">Expand</button>
+                      <button type="button" class="btn btn-ghost btn-sm" data-stage-max="map">Full</button>
                     </div>
-                    <div class="region-canvas doc" id="anchor-ds-review" data-stage="review">
-                      <span class="mount-note">The review console mounts here.</span>
+                    <div class="region-canvas" id="anchor-place-map" data-stage="map">
+                      <span class="mount-note">The place map mounts here.</span>
                     </div>
                     <div class="region-foot">
-                      <span class="t-caption" id="review-basis">Native compose is a later card. This tab mounts the same console as Work, Plan review.</span>
+                      <span class="t-data">48021:34137</span>
+                      <span class="t-caption">Demo fixture</span>
+                      <span class="grow"></span>
+                      <span class="prov"><b>Public record</b></span>
                     </div>
+                  </div>
                   </div>
                 </div>
               </div>
               <div class="ds-tab" id="tab-inspections">
-                <div class="shell-regions solo"><div class="panel"><div class="state"><span class="st-k">Inspections</span><h2>No inspection source is connected.</h2><p>This tab is chrome. It does not invent a board or a count.</p><span class="basis">Basis: no adapter granted</span></div></div></div>
+                <div class="shell-regions solo">
+                  <div class="colstack" tabindex="0">
+                  <div class="metrics" id="ds-insp-metrics">
+                    <div class="metric" data-metric="past-due"><span class="k">Past due</span><span class="v word">Not read</span><span class="n">No inspection source</span></div>
+                    <div class="metric" data-metric="unscheduled"><span class="k">Unscheduled</span><span class="v word">Not read</span><span class="n">No inspection source</span></div>
+                    <div class="metric" data-metric="scheduled"><span class="k">Scheduled</span><span class="v word">Not read</span><span class="n">No inspection source</span></div>
+                    <div class="metric" data-metric="completed"><span class="k">Completed</span><span class="v word">Not read</span><span class="n">No inspection source</span></div>
+                  </div>
+                  <div class="panel">
+                    <div class="panel-head"><span class="t">Inspections</span><span class="grow"></span><span class="pill p-warn" id="ds-insp-mark" hidden style="display:none">Demo records</span><span class="prov" id="ds-insp-prov" hidden style="display:none"><b>Generated fixture</b><span class="sep">|</span>MyGov output contract</span><span class="t-caption" id="ds-insp-caption">Inspections on the board</span></div>
+                    <div class="state" id="ds-insp-state">
+                      <span class="st-k" id="ds-insp-kicker">Inspections unread</span>
+                      <h2 id="ds-insp-head">No inspections are on the board for this pack.</h2>
+                      <p>An inspection carries a result only once it has happened, so the result column states not inspected rather than leaving a cell blank. No inspector is named.</p>
+                      <span class="basis" id="ds-insp-basis">Basis: no adapter granted and no records generated</span>
+                    </div>
+                    <div id="ds-insp-records" hidden>
+                      <table class="dt">
+                        <thead>
+                          <tr>
+                            <th scope="col">Inspection</th>
+                            <th scope="col">Type</th>
+                            <th scope="col">Result</th>
+                            <th scope="col">Place</th>
+                            <th scope="col">When</th>
+                            <th scope="col">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody id="ds-insp-rows"></tbody>
+                      </table>
+                      <div class="panel-body">
+                        <span class="basis" id="ds-insp-recordsbasis">Basis: generated fixture records</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="panel">
+                    <div class="panel-head"><span class="t">Result</span><span class="grow"></span><span class="t-caption">Paired to the status, four measured classes</span></div>
+                    <div class="panel-body flush" id="ds-insp-results"></div>
+                    <div class="panel-body">
+                      <span class="basis" id="ds-insp-results-basis">Basis: no inspection source has been read for this pack</span>
+                    </div>
+                  </div>
+                  <div class="panel">
+                    <div class="panel-head"><span class="t">Inspector load</span><span class="grow"></span><span class="t-caption">Grouped by an opaque reference</span></div>
+                    <div class="panel-body flush" id="ds-insp-load"></div>
+                    <div class="panel-body">
+                      <span class="basis" id="ds-insp-load-basis">Basis: no inspection source has been read for this pack</span>
+                    </div>
+                  </div>
+                  </div>
+                </div>
+              </div>
+              <div class="ds-tab" id="tab-work-orders">
+                <div class="shell-regions solo">
+                  <div class="colstack" tabindex="0">
+                  <div class="metrics" id="ds-wo-metrics">
+                    <div class="metric" data-metric="past-sla"><span class="k">Past SLA</span><span class="v word">Not read</span><span class="n">No work-order source</span></div>
+                    <div class="metric" data-metric="at-risk"><span class="k">At risk</span><span class="v word">Not read</span><span class="n">No work-order source</span></div>
+                    <div class="metric" data-metric="scheduled"><span class="k">Scheduled</span><span class="v word">Not read</span><span class="n">No work-order source</span></div>
+                    <div class="metric" data-metric="closed"><span class="k">Closed</span><span class="v word">Not read</span><span class="n">No work-order source</span></div>
+                  </div>
+                  <div class="panel">
+                    <div class="panel-head"><span class="t">Work orders</span><span class="grow"></span><span class="pill p-warn" id="ds-wo-mark" hidden style="display:none">Demo records</span><span class="prov" id="ds-wo-prov" hidden style="display:none"><b>Generated fixture</b><span class="sep">|</span>MyGov output contract</span><span class="t-caption" id="ds-wo-caption">Orders in the queue</span></div>
+                    <div class="state" id="ds-wo-state">
+                      <span class="st-k" id="ds-wo-kicker">Work orders unread</span>
+                      <h2 id="ds-wo-head">No work orders are in the queue for this pack.</h2>
+                      <p>Elapsed hours are measured against a declared target rather than a promise. Every figure below counts this queue and nothing else.</p>
+                      <span class="basis" id="ds-wo-basis">Basis: no adapter granted and no records generated</span>
+                    </div>
+                    <div id="ds-wo-records" hidden>
+                      <table class="dt">
+                        <thead>
+                          <tr>
+                            <th scope="col">Order</th>
+                            <th scope="col">Subject</th>
+                            <th scope="col">Stage</th>
+                            <th scope="col">Place</th>
+                            <th scope="col">Due</th>
+                            <th scope="col">Elapsed</th>
+                            <th scope="col">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody id="ds-wo-rows"></tbody>
+                      </table>
+                      <div class="panel-body">
+                        <span class="basis" id="ds-wo-recordsbasis">Basis: generated fixture records</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="panel">
+                    <div class="panel-head"><span class="t">Service level</span><span class="grow"></span><span class="t-caption">Measured off the queue against a declared target</span></div>
+                    <div class="panel-body">
+                      <dl class="kv" id="ds-wo-sla"></dl>
+                      <span class="basis" id="ds-wo-sla-basis">Basis: no work-order source has been read for this pack</span>
+                    </div>
+                  </div>
+                  <div class="panel">
+                    <div class="panel-head"><span class="t">Daily queue</span><span class="grow"></span><span class="t-caption">Relative days, never a calendar date</span></div>
+                    <div class="panel-body flush" id="ds-wo-daily"></div>
+                    <div class="panel-body">
+                      <span class="basis" id="ds-wo-daily-basis">Basis: no work-order source has been read for this pack</span>
+                    </div>
+                  </div>
+                  </div>
+                </div>
               </div>
               <div class="ds-tab" id="tab-code-enforcement">
-                <div class="shell-regions solo"><div class="panel"><div class="state"><span class="st-k">Code enforcement</span><h2>No case source is connected.</h2><p>This tab is chrome. It does not invent a case list. Code enforcement has one home and it is this tab.</p><span class="basis">Basis: no adapter granted</span></div></div></div>
+                <div class="shell-regions solo">
+                  <div class="colstack" tabindex="0">
+                  <div class="metrics" id="ds-ce-metrics">
+                    <div class="metric" data-metric="past-compliance"><span class="k">Past compliance date</span><span class="v word">Not read</span><span class="n">No case source</span></div>
+                    <div class="metric" data-metric="awaiting-reinspection"><span class="k">Awaiting reinspection</span><span class="v word">Not read</span><span class="n">No case source</span></div>
+                    <div class="metric" data-metric="notice-issued"><span class="k">Notice issued</span><span class="v word">Not read</span><span class="n">No case source</span></div>
+                    <div class="metric" data-metric="closed-compliant"><span class="k">Closed compliant</span><span class="v word">Not read</span><span class="n">No case source</span></div>
+                  </div>
+                  <div class="panel">
+                    <div class="panel-head"><span class="t">Cases</span><span class="grow"></span><span class="pill p-warn" id="ds-ce-mark" hidden style="display:none">Demo records</span><span class="prov" id="ds-ce-prov" hidden style="display:none"><b>Generated fixture</b><span class="sep">|</span>MyGov output contract</span><span class="t-caption" id="ds-ce-caption">Cases on the ladder</span></div>
+                    <div class="state" id="ds-ce-state">
+                      <span class="st-k" id="ds-ce-kicker">Code enforcement unread</span>
+                      <h2 id="ds-ce-head">No enforcement cases are open on this pack.</h2>
+                      <p>The escalation rung is ordered rather than categorical, so the step travels with the case. No assessed figure is presented anywhere on this tab.</p>
+                      <span class="basis" id="ds-ce-basis">Basis: no adapter granted and no records generated</span>
+                    </div>
+                    <div id="ds-ce-records" hidden>
+                      <table class="dt">
+                        <thead>
+                          <tr>
+                            <th scope="col">Case</th>
+                            <th scope="col">Violation</th>
+                            <th scope="col">Escalation</th>
+                            <th scope="col">Step</th>
+                            <th scope="col">Place</th>
+                            <th scope="col">Compliance</th>
+                            <th scope="col">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody id="ds-ce-rows"></tbody>
+                      </table>
+                      <div class="panel-body">
+                        <span class="basis" id="ds-ce-recordsbasis">Basis: generated fixture records</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="panel">
+                    <div class="panel-head"><span class="t">Escalation ladder</span><span class="grow"></span><span class="t-caption">In declared step order, not array order</span></div>
+                    <div class="panel-body flush" id="ds-ce-ladder"></div>
+                    <div class="panel-body">
+                      <span class="basis" id="ds-ce-ladder-basis">Basis: no case source has been read for this pack</span>
+                    </div>
+                  </div>
+                  <div class="panel">
+                    <div class="panel-head"><span class="t">Case load</span><span class="grow"></span><span class="t-caption">Open and closed are two measured filters, never one minus the other</span></div>
+                    <div class="panel-body">
+                      <dl class="kv" id="ds-ce-stats"></dl>
+                      <span class="basis" id="ds-ce-stats-basis">Basis: no case source has been read for this pack</span>
+                    </div>
+                  </div>
+                  </div>
+                </div>
               </div>
               <div class="ds-tab" id="tab-licenses">
-                <div class="shell-regions solo"><div class="panel"><div class="state"><span class="st-k">Licenses</span><h2>No license source is connected.</h2><p>This tab is chrome. It does not invent active licenses.</p><span class="basis">Basis: no adapter granted</span></div></div></div>
+                <div class="shell-regions solo">
+                  <div class="colstack" tabindex="0">
+                  <div class="metrics" id="ds-lic-metrics">
+                    <div class="metric" data-metric="expired"><span class="k">Expired</span><span class="v word">Not read</span><span class="n">No licence source</span></div>
+                    <div class="metric" data-metric="expiring"><span class="k">Expiring</span><span class="v word">Not read</span><span class="n">No licence source</span></div>
+                    <div class="metric" data-metric="renewal-submitted"><span class="k">Renewal submitted</span><span class="v word">Not read</span><span class="n">No licence source</span></div>
+                    <div class="metric" data-metric="active"><span class="k">Active</span><span class="v word">Not read</span><span class="n">No licence source</span></div>
+                  </div>
+                  <div class="panel">
+                    <div class="panel-head"><span class="t">Licence roll</span><span class="grow"></span><span class="pill p-warn" id="ds-lic-mark" hidden style="display:none">Demo records</span><span class="prov" id="ds-lic-prov" hidden style="display:none"><b>Generated fixture</b><span class="sep">|</span>MyGov output contract</span><span class="t-caption" id="ds-lic-caption">Licences on the roll</span></div>
+                    <div class="state" id="ds-lic-state">
+                      <span class="st-k" id="ds-lic-kicker">Licences unread</span>
+                      <h2 id="ds-lic-head">No licences are on the roll for this pack.</h2>
+                      <p>A licensee is a business with a real name, so the holder is an opaque reference. No renewal charge is presented.</p>
+                      <span class="basis" id="ds-lic-basis">Basis: no adapter granted and no records generated</span>
+                    </div>
+                    <div id="ds-lic-records" hidden>
+                      <table class="dt">
+                        <thead>
+                          <tr>
+                            <th scope="col">Licence</th>
+                            <th scope="col">Category</th>
+                            <th scope="col">Holder</th>
+                            <th scope="col">Place</th>
+                            <th scope="col">Expiry</th>
+                            <th scope="col">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody id="ds-lic-rows"></tbody>
+                      </table>
+                      <div class="panel-body">
+                        <span class="basis" id="ds-lic-recordsbasis">Basis: generated fixture records</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="panel">
+                    <div class="panel-head"><span class="t">Expiry</span><span class="grow"></span><span class="t-caption">Bands derived from the offset, inclusive and non-overlapping</span></div>
+                    <div class="panel-body flush" id="ds-lic-expiry"></div>
+                    <div class="panel-body">
+                      <span class="basis" id="ds-lic-expiry-basis">Basis: no licence source has been read for this pack</span>
+                    </div>
+                  </div>
+                  </div>
+                </div>
               </div>
             </section>
 

@@ -218,9 +218,20 @@ describe("G-75 shell, mounts and motion", () => {
     // One SmartSite iframe serves both the Overview rail and the Place rail.
     assert.equal((html.match(/id="map-site"/g) || []).length, 1);
     assert.equal((html.match(/<iframe /g) || []).length, 3);
-    for (const anchor of ["anchor-overview-map", "anchor-place-map", "anchor-ds-review", "anchor-work-review", "anchor-files"]) {
+    /**
+     * anchor-ds-review LEFT this list at G-97 (OPS-17 A-076, operator ruling
+     * 2026-08-19): the Review tab left Development services, because DS mirrors
+     * what the MyGov system a city already runs shows and Plan review is the
+     * native console that aspirationally replaces it. The MOUNT is not cut and
+     * that is what the next two assertions establish rather than assume: the
+     * review stage still exists, and anchor-work-review still carries
+     * data-stage="review", so MountStage.findAnchor() still resolves one.
+     */
+    for (const anchor of ["anchor-overview-map", "anchor-place-map", "anchor-work-review", "anchor-files"]) {
       assert.match(html, new RegExp(`id="${anchor}"`), anchor);
     }
+    assert.equal(html.includes('id="anchor-ds-review"'), false, "the Development services Review tab left at G-97");
+    assert.equal((html.match(/data-stage="review"/g) || []).length, 1, "exactly one anchor remains for the review stage");
     // The stages are siblings of .cp-recede, never inside it: a transformed or
     // filtered ancestor would break position: fixed and force a reparent.
     const recede = html.match(/<div class="cp-recede"[\s\S]*?<\/main>\s*<\/div>\s*<\/div>/)?.[0] || "";

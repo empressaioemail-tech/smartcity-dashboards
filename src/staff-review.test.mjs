@@ -49,8 +49,18 @@ describe("staff review query", () => {
       shape({ lens: DEVELOPMENT_SERVICES_LENS, isDevelopmentServices: true, tab: "pipeline" }),
     );
     assert.deepEqual(
+      resolveStaffLensQuery("?lens=development-services&tab=work-orders"),
+      shape({ lens: DEVELOPMENT_SERVICES_LENS, isDevelopmentServices: true, tab: "work-orders" }),
+    );
+    /**
+     * G-97: `review` is no longer a Development services tab, so it clamps to
+     * the fallback exactly as any other unknown value does. Asserted rather
+     * than left implied, because a link somebody bookmarked must land on a real
+     * surface rather than on a blank one.
+     */
+    assert.deepEqual(
       resolveStaffLensQuery("?lens=development-services&tab=review"),
-      shape({ lens: DEVELOPMENT_SERVICES_LENS, isDevelopmentServices: true, tab: "review" }),
+      shape({ lens: DEVELOPMENT_SERVICES_LENS, isDevelopmentServices: true, tab: "pipeline" }),
     );
   });
 
