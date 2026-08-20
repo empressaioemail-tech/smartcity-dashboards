@@ -39,9 +39,26 @@ jobs:
   #
   # timeout-minutes is the backstop for the same lesson: a hung gate must fail,
   # not burn an hour looking like it is working.
+  #
+  # G-99 raised it from 20 to 30. The scan matrix doubled - every surface is now
+  # measured at the reference viewport AND at a viewport grown until nothing is
+  # left outside the clipping box, because axe evaluates nothing outside it and
+  # the old single-viewport figure covered 72.5% of this product's rendered text
+  # while reporting as a total. The second pass costs one axe run, one contrast
+  # sweep and a few resizes per surface rather than a second page load and a
+  # second keyboard walk, so the added time is minutes and not a multiple; the
+  # headroom is deliberate rather than measured-to-the-edge, because a gate that
+  # times out intermittently is a gate people learn to re-run instead of read.
+  #
+  # THIS JOB IS THE FIGURE OF RECORD. src/a11y-gate.mjs names ubuntu-latest CI as
+  # the authoritative environment and every other run prints an INDICATIVE
+  # banner, because the same commit measured 0 unresolved nodes on one machine
+  # and 88 on another and an environment-dependent number with two answers has no
+  # owner. Moving this job to another runner image changes what the conformance
+  # report says, so it is a decision rather than a tidy-up.
   a11y:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
