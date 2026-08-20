@@ -56,6 +56,18 @@ jobs:
   # and 88 on another and an environment-dependent number with two answers has no
   # owner. Moving this job to another runner image changes what the conformance
   # report says, so it is a decision rather than a tidy-up.
+  #
+  # AND IT RECORDS WHICH TREE IT MEASURED (G-101), which is not bookkeeping.
+  # On a `pull_request` event actions/checkout checks out the MERGE of the head
+  # into the base, and github.sha IS that merge commit - so two runs of one head
+  # SHA can measure two different products. That is not hypothetical: G-99's
+  # branch carried --sc-ok #2F7A52 while its own CI job measured #2E7750, because
+  # a sibling PR raising that token merged into main thirty minutes before the
+  # job started. The disagreement that produced was read as an environment
+  # difference and theorised about for a day, and the job's log had said
+  # "HEAD is now at f00f2ab Merge dfc0ed66 into 0f916d8" the whole time while the
+  # gate's own output named the head SHA. The gate now prints both and says which
+  # is which, and A11Y_HEAD_SHA is what lets it tell them apart.
   a11y:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -68,3 +80,5 @@ jobs:
       - run: npm ci
       - run: npx playwright-core install chromium
       - run: npm run test:a11y
+        env:
+          A11Y_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}

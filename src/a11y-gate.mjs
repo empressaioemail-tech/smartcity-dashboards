@@ -155,12 +155,59 @@ export const ARMS = THEMES.flatMap((t) => VIEWPORT_IDS.map((v) => armId(t, v)));
  */
 export const AUTHORITATIVE = Object.freeze({
   platform: "linux",
-  where: "the `a11y` job of .github/workflows/ci.yml, ubuntu-latest, on the head SHA",
+  where: "the `a11y` job of .github/workflows/ci.yml, ubuntu-latest",
+  /**
+   * IT USED TO SAY "on the head SHA", AND THAT SENTENCE WAS FALSE. G-101.
+   *
+   * The workflow triggers on `pull_request`, so actions/checkout checks out the
+   * MERGE of the head into the base, not the head. github.sha is that merge
+   * commit. The distinction is not pedantic and it cost two lanes a day: G-99's
+   * branch carried --sc-ok #2F7A52 and its CI job measured #2E7750, because a
+   * sibling PR raising that token had merged into main thirty minutes before the
+   * job ran. The job's own log said so - "HEAD is now at f00f2ab Merge dfc0ed66
+   * into 0f916d8" - and nothing in the gate's output did.
+   *
+   * The result was a five-node disagreement between two machines that was read
+   * as an environment difference, theorised about in terms of clipping boxes,
+   * and carried into a ledger entry claiming to be pinned from the figure of
+   * record when the figure of record had measured a different product. A
+   * conformance figure that cannot name the TREE it measured is not attributable,
+   * and this one lands in a legal document.
+   *
+   * So the tree is part of the declaration. The workflow exports it and the
+   * banner prints it, on every run, authoritative or not.
+   */
+  treeMatters:
+    "a `pull_request` run measures the MERGE of the head into the base, never the head alone. Two runs of one head SHA can therefore measure two different products, and one of them did",
   basis:
     "one environment has to be the figure of record or an environment-dependent number has two answers and no owner. Linux CI is chosen because it is the only environment every contributor and every reviewer can re-run identically, and because a merge gate already reads its check-run conclusion string",
   localIsIndicative:
     "a run anywhere else measures a real rendering environment and its colour findings transfer exactly, because a hex pair is not a function of the operating system. Its GEOMETRY-dependent findings - anything whose reason is elmPartiallyObscuring, elmPartiallyObscured or bgOverlap - do not transfer, because they are a function of font metrics",
 });
+
+/**
+ * The tree that was actually measured, printed rather than assumed. `commit` is
+ * what the runner checked out (github.sha, which on a pull_request is the merge
+ * commit); `headRef` is the branch tip the PR points at. When they differ, they
+ * are BOTH printed and the difference is named, because that difference is
+ * exactly the thing that made two correct measurements look like a contradiction.
+ */
+export function treeOf(env = {}) {
+  const commit = env.commit || null;
+  const head = env.headSha || null;
+  if (!commit) {
+    return "TREE MEASURED: not recorded. This run cannot say which tree produced its numbers, which is how two runs of one head SHA came to measure two different products.";
+  }
+  const merged = head && head !== commit;
+  return (
+    `TREE MEASURED: ${commit}${env.eventName ? ` (event ${env.eventName})` : ""}` +
+    (merged
+      ? `, which is the MERGE of head ${head} into the base branch and NOT the head tree. ${AUTHORITATIVE.treeMatters}.`
+      : head
+        ? `, which is the head tree.`
+        : `.`)
+  );
+}
 
 export function authorityOf(env = {}) {
   const authoritative = env.platform === AUTHORITATIVE.platform && Boolean(env.ci);
@@ -168,9 +215,10 @@ export function authorityOf(env = {}) {
     authoritative,
     platform: env.platform || "unknown",
     ci: Boolean(env.ci),
+    tree: treeOf(env),
     line: authoritative
-      ? `AUTHORITATIVE RUN: ${AUTHORITATIVE.where}. This is the figure of record.`
-      : `INDICATIVE RUN, NOT THE FIGURE OF RECORD. This ran on ${env.platform || "unknown"}${env.ci ? " in CI" : " locally"}; the figure of record is ${AUTHORITATIVE.where}. ${AUTHORITATIVE.localIsIndicative}.`,
+      ? `AUTHORITATIVE RUN: ${AUTHORITATIVE.where}. This is the figure of record. ${treeOf(env)}`
+      : `INDICATIVE RUN, NOT THE FIGURE OF RECORD. This ran on ${env.platform || "unknown"}${env.ci ? " in CI" : " locally"}; the figure of record is ${AUTHORITATIVE.where}. ${AUTHORITATIVE.localIsIndicative}. ${treeOf(env)}`,
   };
 }
 
@@ -262,105 +310,95 @@ export const GATED_BEST_PRACTICE = {
  * re-pairing available and the fix is genuinely the kit's.
  * ---------------------------------------------------------------------------
  */
-export const WAIVERS = [
+export const WAIVERS = [];
+
+/**
+ * ---------------------------------------------------------------------------
+ * THE LEDGER IS EMPTY AGAIN, AND BOTH ENTRIES WERE RETIRED AGAINST THEIR OWN
+ * REMOVAL CONDITIONS RATHER THAN TIDIED AWAY. G-101.
+ *
+ * G-99 put two entries here. Both are gone, and the evidence for each is
+ * recorded here rather than in a close artifact nobody reads at the point of use.
+ *
+ * 1. independent-contrast [.sep], pinned 83/84/83/84 per arm at 1.737-1.856:1.
+ *    Its removal condition read: "when the separator is either declared
+ *    decorative and removed from the accessibility tree (aria-hidden=true on the
+ *    .sep span alone), or repainted to at least 4.5:1 if it is to stay
+ *    announced." The first branch is now true in web/index.html - all 20
+ *    occurrences carry aria-hidden="true" - and it was verified with the
+ *    instrument that answers the actual claim rather than with an axe run:
+ *    Chromium's own accessibility tree through CDP Accessibility.getFullAXTree.
+ *    As shipped, ZERO AX nodes are named the separator glyph. With aria-hidden
+ *    stripped at runtime in the same page in the same instant - one variable -
+ *    8 to 12 StaticText nodes named "|" reappear per surface and the nav chip's
+ *    accessible name reads "0 of 10 sources granted | 6 of 10 demonstrated with
+ *    fixture records | template-city distinct adapter". The population did not
+ *    vanish with the waiver: it moved to DECORATIVE_EXEMPTIONS below, where its
+ *    ratio is recomputed and printed on every run.
+ *
+ * 2. independent-contrast [.pill], pinned light@full-extent 7 at 4.444:1. Its
+ *    cause was gone BEFORE it was written, and the ledger could not tell. PR 35
+ *    (G-98) raised light --sc-ok from #2F7A52 to #2E7750, merging at
+ *    2026-08-20T03:51:37Z as d8f15de. G-99's branch tree kept the old value
+ *    (`git show dfc0ed66:web/sc-kit.css` -> `--sc-ok:#2F7A52`), and its CI job
+ *    ran at 04:21 on a `pull_request` event, which checks out the MERGE commit:
+ *    that job's own log says `HEAD is now at f00f2ab Merge dfc0ed66... into
+ *    0f916d86...`, and 0f916d8 contains d8f15de. So the entry's counting rule
+ *    claiming it was "PINNED FROM THE FIGURE OF RECORD, which is the Linux CI
+ *    job" was not true of the number it carried, and the same CI log prints one
+ *    INDEPENDENT CONTRAST line, for .sep, with no .pill line at all. #2E7750 on
+ *    the wash measures 4.623:1, which clears 4.5:1, and this machine now
+ *    reproduces axe's own verdict on the current tree: `axe=pass ratio=4.62
+ *    exp=4.5:1 fg=#2e7750 bg=#e3f0e8`.
+ *
+ * AND THE REASON NEITHER RETIREMENT WAS FORCED BY THE GATE, which is the finding
+ * that matters more than either entry: the zero arm below could not fire. It
+ * asked whether the second instrument's findings array was EMPTY, not whether
+ * THIS waiver's own group was in it - so .pill sat stale and silent for as long
+ * as .sep kept firing. A gating indicator that cannot fire is not a gate
+ * (DEV_PROCESS 2.2). It is fixed, and the test proves it fires.
+ * ---------------------------------------------------------------------------
+ */
+
+/**
+ * ---------------------------------------------------------------------------
+ * THE DECORATIVE LEDGER. G-101, and it is a TWO-WAY contract rather than a skip.
+ *
+ * aria-hidden="true" is the strongest instrument-silencing attribute in this
+ * whole product: it takes text out of the accessibility tree, out of 1.4.3's
+ * scope, and out of the second instrument's computed population in one move. An
+ * exclusion nobody can see the size of is indistinguishable from a blind spot,
+ * and that sentence is the entire lesson of this row - so an exclusion this
+ * strong may not be silent, and the ledger enforces it in both directions:
+ *
+ *   - an aria-hidden text element matching NO entry here FAILS the build. A lane
+ *     cannot quiet a contrast finding by hiding the text and have the number
+ *     simply disappear.
+ *   - an entry here matching NOTHING in the run FAILS the build, on the same
+ *     terms a waiver does. An exemption that has outlived its cause is an
+ *     exception pretending to cover something.
+ *   - and the RATIO is recomputed and printed on every run even though the
+ *     element is exempt, so the conformance report can state the exemption WITH
+ *     its measurement rather than as a bare claim.
+ * ---------------------------------------------------------------------------
+ */
+export const DECORATIVE_EXEMPTIONS = [
   {
-    /**
-     * -----------------------------------------------------------------------
-     * THE DEFECT AXE CANNOT SEE. Found by a sibling lane, re-measured here, and
-     * it is the reason this gate now carries a SECOND instrument.
-     *
-     * .sep is the separator glyph in a .prov provenance chip. It computes to
-     * 1.856:1 in light and 1.737:1 in dark against a 4.5:1 requirement - about
-     * 40% of the floor, on every surface in the product. axe reports it in NO
-     * bucket at all: not a violation, not a pass, not even incomplete.
-     *
-     * WHY, established by bisect on one element in one page in one run, with the
-     * character as the only variable: text "|" -> NOT EVALUATED; text "X" ->
-     * incomplete; text "||" -> NOT EVALUATED; text "XY" -> VIOLATION. axe-core
-     * excludes punctuation-only text from color-contrast by design, at
-     * axe.js:28714-28726, `var removeUnicodeOptions = { emoji: true, nonBmp:
-     * false, punctuations: true }` feeding `hasRealTextChildren`, which returns
-     * false when the visible text is empty after punctuation is stripped - so
-     * colorContrastMatches never accepts the element as a candidate.
-     *
-     * That is axe behaving as documented. It is also the exact shape DEV_PROCESS
-     * 2.1 names: an instrument's exclusion set is part of its contract and must
-     * be stated where its output is read, and this one was stated nowhere. A
-     * gate built entirely on axe inherits every one of axe's exclusions
-     * silently, which is why independentContrastFindings() now exists.
-     *
-     * The rule id is this gate's own, not axe's, because axe has no finding to
-     * carry: naming it `color-contrast` would merge it with a population axe
-     * does report and make both numbers unquotable.
-     * -----------------------------------------------------------------------
-     */
-    rule: "independent-contrast",
-    group: ".sep",
+    selector: ".sep",
     element: ".sep, the separator glyph inside a .prov provenance chip",
     surfaces: ["every surface: .prov is shell chrome"],
-    nodesByArm: {
-      "light@reference": 83,
-      "light@full-extent": 84,
-      "dark@reference": 83,
-      "dark@full-extent": 84,
-    },
-    countingRule:
-      "RENDERED .sep elements per arm, an arm being one theme at one viewport, summed over the 23 scanned surfaces. Three other counting rules exist for this same group and all four differ, so this one is stated rather than assumed: 460 per theme are in the DOM, 84 per theme are RENDERED (the rest sit in lenses that are display:none), 83 per theme are IN VIEWPORT at 1440x900, and 84 at full extent. The pin is the rendered-and-evaluated figure at each arm.",
-    owner: "the web/ lane that owns web/index.html and web/shell.css (this lane is forbidden to touch either)",
+    criterion:
+      "WCAG 1.4.3 Contrast (Minimum) applies to text; pure decoration is outside its scope. The glyph is removed from the accessibility tree, so it is decoration in the only sense that is machine-checkable.",
+    measuredRatio: { light: 1.856, dark: 1.737 },
+    measuredBy:
+      "in-page composite of the resolved background against the computed foreground, sRGB relative luminance, independent of axe: light rgb(174, 186, 197) on rgb(246, 248, 250) = 1.856:1, dark rgb(59, 72, 84) on rgb(24, 33, 42) = 1.737:1, at 400 13px. Four independent computations agree on this pair - K1's DOM probe (1.855/1.737), G-99 (1.856/1.737), this gate's second instrument (1.856/1.737), and the token arithmetic taken straight from web/sc-kit.css (1.856/1.737).",
     basis:
-      "measured independently of axe by compositing the resolved background and applying the sRGB luminance formula: light rgb(174, 186, 197) on rgb(246, 248, 250) = 1.856:1; dark rgb(59, 72, 84) on rgb(24, 33, 42) = 1.737:1; font 400 13px, so the requirement is 4.5:1. A sibling lane measured 1.855:1 and 1.737:1 for the same pair, which is two independent computations agreeing. Waived rather than fixed because the fix is in web/, which this dispatch names untouchable and which two other lanes are live in.",
+      "all 20 occurrences in web/index.html are the same construct: a field divider inside a .prov chip, sitting between two independently-labelled runs of text that are already separate elements. Every one was read rather than sampled. None encodes a relation, a value, a unit, a range or a state, and no surrounding sentence loses meaning without it - which is what makes it decoration rather than content, and it had to be checked per occurrence because ONE instance carrying meaning would make the exemption false there.",
+    owner: "the web/ lane that owns web/index.html",
+    andWhatThisDoesNOTClaim:
+      "it does not claim the glyph became easier to see. A sighted reader still reads a divider at 1.856:1, which is the shell's deliberate hairline treatment (var(--sc-line-strong) is a line token, not an ink token). The exemption declares that state rather than repainting it, and the ratio above is printed on every run so the declaration cannot quietly become a claim that the defect is gone.",
     remove:
-      "when the separator is either declared decorative and removed from the accessibility tree (aria-hidden=true on the .sep span alone, which puts it under the 1.4.3 pure-decoration exception), or repainted to at least 4.5:1 if it is to stay announced. Routed with the measurement to the planner; not this lane's edit. NOTE for whoever takes it: aria-hidden does NOT satisfy axe - measured, an aria-hidden element with real text is still reported as a violation - so this gate's own exclusion set is what makes the decorative route legible, and it counts what it excludes rather than dropping it.",
-  },
-  {
-    /**
-     * -----------------------------------------------------------------------
-     * THE .p-ok PAIR, AND WHY IT IS HERE RATHER THAN IN AN AXE WAIVER.
-     *
-     * --sc-ok #2F7A52 on --sc-ok-wash #E3F0E8 measures 4.444:1 against the 4.5:1
-     * AA threshold, 0.056 short. R2 measured 4.444:1, R3 independently measured
-     * 4.44:1 on the same pair, and this instrument computes 4.444:1. Three
-     * measurements agreeing.
-     *
-     * It began as an axe waiver and the figure of record refused it, which is
-     * the ratchet working on its author: Windows reports 5 color-contrast nodes
-     * on light@full-extent and LINUX CI REPORTS 0 on every arm, so the waiver's
-     * zero arm fired with "the waiver's cause is gone". The cause is not gone -
-     * a hex pair is not a function of the operating system - so the entry was in
-     * the wrong ledger. A colour fact belongs to the instrument that computes
-     * colours directly and gets the same answer on every machine, not to the one
-     * whose evaluated population depends on a clipping box.
-     *
-     * THE RECONCILIATION THAT IS STILL OPEN, named rather than rounded off
-     * (DEV_PROCESS 1.4): why axe surfaces these five on one operating system and
-     * not the other, when coverage reads 100% at full extent on both. The
-     * candidate not eliminated inside this lane is that axe's matcher requires a
-     * text rect to overlap the box of EVERY overflow-hidden ancestor, and
-     * div.panel is one of those at 295px tall - a 20px layout shift can push a
-     * table row outside the PANEL's clip while it is still inside the viewport.
-     * If that is right, the coverage figure needs an inner-clip axis and "100%"
-     * is true of the viewport rather than of every clipping box. The second
-     * instrument measures these elements either way, which is what keeps the
-     * defect visible while the question is settled.
-     * -----------------------------------------------------------------------
-     */
-    rule: "independent-contrast",
-    group: ".pill",
-    element: ".p-ok.pill, the resolved-status pill",
-    surfaces: ["lens-development-services-inspections", "lens-development-services-licenses"],
-    nodesByArm: {
-      "light@reference": 0,
-      "light@full-extent": 7,
-      "dark@reference": 0,
-      "dark@full-extent": 0,
-    },
-    countingRule:
-      "rendered, in-viewport .pill elements per arm whose independently computed ratio is below the AA threshold for their size, summed over the 23 scanned surfaces. PINNED FROM THE FIGURE OF RECORD, which is the Linux CI job; a run on another machine may legitimately differ and says so in its own banner.",
-    owner: "the product-line token pass (the G-94-shaped cross-repo kit change)",
-    basis:
-      "4.444:1 measured against 4.5:1 required at 500 12px, light rgb(47, 122, 82) on rgb(227, 240, 232). The dark arm needs nothing: rgb(85, 190, 134) on the dark surface measures 6.143:1, which is why its pin is zero rather than unstated. web/sc-kit.css is byte-identical across smartcity-dashboards, smart-files and plan-review and its own header says a repo that edits a token value has forked the system, so this is not a Dashboards change - the same reason G-94 was opened as its own row.",
-    remove:
-      "when the kit raises --sc-ok to at least #2E7750, which measures 4.623:1 on the wash, 5.425:1 on --sc-surface and 5.096:1 on --sc-surface-2.",
+      "when the separator stops being decoration - if it ever carries meaning on any surface, the exemption is false there and the colour must reach 4.5:1 instead - or when the divider becomes a real rule rather than a glyph, at which point there is no text to exempt and this entry matches nothing and fails.",
   },
 ];
 
@@ -481,7 +519,17 @@ export const isSubjectBounded = (item) => Array.isArray(item.subjects) && item.s
 
 export const waivedTotal = (w) => Object.values(w.nodesByArm).reduce((a, b) => a + b, 0);
 
-export const waiverFor = (id) => WAIVERS.find((w) => w.rule === id) || null;
+/**
+ * MATCHED ON RULE AND GROUP, because the verdict already matched on both and this
+ * matched on rule alone - two implementations of one lookup, disagreeing, which
+ * is the CTRL-1 shape (DEV_PROCESS 2.4). With two entries sharing the rule
+ * `independent-contrast` it could only ever return the first, so the second was
+ * unreachable through the exported helper while the verdict compared it happily.
+ * There is one rule here now, and every caller passes the group it is asking
+ * about; an axe waiver, which has no group, is looked up with none.
+ */
+export const waiverFor = (id, group = null) =>
+  WAIVERS.find((w) => w.rule === id && (w.group || null) === (group || null)) || null;
 
 /* --------------------------------------------------------------- reporting */
 
@@ -636,18 +684,62 @@ export function coverageFindings(results) {
   return out;
 }
 
+/**
+ * ---------------------------------------------------------------------------
+ * FOUR POPULATIONS OVER ONE DENOMINATOR, NEVER MERGED. G-101.
+ *
+ * G-99 published "full-extent covered 6198/6198 rendered text elements (100%)".
+ * That number is correct and its counting rule is CONTAINMENT: 100% of them were
+ * inside the viewport box. Containment is not judgement. Measured over the same
+ * 46 scans, axe's colour-contrast rules actually judged 5,954 of the 6,198 -
+ * 96.1% - and the 244-element gap is real text on real surfaces.
+ *
+ * An auditor reading 100% in a conformance report reads "everything was
+ * checked", and the containment figure cannot carry that sentence. So every one
+ * of these is measured and printed with its own rule beside it:
+ *
+ *   rendered     an element carrying its own non-empty text node, with at least
+ *                one client rect, computed visibility not hidden. THE DENOMINATOR.
+ *   inViewport   rendered AND its bounding box intersects the viewport box.
+ *                What G-99's figure counted. Containment.
+ *   axeEligible  rendered AND it satisfies axe's OWN candidate rule, which also
+ *                requires overlapping every overflow-hidden ancestor's box. The
+ *                standing hypothesis was that this differs sharply from
+ *                inViewport on this shell; measured, it differs by 2 of 6,198 at
+ *                the reference viewport and by 0 at full extent.
+ *   evaluated    rendered AND axe put it in a bucket - any bucket - matched by
+ *                element identity. JUDGEMENT, and the honest coverage numerator.
+ *
+ * pct is retained and still means containment, because it is quoted in the
+ * pass line and in prior artifacts and silently changing what a published name
+ * means is worse than adding a second one. pctEvaluated is the new figure and it
+ * is the one printed first.
+ * ---------------------------------------------------------------------------
+ */
 export function coverageByViewport(results) {
   const out = {};
   for (const v of VIEWPORTS) {
     const rows = atViewport(results, v.id).filter((r) => r.coverage);
-    const rendered = rows.reduce((s, r) => s + r.coverage.rendered, 0);
-    const inViewport = rows.reduce((s, r) => s + r.coverage.inViewport, 0);
+    const sum = (f) => rows.reduce((s, r) => s + (r.coverage[f] || 0), 0);
+    const rendered = sum("rendered");
+    const inViewport = sum("inViewport");
+    const axeEligible = sum("axeEligible");
+    const evaluated = sum("evaluated");
+    const judged = sum("judged");
     out[v.id] = {
       scans: rows.length,
       rendered,
       inViewport,
+      axeEligible,
+      evaluated,
+      judged,
+      inViewportNotEligible: sum("inViewportNotEligible"),
       pct: rendered ? Number(((100 * inViewport) / rendered).toFixed(1)) : null,
+      pctEvaluated: rendered ? Number(((100 * evaluated) / rendered).toFixed(1)) : null,
+      pctJudged: rendered ? Number(((100 * judged) / rendered).toFixed(1)) : null,
       maxHeight: rows.reduce((m, r) => Math.max(m, r.coverage.height || 0), 0),
+      countingRule:
+        "RENDERED is the denominator: an element carrying its own non-empty text node, with at least one client rect, whose computed visibility is not hidden. IN-VIEWPORT is containment - its bounding box intersects the viewport box. AXE-ELIGIBLE additionally applies axe's own candidate rule, which requires a text rect to overlap every overflow-hidden ancestor's box. EVALUATED is judgement - axe's colour-contrast rules put the element in a bucket, matched by element identity, not by selector string. JUDGED adds the elements the second instrument composited a ratio for. Containment is not judgement and the two are never merged.",
     };
   }
   return out;
@@ -670,6 +762,98 @@ export function coverageByViewport(results) {
  * the run is then suspect rather than merely different.
  * ---------------------------------------------------------------------------
  */
+/**
+ * ---------------------------------------------------------------------------
+ * THE UNEXAMINED-TEXT FINDING. G-101, and it is the refusal class the coverage
+ * number was standing in for.
+ *
+ * A coverage figure of 100% invites exactly one reading: everything was checked.
+ * What it measured was containment. The difference is 244 elements on this
+ * product, and until this function existed there was no number for them and no
+ * way for the gate to refuse one.
+ *
+ * An element is UNEXAMINED when it renders its own text, sits inside the
+ * viewport, satisfies axe's own candidate rule, and yet:
+ *   - axe put it in no bucket at all, AND
+ *   - the second instrument did not composite a ratio for it, AND
+ *   - it is not declared decorative in DECORATIVE_EXEMPTIONS, AND
+ *   - it is not a disabled control, which 1.4.3 exempts as an inactive component.
+ *
+ * That is text nothing looked at and no exemption covers - silence read as
+ * success, which is the defect class this entire gate exists for, sitting inside
+ * the gate. It refuses, per scan, with the classes named.
+ *
+ * AND THE TWO-WAY DECORATIVE CONTRACT, in the same pass, because aria-hidden is
+ * the one attribute that can move an element out of every population at once:
+ * an aria-hidden text element matching no declared exemption fails, and a
+ * declared exemption matching nothing in the entire run fails on the same terms
+ * a waiver's zero arm does.
+ * ---------------------------------------------------------------------------
+ */
+export function evaluationFindings(results, exemptions = DECORATIVE_EXEMPTIONS) {
+  const out = [];
+  const rows = scanned(results).filter((r) => r.evaluation);
+  for (const r of rows) {
+    const e = r.evaluation;
+    if (e.unexamined > 0) {
+      out.push({
+        surface: `${r.surface} [${r.theme}@${r.viewport}]`,
+        kind: "unexamined-text",
+        detail:
+          `${e.unexamined} rendered text element(s) are inside the viewport and satisfy axe's own candidate rule, and NO instrument judged them: axe put them in no bucket, the independent sweep did not compute them, no decorative exemption covers them and they are not disabled controls. ` +
+          `By class: ${JSON.stringify(e.unexaminedByClass)}. Sample ${JSON.stringify(e.unexaminedSample)}. ` +
+          `They are not clean; they are unlooked-at, and a coverage figure that counts them as covered says the opposite.`,
+      });
+    }
+    if (e.undeclaredDecorative > 0) {
+      out.push({
+        surface: `${r.surface} [${r.theme}@${r.viewport}]`,
+        kind: "undeclared-decorative",
+        detail:
+          `${e.undeclaredDecorative} element(s) carrying their own text sit inside [aria-hidden="true"] and match no entry in DECORATIVE_EXEMPTIONS: ${JSON.stringify(e.undeclaredDecorativeByClass)}. ` +
+          `aria-hidden removes text from the accessibility tree, from 1.4.3's scope and from this gate's computed population in one move, so it is declared or it is a blind spot. Add an entry with its criterion, its measured ratio and its removal condition, or remove the attribute.`,
+      });
+    }
+  }
+  /**
+   * An exemption that matched NOTHING across the whole run. Judged over the run
+   * rather than per scan, because a .sep on one lens and not another is normal
+   * and only a total of zero means the cause is gone.
+   */
+  if (rows.length) {
+    for (const d of exemptions) {
+      const hits = rows.reduce((n, r) => n + ((r.evaluation.declaredDecorativeHits || {})[d.selector] || 0), 0);
+      if (hits === 0) {
+        out.push({
+          surface: "(whole run)",
+          kind: "exemption-outlived-its-cause",
+          detail: `the decorative exemption for ${JSON.stringify(d.selector)} matched 0 element(s) on any scan. Delete the entry from DECORATIVE_EXEMPTIONS in src/a11y-gate.mjs (${d.remove}). An exemption that covers nothing is an exception pretending to.`,
+        });
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * What the decorative ledger EXEMPTED, with the ratio recomputed rather than
+ * quoted. An exemption whose size is known and whose measurement is not cannot be
+ * defended to an auditor, and the moment the count is its only trace the number
+ * that made the exemption necessary is gone from the record.
+ */
+export function decorativeExempt(results) {
+  const out = new Map();
+  for (const r of scanned(results)) {
+    for (const d of r.independentContrast?.decorative || []) {
+      const prev = out.get(d.group) || { group: d.group, nodes: 0, ratios: new Set(), required: d.required, sample: d.sample };
+      prev.nodes += d.nodes;
+      prev.ratios.add(d.ratio);
+      out.set(d.group, prev);
+    }
+  }
+  return [...out.values()].map((x) => ({ ...x, ratios: [...x.ratios].sort((a, b) => a - b) }));
+}
+
 export function supersetFindings(results) {
   const out = [];
   const key = (r) => `${r.surface} [${r.theme}]`;
@@ -987,7 +1171,9 @@ export function summarize(results, axe, base, env = {}) {
     countingRule:
       `a SCAN is one served URL under one THEME at one VIEWPORT. Themes are ${JSON.stringify(THEMES)} and viewports are ${JSON.stringify(VIEWPORT_IDS)}, so the denominator is ${surfaces.size} surfaces x ${THEMES.length} themes x ${VIEWPORT_IDS.length} viewports = ${results.length} scans, taken over ${results.length / VIEWPORT_IDS.length} page loads. ` +
       `A VIOLATION is one axe rule failing on at least one scan; NODES sums failing DOM elements across all scans; CONFORMANCE means the rule carries wcag2a/wcag2aa/wcag21a/wcag21aa, everything else is best-practice and is not a conformance failure. ` +
-      `EVERY NODE COUNT IS BOUNDED BY WHAT AXE EVALUATED, which is what was inside the clipping box: axe does not judge outside it and an element it does not judge appears in no bucket at all. At the ${REFERENCE_VIEWPORT.id} viewport that was ${coverage[REFERENCE_VIEWPORT.id]?.inViewport} of ${coverage[REFERENCE_VIEWPORT.id]?.rendered} rendered text elements (${coverage[REFERENCE_VIEWPORT.id]?.pct}%); at ${FULL_EXTENT_VIEWPORT.id} it was ${coverage[FULL_EXTENT_VIEWPORT.id]?.inViewport} of ${coverage[FULL_EXTENT_VIEWPORT.id]?.rendered} (${coverage[FULL_EXTENT_VIEWPORT.id]?.pct}%).`,
+      `EVERY NODE COUNT IS BOUNDED BY WHAT AXE EVALUATED, and EVALUATED IS NOT THE SAME AS COVERED - the difference is the DEV_PROCESS 1.2 defect this figure used to carry into a conformance report. ` +
+      `At the ${REFERENCE_VIEWPORT.id} viewport axe JUDGED ${coverage[REFERENCE_VIEWPORT.id]?.evaluated} of ${coverage[REFERENCE_VIEWPORT.id]?.rendered} rendered text elements (${coverage[REFERENCE_VIEWPORT.id]?.pctEvaluated}%), while ${coverage[REFERENCE_VIEWPORT.id]?.inViewport} of them (${coverage[REFERENCE_VIEWPORT.id]?.pct}%) were merely INSIDE THE VIEWPORT BOX; at ${FULL_EXTENT_VIEWPORT.id} axe judged ${coverage[FULL_EXTENT_VIEWPORT.id]?.evaluated} of ${coverage[FULL_EXTENT_VIEWPORT.id]?.rendered} (${coverage[FULL_EXTENT_VIEWPORT.id]?.pctEvaluated}%) against ${coverage[FULL_EXTENT_VIEWPORT.id]?.inViewport} contained (${coverage[FULL_EXTENT_VIEWPORT.id]?.pct}%). ` +
+      `${coverage[REFERENCE_VIEWPORT.id]?.countingRule} The gap between the two is not unexamined text: it is axe's documented exclusions plus this gate's declared ones, and the part that IS unexamined is refused by evaluationFindings() rather than carried in the percentage.`,
     environment: {
       ...env,
       authority,
@@ -1012,6 +1198,9 @@ export function summarize(results, axe, base, env = {}) {
     conformanceNodesByArm: byArm,
     coverageByViewport: coverage,
     coverageFindings: coverageFindings(results),
+    evaluationFindings: evaluationFindings(results),
+    decorativeExempt: decorativeExempt(results),
+    decorativeExemptions: DECORATIVE_EXEMPTIONS,
     supersetFindings: supersetFindings(results),
     typefaceFindings: typefaceFindings(results),
     independentContrast: independentContrastFindings(results),
@@ -1048,9 +1237,11 @@ export function summarize(results, axe, base, env = {}) {
         failed: add("failed"),
         couldNotCompute: add("couldNotCompute"),
         excludedAriaHidden: add("excludedAriaHidden"),
+        decorativeCouldNotCompute: add("decorativeCouldNotCompute"),
         skippedByAxe: add("skippedByAxe"),
         note:
-          "COMPUTED counts rendered in-viewport text elements whose foreground is opaque and whose background resolved to an opaque colour without crossing an image, a gradient, a filter or a translucent layer, and whose own centre hit-tests back to itself. COULD-NOT-COMPUTE is everything else: reported, never scored clean and never scored as a failure. EXCLUDED-ARIA-HIDDEN counts text inside the [aria-hidden='true'] attribute, which is text declared decorative and removed from the accessibility tree, which is the 1.4.3 pure-decoration exception - excluded, and counted, because an exclusion nobody can see the size of is indistinguishable from a blind spot. SKIPPED-BY-AXE counts elements this instrument computed that axe put in no bucket at all, which is the population that made this instrument necessary.",
+          "ONE POPULATION RULE FOR EVERY FIGURE ON THIS LINE (G-101): all of them count RENDERED, IN-VIEWPORT elements carrying their own text, summed over every scan of the run. That sentence is here because it was briefly untrue - the aria-hidden bucket counted DOM elements over all 92 scans while the bucket printed four words later counted rendered ones, which is two counting rules in one sentence in the instrument built to stop exactly that. " +
+          "COMPUTED counts those whose foreground is opaque and whose background resolved to an opaque colour without crossing an image, a gradient, a filter or a translucent layer, and whose own centre hit-tests back to itself. COULD-NOT-COMPUTE is everything else: reported, never scored clean and never scored as a failure. EXCLUDED-ARIA-HIDDEN counts text inside the [aria-hidden='true'] attribute, which is text declared decorative and removed from the accessibility tree, which is the 1.4.3 pure-decoration exception - excluded, and counted, and its ratio computed anyway and printed under DECLARED DECORATIVE, because an exclusion nobody can see the size of is indistinguishable from a blind spot and an exemption nobody can quote a number for cannot be defended. DECORATIVE-COULD-NOT-COMPUTE is the exempted subset whose ratio was not unambiguous, kept separate so the decorative line's own denominator is legible. SKIPPED-BY-AXE counts elements this instrument computed that axe put in no bucket at all, which is the population that made this instrument necessary.",
       };
     })(),
     /** One resolved witness per theme, so a disagreement between two machines
@@ -1248,6 +1439,9 @@ export function verdict(summary, waivers = WAIVERS, reviewItems = REVIEW_ITEMS) 
   for (const f of summary.coverageFindings || []) {
     reasons.push(`coverage [${f.surface}]: ${f.detail}`);
   }
+  for (const f of summary.evaluationFindings || []) {
+    reasons.push(`${f.kind} [${f.surface}]: ${f.detail}`);
+  }
   for (const f of summary.supersetFindings || []) {
     reasons.push(`viewport growth [${f.surface}]: ${f.detail}`);
   }
@@ -1265,6 +1459,7 @@ export function verdict(summary, waivers = WAIVERS, reviewItems = REVIEW_ITEMS) 
      *  group, and one waiver covering every group would be a blanket exception
      *  wearing a specific one's clothes. */
     const w = waivers.find((x) => x.rule === f.id && x.group === f.group);
+    /* one lookup rule, and waiverFor() now implements the same one. */
     if (!w) {
       reasons.push(
         `${f.id} [${f.group}]: ${f.nodes} rendered element(s) computed at ${JSON.stringify(f.ratios)}:1 against a ${f.required}:1 requirement, and axe reported them in NO bucket - not a violation, not a pass, not incomplete. No waiver. Sample ${JSON.stringify(f.sample)}`,
@@ -1284,11 +1479,27 @@ export function verdict(summary, waivers = WAIVERS, reviewItems = REVIEW_ITEMS) 
       }
     }
   }
+  /**
+   * THE ZERO ARM, AND IT COULD NOT FIRE. G-101.
+   *
+   * This asked whether the second instrument's findings array was EMPTY. It never
+   * asked whether THIS waiver's own group was in it - so with two entries and one
+   * of them still firing 334 times, the other sat pinned at 7 nodes against an
+   * actual 0 and the gate said nothing about it, on main, through a green run.
+   * The per-arm loop above cannot catch it either: it iterates the findings, so a
+   * group that has stopped firing produces no row to compare against its pins.
+   *
+   * A gating indicator is tested for its ability to FIRE before it is trusted
+   * (DEV_PROCESS 2.2). This one was not, and it is the second control in this
+   * file's short history to be found broken by running it rather than by reading
+   * it. Now it asks per group, and the test plants a stale group to watch it.
+   */
   for (const w of waivers) {
     if (!w.rule.startsWith("independent-contrast")) continue;
-    if (!(summary.independentContrast || []).length) {
+    const fired = (summary.independentContrast || []).some((f) => f.id === w.rule && f.group === w.group);
+    if (!fired) {
       reasons.push(
-        `${w.rule}: 0 element(s) on every arm. The waiver's cause is gone - delete its entry from WAIVERS in src/a11y-gate.mjs. A waived finding that no longer fires is an exception outliving its reason.`,
+        `${w.rule} [${w.group}]: 0 element(s) on every arm. The waiver's cause is gone - delete its entry from WAIVERS in src/a11y-gate.mjs. A waived finding that no longer fires is an exception outliving its reason.`,
       );
     }
   }

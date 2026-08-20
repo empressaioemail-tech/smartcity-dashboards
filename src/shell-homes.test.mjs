@@ -239,7 +239,13 @@ describe("G-75 register vocabulary", () => {
      * one stays on Connections, with its counting rule at the point of use.
      */
     assert.equal(html.includes(`<b id="nav-sources">${label}</b>`), false);
-    assert.match(html, /<b id="connections-sources">[^<]*<\/b> <span class="sep">\|<\/span> feeds table of this register/);
+    /**
+     * G-101 made the separator decorative rather than announced, so the
+     * assertion carries aria-hidden with it. The glyph is checked BECAUSE it is
+     * hidden: a .sep that lost its aria-hidden would put a 1.856:1 punctuation
+     * mark back into the accessibility tree and no axe run would ever say so.
+     */
+    assert.match(html, /<b id="connections-sources">[^<]*<\/b> <span class="sep" aria-hidden="true">\|<\/span> feeds table of this register/);
     assert.equal(html.includes("0 of 4 sources read"), false);
     assert.equal(html.includes("0 of 4 read"), false);
     assert.equal(html.includes("7 integrations"), false);
