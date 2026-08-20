@@ -584,22 +584,23 @@ const STAGE_LABELS = {
   issuance: "Issuance",
 };
 
-/**
- * The nav badge and the page-header chip are a paired control and a ui test
- * asserts they agree. Both read this one function, so they cannot diverge at
- * runtime the way two careful edits eventually would.
- */
-function packStateLabel(pipeline) {
-  return pipeline && pipeline.generated ? "Demo records" : "Empty";
-}
+/*
+G-100. Development services no longer carries its own state label.
 
-function applyPackState(pipeline) {
-  const label = packStateLabel(pipeline);
-  const chip = document.getElementById("ds-state-chip");
-  if (chip) chip.textContent = label;
-  const badge = document.querySelector('.navitem[data-lens="development-services"] .badge');
-  if (badge) badge.textContent = label;
-}
+packStateLabel and applyPackState were a second implementation of the rule
+sourcedLabel and applyLensState already carry for the other four lenses, and
+they were a WEAKER one: the label came off pipeline.generated, a boolean, so a
+pack that had not granted MyGov and a pack that generates nothing produced the
+same badge - the collapse the lens bodies had already been fixed to avoid. The
+compose has carried sourceStatus since G-91 and this path never read it.
+
+Both are deleted rather than kept in sync. renderPipeline resolves the same
+status the region renderer does and calls applyLensState with it, so the DS
+badge, its chip and its Overview register row are the same three renderings of
+one label that every other lens gets. src/public-safety-lenses.test.mjs holds
+sourcedLabel and applyLensState to one declaration each; this is what makes that
+count true across the whole product rather than across four fifths of it.
+*/
 
 function td(text, className) {
   const cell = document.createElement("td");
@@ -664,7 +665,6 @@ function renderPipeline(pipeline) {
   const emptyKicker = document.getElementById("ds-pipeline-empty-kicker");
   const emptyBasis = document.getElementById("ds-pipeline-empty-basis");
 
-  applyPackState(pipeline);
   renderPipelineMetrics(pipeline);
   /**
    * The Development services breadcrumb used to be written from here, which
@@ -686,6 +686,8 @@ function renderPipeline(pipeline) {
    * a sentence this pack has not earned.
    */
   const status = String(pipeline.sourceStatus || "did-not-read");
+  /** G-100. The badge, the chip and the register row, from the same status. */
+  applyLensState("ds-state-chip", "development-services", sourcedLabel([{ status }]));
   if (emptyKicker) {
     emptyKicker.textContent = REGION_KICKER[status] || REGION_KICKER["did-not-read"];
   }
@@ -1962,11 +1964,69 @@ async function loadPublicWorksLens(cityKey) {
   setText("pw-region-rule", sourcedRule(regions));
 }
 
-/* ------------------------------------------------------------ lens state */
+/* ------------------------------------------------------------ lens state
+
+G-100. THE BADGE IS DERIVED, BECAUSE A HAND-WRITTEN ONE GOES STALE.
+
+Five nav badges shipped the words "Not built" for lenses that render. The
+mistake was not the words. It was that a state claim about a lens was TYPED into
+web/index.html, where nothing connects it to the thing that decides it, so it
+stayed true for exactly as long as it took the next lane to ship a renderer.
+This repo has paid for the hand-declared shape twice already, and the fix is
+never a better literal.
+
+So the static markup carries the UNREAD FALLBACK and nothing else, and every
+state word on a lens is written from here, off the status the seam resolved.
+
+WHY FIVE WORDS AND NOT TWO. sourcedLabel used to answer ok or not-ok, which put
+ungranted, granted-empty and no-fixture-source behind one word - the exact
+collapse ruling 1 exists to close, re-created in the nav after the lens bodies
+had been fixed. A city whose Spireon grant is missing and a city that generates
+nothing are not in the same state and the nav must not say they are. The keys
+are the seam's own DOMAIN_STATUSES plus did-not-read, and src/lens-claims.test.mjs
+reads both sides so a state added to the seam and not to this map fails by name.
+*/
+
+/**
+ * One word per determination. Five determinations, five words, none shared.
+ * "Empty" is kept for no-fixture-source deliberately: that is the word the
+ * empty pack already renders, and a state that has not changed must not change
+ * its sentence just because the vocabulary around it grew.
+ */
+const LENS_BADGE = {
+  ok: "Demo records",
+  "granted-empty": "No records",
+  ungranted: "No source",
+  "no-fixture-source": "Empty",
+  "did-not-read": "Not read",
+};
+
+/**
+ * How a lens with more than one region resolves to one word.
+ *
+ * This is a ROLLUP and it is stated as one rather than left to be discovered.
+ * Police carries two regions on the shipped demo pack: cameras generate, and
+ * patrol is the deliberately ungranted exemplar. The lens badge says
+ * "Demo records" because the lens does render records - and the figure that
+ * says how many of its regions are sourced is sourcedRule, which the page
+ * header prints immediately beside the chip, while the ungranted region states
+ * its own absence in full on the region itself. The badge is a single word by
+ * the shape of the slot; the counting rule is never left to it.
+ *
+ * Order is DOMAIN_STATUSES order with did-not-read last, and the test holds it
+ * equal to the seam's array rather than to a copy written here.
+ */
+const LENS_BADGE_ORDER = ["ok", "granted-empty", "ungranted", "no-fixture-source", "did-not-read"];
+
+/** The one status a set of regions resolves to. */
+function lensStatus(regions) {
+  const present = new Set(regions.map((region) => String(region.status || "did-not-read")));
+  return LENS_BADGE_ORDER.find((status) => present.has(status)) || "did-not-read";
+}
 
 /** The lens label. Same vocabulary the pipeline already uses on the shell. */
 function sourcedLabel(regions) {
-  return regions.some((region) => region.status === "ok") ? "Demo records" : "Empty";
+  return LENS_BADGE[lensStatus(regions)] || LENS_BADGE["did-not-read"];
 }
 
 /** The figure, with its denominator and its counting rule at the point of use. */
@@ -1977,14 +2037,25 @@ function sourcedRule(regions) {
 }
 
 /**
- * The page chip and the nav badge are one paired control, so they read one
- * function and cannot diverge at runtime the way two careful edits would.
+ * The page chip, the nav badge and the Overview register row are one paired
+ * control, so they read one function and cannot diverge at runtime the way
+ * three careful edits would.
+ *
+ * G-100 added the third rendering. The Overview register is the page that
+ * answers "every lens on the roster, and whether it read", and it was answering
+ * it from typed markup while two other renderings of the same fact were already
+ * derived - which is how it came to file four rendering lenses under a heading
+ * that said they were not built. A row that carries no data-lens-row is left
+ * exactly as the document wrote it, so this can only ever speak for a lens the
+ * registry knows about.
  */
 function applyLensState(chipId, lensId, label) {
   const chip = document.getElementById(chipId);
   if (chip) chip.textContent = label;
   const badge = document.querySelector(`.navitem[data-lens="${lensId}"] .badge`);
   if (badge) badge.textContent = label;
+  const row = document.querySelector(`[data-lens-row="${lensId}"] .pill`);
+  if (row) row.textContent = label;
 }
 
 
