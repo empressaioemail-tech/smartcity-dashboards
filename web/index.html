@@ -286,11 +286,11 @@
               <a class="navitem" data-lens="development-services" href="/?lens=development-services">Development services<span class="grow"></span><span class="badge">Empty</span></a>
               <a class="navitem" data-lens="finance" href="/?lens=finance">Finance<span class="grow"></span><span class="badge">Empty</span></a>
               <a class="navitem" data-lens="citizen" href="/?lens=citizen">Citizen<span class="grow"></span><span class="badge">Preview</span></a>
-              <a class="navitem roster" data-lens="public-works" href="/?lens=public-works">Public works<span class="grow"></span><span class="badge">Not built</span></a>
+              <a class="navitem" data-lens="public-works" href="/?lens=public-works">Public works<span class="grow"></span><span class="badge">Not read</span></a>
               <a class="navitem roster" data-lens="parks" href="/?lens=parks">Parks<span class="grow"></span><span class="badge">Not built</span></a>
-              <a class="navitem roster" data-lens="police" href="/?lens=police">Police<span class="grow"></span><span class="badge">Not built</span></a>
-              <a class="navitem roster" data-lens="fire-ems" href="/?lens=fire-ems">Fire and EMS<span class="grow"></span><span class="badge">Not built</span></a>
-              <a class="navitem roster" data-lens="fleet" href="/?lens=fleet">Fleet<span class="grow"></span><span class="badge">Not built</span></a>
+              <a class="navitem" data-lens="police" href="/?lens=police">Police<span class="grow"></span><span class="badge">Not read</span></a>
+              <a class="navitem" data-lens="fire-ems" href="/?lens=fire-ems">Fire and EMS<span class="grow"></span><span class="badge">Not read</span></a>
+              <a class="navitem" data-lens="fleet" href="/?lens=fleet">Fleet<span class="grow"></span><span class="badge">Not read</span></a>
             </div>
             <div class="navgroup">
               <div class="gl">Work</div>
@@ -359,16 +359,16 @@
                       <div class="srcreg"><i class="rail"></i><span class="nm"><b>Development services</b><span>Permits, inspections, licenses</span></span><span class="pill p-quiet">Not connected</span></div>
                       <div class="srcreg"><i class="rail"></i><span class="nm"><b>Finance</b><span>Adopted budget and fund ledger</span></span><span class="pill p-quiet">Not connected</span></div>
                       <div class="srcreg"><i class="rail"></i><span class="nm"><b>Citizen</b><span>Public lens, no account required</span></span><span class="pill p-restricted">Preview</span></div>
+                      <div class="srcreg" data-lens-row="public-works"><i class="rail"></i><span class="nm"><b>Public works</b><span>CIP, projects, reporting, phones</span></span><span class="pill p-quiet">Not read</span></div>
+                      <div class="srcreg" data-lens-row="police"><i class="rail"></i><span class="nm"><b>Police</b><span>Patrol, cameras, incident log</span></span><span class="pill p-quiet">Not read</span></div>
+                      <div class="srcreg" data-lens-row="fire-ems"><i class="rail"></i><span class="nm"><b>Fire and EMS</b><span>Occupancies, dispatch, flood and weather</span></span><span class="pill p-quiet">Not read</span></div>
+                      <div class="srcreg" data-lens-row="fleet"><i class="rail"></i><span class="nm"><b>Fleet</b><span>Vehicles, drivers, utilisation, safety</span></span><span class="pill p-quiet">Not read</span></div>
                       <div class="reg-group">Work</div>
                       <div class="srcreg"><i class="rail"></i><span class="nm"><b>Plan review</b><span>Submittals against the adopted code</span></span><span class="pill p-restricted">Preview</span></div>
                       <div class="srcreg"><i class="rail"></i><span class="nm"><b>Files</b><span>The city private filing system</span></span><span class="pill p-restricted">Preview</span></div>
                       <div class="srcreg"><i class="rail"></i><span class="nm"><b>Records search</b><span>City document search</span></span><span class="pill p-quiet">Not built</span></div>
-                      <div class="reg-group">Roster, not yet built</div>
-                      <div class="srcreg"><i class="rail"></i><span class="nm"><b>Public works</b><span>CIP, projects, reporting, phones</span></span><span class="pill p-quiet">Not built</span></div>
-                      <div class="srcreg"><i class="rail"></i><span class="nm"><b>Parks</b><span>Department on the roster</span></span><span class="pill p-quiet">Not built</span></div>
-                      <div class="srcreg"><i class="rail"></i><span class="nm"><b>Police</b><span>Patrol, cameras, incident log</span></span><span class="pill p-quiet">Not built</span></div>
-                      <div class="srcreg"><i class="rail"></i><span class="nm"><b>Fire and EMS</b><span>Occupancies, dispatch, flood and weather</span></span><span class="pill p-quiet">Not built</span></div>
-                      <div class="srcreg"><i class="rail"></i><span class="nm"><b>Fleet</b><span>Vehicles, drivers, utilisation, safety</span></span><span class="pill p-quiet">Not built</span></div>
+                      <div class="reg-group">Not built</div>
+                      <div class="srcreg"><i class="rail"></i><span class="nm"><b>Parks</b><span>No vendor, so no region is registered</span></span><span class="pill p-quiet">Not built</span></div>
                       <div class="reg-group">City</div>
                       <div class="srcreg"><i class="rail"></i><span class="nm"><b>Assets</b><span>City-owned inventory</span></span><span class="pill p-quiet">Empty</span></div>
                       <div class="srcreg"><i class="rail"></i><span class="nm"><b>Connections</b><span>The function register</span></span><span class="pill p-restricted">Mounted</span></div>
@@ -810,7 +810,7 @@
             <section class="lens" id="lens-public-works">
               <header class="pagehead">
                 <div class="crumb"><b data-pack-name>This city</b> <span>/</span> Public works</div>
-                <div class="titlerow"><h1>Public works</h1><span class="pill p-quiet" id="pw-state-chip">Empty</span><span class="grow"></span><span class="t-caption" id="pw-region-rule">No region has been read for this pack</span></div>
+                <div class="titlerow"><h1>Public works</h1><span class="pill p-quiet" id="pw-state-chip">Not read</span><span class="grow"></span><span class="t-caption" id="pw-region-rule">No region has been read for this pack</span></div>
                 <p class="lede">Capital projects and call handling. Each region states its own source, carries its own counting rule, and prints no figure this pack has not made.</p>
               </header>
               <div class="shell-regions solo">
@@ -929,7 +929,7 @@
             <section class="lens" id="lens-police">
               <header class="pagehead">
                 <div class="crumb"><b data-pack-name>This city</b> <span>/</span> Police</div>
-                <div class="titlerow"><h1>Police</h1><span class="pill p-quiet" id="police-state-chip">Empty</span><span class="grow"></span><span class="t-caption" id="police-region-rule">No region has been read for this pack</span></div>
+                <div class="titlerow"><h1>Police</h1><span class="pill p-quiet" id="police-state-chip">Not read</span><span class="grow"></span><span class="t-caption" id="police-region-rule">No region has been read for this pack</span></div>
                 <p class="lede">Cameras and the patrol roster. Each region states its own source, and the roster is the one region in this product that is BUILT with no source at all, which is a different sentence from a region that does not exist.</p>
               </header>
               <div class="shell-regions solo">
@@ -1044,7 +1044,7 @@
             <section class="lens" id="lens-fire-ems">
               <header class="pagehead">
                 <div class="crumb"><b data-pack-name>This city</b> <span>/</span> Fire and EMS</div>
-                <div class="titlerow"><h1>Fire and EMS</h1><span class="pill p-quiet" id="fire-ems-state-chip">Empty</span><span class="grow"></span><span class="t-caption" id="fire-ems-region-rule">No region has been read for this pack</span></div>
+                <div class="titlerow"><h1>Fire and EMS</h1><span class="pill p-quiet" id="fire-ems-state-chip">Not read</span><span class="grow"></span><span class="t-caption" id="fire-ems-region-rule">No region has been read for this pack</span></div>
                 <p class="lede">Apparatus readiness, counted per station rather than city wide. A city with every out of service truck in one station is a different fact from a city with one in each, and a rollup cannot say which.</p>
               </header>
               <div class="shell-regions solo">
@@ -1118,7 +1118,7 @@
             <section class="lens" id="lens-fleet">
               <header class="pagehead">
                 <div class="crumb"><b data-pack-name>This city</b> <span>/</span> Fleet</div>
-                <div class="titlerow"><h1>Fleet</h1><span class="pill p-quiet" id="fleet-state-chip">Empty</span><span class="grow"></span><span class="t-caption" id="fleet-region-rule">No region has been read for this pack</span></div>
+                <div class="titlerow"><h1>Fleet</h1><span class="pill p-quiet" id="fleet-state-chip">Not read</span><span class="grow"></span><span class="t-caption" id="fleet-region-rule">No region has been read for this pack</span></div>
                 <p class="lede">Vehicles and the operators they group under. A vehicle on a telemetry contract is a fleet record on this lens and never a city-owned asset record.</p>
               </header>
               <div class="shell-regions solo">

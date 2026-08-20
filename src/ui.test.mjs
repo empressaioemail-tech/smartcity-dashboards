@@ -166,7 +166,23 @@ describe("G-66 four-lens shell", () => {
   });
 
   it("names Parks, Records search, Assets, Connections, and People in the nav", () => {
+    /**
+     * G-100. The nav names all seven, and it no longer says the same thing
+     * about all seven.
+     *
+     * This assertion USED to require "Not built" on every one of them, which is
+     * how four rendering lenses kept a badge saying their surface did not exist
+     * for three waves after they shipped. The words were never the defect: the
+     * defect is a state claim typed into markup with nothing connecting it to
+     * what decides it. So the partition is DERIVED from the domain registry in
+     * src/lens-claims.test.mjs, and what is asserted here is that each of the
+     * seven is present and carries a badge, plus the three whose surface really
+     * does not exist.
+     */
     for (const label of ["Parks", "Records search", "People and access", "Public works", "Police", "Fire and EMS", "Fleet"]) {
+      assert.match(html, new RegExp(`>${label}<span class="grow"></span><span class="badge">[^<]+</span>`), label);
+    }
+    for (const label of ["Parks", "Records search", "People and access"]) {
       assert.match(html, new RegExp(`>${label}<span class="grow"></span><span class="badge">Not built</span>`), label);
     }
     assert.match(html, /href="\/\?work=assets"/);
@@ -315,6 +331,17 @@ describe("G-75 shell, mounts and motion", () => {
       "work-records": "Not built",
       "work-assets": "Empty",
       "work-people": "Not built",
+      /**
+       * G-100. The four rendering roster lenses were absent from this map,
+       * which is how their nav badge and their page chip could disagree
+       * without anything going red. Their static value is the unread
+       * fallback on both sides; applyLensState writes the resolved word to
+       * both at boot.
+       */
+      "lens-public-works": "Not read",
+      "lens-police": "Not read",
+      "lens-fire-ems": "Not read",
+      "lens-fleet": "Not read",
     };
     for (const [id, chip] of Object.entries(expected)) {
       // Citizen is a public light surface with no staff page header, so its
@@ -334,6 +361,10 @@ describe("G-75 shell, mounts and motion", () => {
       ["Records search", "Not built"],
       ["Assets", "Empty"],
       ["People and access", "Not built"],
+      ["Public works", "Not read"],
+      ["Police", "Not read"],
+      ["Fire and EMS", "Not read"],
+      ["Fleet", "Not read"],
     ]) {
       assert.ok(
         nav.includes(`>${label}<span class="grow"></span><span class="badge">${badge}</span>`),
@@ -654,16 +685,34 @@ describe("G-77 fixture pack on Development services", () => {
     assert.match(app, /the pipeline did not read for \$\{key\}/);
   });
 
-  it("drives the nav badge and the page chip from one label", () => {
-    // Paired control: two renderings of one fact need a single source, not two
-    // careful edits (DEV_PROCESS 2.4).
-    assert.match(app, /function packStateLabel/);
-    const applyState = app.match(/function applyPackState[\s\S]*?\n\}/)?.[0] || "";
-    assert.match(applyState, /const label = packStateLabel\(pipeline\)/);
-    assert.equal((applyState.match(/= label/g) || []).length, 2);
-    assert.match(applyState, /id="ds-state-chip"|getElementById\("ds-state-chip"\)/);
-    assert.match(applyState, /navitem\[data-lens="development-services"\] \.badge/);
+  it("drives the nav badge, the page chip and the register row from one label", () => {
+    /**
+     * Paired control: renderings of one fact need a single source, not careful
+     * edits (DEV_PROCESS 2.4).
+     *
+     * G-100 grew this from two renderings to three and, more to the point, took
+     * Development services OFF its own private label function. packStateLabel
+     * read pipeline.generated, a boolean, so an ungranted pack and a pack that
+     * generates nothing produced the same badge - the collapse ruling 1 exists
+     * to close, surviving in the one lens nobody re-checked. Both it and
+     * applyPackState are gone; DS resolves through sourcedLabel like every other
+     * lens, off the sourceStatus the compose has carried since G-91.
+     */
+    assert.equal(app.includes("function packStateLabel"), false, "the second label function is back");
+    assert.equal(app.includes("function applyPackState"), false, "the second apply function is back");
+    const applyState = app.match(/function applyLensState[\s\S]*?\n\}/)?.[0] || "";
+    assert.ok(applyState, "applyLensState must exist");
+    assert.equal((applyState.match(/\.textContent = label/g) || []).length, 3);
+    assert.match(applyState, /getElementById\(chipId\)/);
+    assert.match(applyState, /navitem\[data-lens="\$\{lensId\}"\] \.badge/);
+    assert.match(applyState, /\[data-lens-row="\$\{lensId\}"\] \.pill/);
+    // And the pipeline is one of its callers, with the seam's own status.
+    assert.match(app, /applyLensState\("ds-state-chip", "development-services", sourcedLabel\(\[\{ status \}\]\)\)/);
+    // The static value is the unread fallback on every lens this rule drives.
     assert.match(ds, /id="ds-state-chip">Empty</);
+    for (const id of ["pw-state-chip", "police-state-chip", "fire-ems-state-chip", "fleet-state-chip"]) {
+      assert.match(html, new RegExp(`id="${id}">Not read<`), id);
+    }
   });
 
   it("hides through a mechanism that actually works on this kit", () => {
