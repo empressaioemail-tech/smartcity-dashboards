@@ -36,6 +36,7 @@ import {
   ARMS,
   AUTHORITATIVE,
   CONFORMANCE_TAGS,
+  DECORATIVE_EXEMPTIONS,
   FULL_EXTENT_VIEWPORT,
   GATED_BEST_PRACTICE,
   GEOMETRY_DEPENDENT_REASONS,
@@ -46,12 +47,17 @@ import {
   WAIVERS,
   armId,
   authorityOf,
+  coverageByViewport,
+  decorativeExempt,
+  evaluationFindings,
   independentContrastFindings,
   isSubjectBounded,
   requiredRatio,
   summarize,
+  treeOf,
   verdict,
   waivedTotal,
+  waiverFor,
 } from "./a11y-gate.mjs";
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -150,10 +156,43 @@ function scan(surface, theme, over = {}) {
       height: viewport === REFERENCE_VIEWPORT.id ? 900 : 2400,
       rendered: 100,
       inViewport: viewport === REFERENCE_VIEWPORT.id ? 72 : 100,
+      /**
+       * G-101. CONTAINED and JUDGED are different populations and the fixture
+       * carries both, so an arm that asserts on one cannot silently read the
+       * other. The clean default has axe judging slightly fewer than it contains,
+       * which is the real shape: axe's documented exclusions are never zero on a
+       * product carrying punctuation.
+       */
+      axeEligible: viewport === REFERENCE_VIEWPORT.id ? 72 : 100,
+      inViewportNotEligible: 0,
+      evaluated: viewport === REFERENCE_VIEWPORT.id ? 70 : 96,
+      judged: viewport === REFERENCE_VIEWPORT.id ? 72 : 100,
       outside: viewport === REFERENCE_VIEWPORT.id ? 28 : 0,
       overflowBelow: 0,
       steps: 0,
       stoppedBecause: "fixture",
+    },
+    /**
+     * The clean evaluation state: nothing unexamined, nothing hidden that is not
+     * declared, and every live decorative exemption matching something. Derived
+     * from the live ledger rather than restated, so adding an exemption without
+     * a firing proof does not quietly pass here.
+     */
+    evaluation: {
+      rendered: 100,
+      evaluated: viewport === REFERENCE_VIEWPORT.id ? 70 : 96,
+      computed: 40,
+      judged: viewport === REFERENCE_VIEWPORT.id ? 72 : 100,
+      declaredDecorative: 4,
+      exemptDisabled: 1,
+      unexamined: 0,
+      unexaminedByClass: {},
+      unexaminedSample: [],
+      ariaHiddenText: 4,
+      ariaHiddenByClass: { "span.sep": 4 },
+      declaredDecorativeHits: Object.fromEntries(DECORATIVE_EXEMPTIONS.map((d) => [d.selector, 4])),
+      undeclaredDecorative: 0,
+      undeclaredDecorativeByClass: {},
     },
     typeface: { ui: "shipped", data: "shipped", uiWidth: 228.33, namedUiWidth: 228.33, dataWidth: 277.2, namedDataWidth: 277.2 },
     visibleLens: [surface],
@@ -926,6 +965,227 @@ describe("G-99 the second instrument, for what axe does not look at", () => {
 
 /* ------------------------------------------------------------- the wiring */
 
+
+/* --------------------------------------------------- G-101 evaluated vs covered */
+
+describe("G-101 coverage means what it says, and what nothing looked at has a name", () => {
+  /**
+   * The number that sent this row: "full-extent covered 6198/6198 rendered text
+   * elements (100%)". True, and its counting rule is CONTAINMENT. axe judged
+   * 5,954 of them. An auditor reads 100% as "everything was checked" and the
+   * containment figure cannot carry that sentence, so both are measured, both are
+   * printed, and the word beside each one says which it is.
+   */
+  it("reports JUDGED and CONTAINED as different numbers with different counting rules", () => {
+    const cov = coverageByViewport(allArms("s1"));
+    const full = cov[FULL_EXTENT_VIEWPORT.id];
+    assert.equal(full.rendered, 200, "two themes x one surface x 100 rendered");
+    assert.equal(full.inViewport, 200, "containment: everything is inside the box at full extent");
+    assert.equal(full.pct, 100);
+    assert.equal(full.evaluated, 192, "judgement: axe put 96 of every 100 in a bucket");
+    assert.equal(full.pctEvaluated, 96);
+    assert.notEqual(full.pct, full.pctEvaluated, "if these are ever equal by construction the distinction has been lost");
+    assert.match(full.countingRule, /Containment is not judgement/);
+    /**
+     * And axe's OWN candidate rule is measured beside the viewport rule rather
+     * than assumed equal to it. On this product they differ by 2 of 6,198 at the
+     * reference viewport - which is what retired the standing hypothesis that the
+     * clipping box explained a five-node disagreement - but "they agree here" is
+     * a property of this markup and the next fixed-height panel can break it.
+     */
+    assert.equal(typeof full.axeEligible, "number", "axe's candidate rule is not measured at all");
+  });
+
+  it("refuses rendered text that NO instrument judged and no exemption covers", () => {
+    /**
+     * THE CLASS THE COVERAGE FIGURE WAS STANDING IN FOR. Not below the fold, not
+     * clipped, not decorative, not disabled - inside the viewport, eligible by
+     * axe's own rule, and judged by nothing. The product had 28 of these per
+     * theme (a bare `<span>/</span>` breadcrumb divider: punctuation, so axe
+     * excludes it, and classless, so no declared group swept it) and every
+     * number in the run counted them as covered.
+     */
+    const results = allArms("s1", () => ({
+      evaluation: {
+        ...scan("s1", "light").evaluation,
+        unexamined: 3,
+        unexaminedByClass: { "span.divider [punctuation-only]": 3 },
+        unexaminedSample: ['span.divider "/"'],
+      },
+    }));
+    const v = judge(results, [], []);
+    assert.equal(v.pass, false);
+    assert.ok(
+      v.reasons.some((r) => r.startsWith("unexamined-text") && r.includes("span.divider")),
+      v.reasons.join("; "),
+    );
+    /** And the clean state does NOT fire, or the class is a permanent red light
+     *  rather than a control (DEV_PROCESS 2.0). */
+    assert.equal(judge(allArms("s1"), [], []).pass, true);
+  });
+
+  it("refuses text hidden from the accessibility tree that no exemption declares", () => {
+    /**
+     * aria-hidden is the strongest instrument-silencing attribute here: it takes
+     * text out of the accessibility tree, out of 1.4.3's scope and out of the
+     * second instrument's computed population in one move. Undeclared, it is
+     * indistinguishable from a blind spot - so it is declared or it fails.
+     */
+    const results = allArms("s1", () => ({
+      evaluation: {
+        ...scan("s1", "light").evaluation,
+        ariaHiddenText: 6,
+        undeclaredDecorative: 2,
+        undeclaredDecorativeByClass: { "p.quietly-hidden": 2 },
+      },
+    }));
+    const v = judge(results, [], []);
+    assert.equal(v.pass, false);
+    assert.ok(
+      v.reasons.some((r) => r.startsWith("undeclared-decorative") && r.includes("p.quietly-hidden")),
+      v.reasons.join("; "),
+    );
+  });
+
+  it("refuses a decorative exemption that matched nothing, on a waiver's terms", () => {
+    /**
+     * The other direction, and it is the same rule a waiver's zero arm follows:
+     * an exemption covering nothing is an exception pretending to. Driven with a
+     * FIXTURE ledger rather than the live one, because a firing proof that reads
+     * the live ledger disappears the moment that ledger is emptied - which is
+     * exactly what happened to the waiver arms this file already carries.
+     */
+    const stale = [{ selector: ".no-longer-here", element: "x", criterion: "decorative", measuredRatio: { light: 1 }, measuredBy: "1", basis: "x", owner: "x", andWhatThisDoesNOTClaim: "x", remove: "x" }];
+    const results = allArms("s1", () => ({
+      evaluation: { ...scan("s1", "light").evaluation, declaredDecorativeHits: { ".no-longer-here": 0 } },
+    }));
+    const findings = evaluationFindings(results, stale);
+    assert.equal(findings.length, 1, JSON.stringify(findings));
+    assert.equal(findings[0].kind, "exemption-outlived-its-cause");
+    assert.match(findings[0].detail, /matched 0 element/);
+    /** And an exemption that IS matching does not fire. */
+    const live = allArms("s1", () => ({
+      evaluation: { ...scan("s1", "light").evaluation, declaredDecorativeHits: { ".no-longer-here": 4 } },
+    }));
+    assert.deepEqual(evaluationFindings(live, stale), []);
+  });
+
+  it("measures what it exempted rather than only counting it", () => {
+    /**
+     * An exemption whose SIZE is known and whose RATIO is not cannot be defended
+     * to an auditor, and the moment the count is its only trace the 1.856:1 that
+     * made the exemption necessary is gone from the record. So the ratio is
+     * computed for hidden text too and reported under its own heading - never
+     * summed with the failures, because a declared decorative element is exempt.
+     */
+    const results = allArms("s1", (theme) => ({
+      independentContrast: {
+        computed: 10, passed: 10, failed: 0, couldNotCompute: 0, excludedAriaHidden: 4, skippedByAxe: 0,
+        ambiguousReasons: {}, failures: [], subjects: [],
+        decorative: [{ group: ".sep", nodes: 4, ratio: theme === "light" ? 1.856 : 1.737, required: 4.5, sample: "span.sep" }],
+      },
+    }));
+    const d = decorativeExempt(results);
+    assert.equal(d.length, 1);
+    assert.equal(d[0].group, ".sep");
+    assert.equal(d[0].nodes, 16, "4 elements x 2 themes x 2 viewports");
+    assert.deepEqual(d[0].ratios, [1.737, 1.856], "both themes' measurements survive rather than one overwriting the other");
+    /** And it is NOT a failure: an exempted element must not reach the verdict. */
+    assert.equal(judge(results, [], []).pass, true);
+  });
+});
+
+describe("G-101 the controls that could not fire", () => {
+  it("fires the second instrument's zero arm PER GROUP, which is the bug it shipped with", () => {
+    /**
+     * THE DIVERGENCE TEST FOR A CONTROL THAT WAS BROKEN OPEN ON MAIN.
+     *
+     * The zero arm asked whether the findings array was EMPTY, never whether THIS
+     * waiver's own group was in it. With two entries and one still firing, the
+     * other sat pinned at 7 nodes against an actual 0 through a green run, on the
+     * figure of record, for as long as the first kept firing. A gating indicator
+     * is tested for its ability to fire before it is trusted (DEV_PROCESS 2.2),
+     * and this one never was.
+     *
+     * The arm is built to reproduce EXACTLY that state: two waivers, one group
+     * firing, the other gone.
+     */
+    const firing = { rule: "independent-contrast", group: ".still-here", nodesByArm: Object.fromEntries(ARMS.map((a) => [a, 4])), countingRule: "fixture", owner: "fixture", basis: "fixture 1", remove: "fixture" };
+    const gone = { rule: "independent-contrast", group: ".cause-is-gone", nodesByArm: Object.fromEntries(ARMS.map((a) => [a, 7])), countingRule: "fixture", owner: "fixture", basis: "fixture 2", remove: "raise the token" };
+    const results = allArms("s1", () => ({
+      independentContrast: {
+        computed: 10, passed: 6, failed: 4, couldNotCompute: 0, excludedAriaHidden: 0, skippedByAxe: 4,
+        ambiguousReasons: {}, decorative: [], subjects: [],
+        failures: [{ group: ".still-here", nodes: 4, ratio: 2.1, required: 4.5, sample: "span.still-here" }],
+      },
+    }));
+    const v = judge(results, [firing, gone], []);
+    assert.equal(v.pass, false, "the stale group must be refused even while another group is firing");
+    assert.ok(
+      v.reasons.some((r) => r.includes(".cause-is-gone") && r.includes("cause is gone")),
+      v.reasons.join("; "),
+    );
+    assert.ok(
+      !v.reasons.some((r) => r.includes(".still-here") && r.includes("cause is gone")),
+      "the group that IS firing must not be reported as stale",
+    );
+    /**
+     * AND THE CONVERSE, which is what makes this a divergence test rather than a
+     * second careful edit: with the stale entry removed, the same run passes. If
+     * it did not, the arm would be proving the gate is broken shut instead.
+     */
+    assert.equal(judge(results, [firing], []).pass, true);
+  });
+
+  it("has ONE lookup rule for a waiver, not two that disagree", () => {
+    /**
+     * waiverFor() matched on RULE ALONE while verdict() matched on rule AND
+     * group - two implementations of one lookup, which is the CTRL-1 shape
+     * (DEV_PROCESS 2.4). With two entries sharing `independent-contrast` the
+     * helper could only ever return the first, so the second was unreachable
+     * through the exported path while the verdict compared it happily.
+     */
+    const a = { rule: "independent-contrast", group: ".a", nodesByArm: {}, countingRule: "x", owner: "x", basis: "1", remove: "x" };
+    const b = { rule: "independent-contrast", group: ".b", nodesByArm: {}, countingRule: "x", owner: "x", basis: "1", remove: "x" };
+    const find = (rule, group) => [a, b].find((w) => w.rule === rule && (w.group || null) === (group || null)) || null;
+    assert.equal(find("independent-contrast", ".b"), b, "the second entry must be reachable by its own group");
+    assert.equal(find("independent-contrast", ".c"), null, "an unknown group must not fall through to the first entry");
+    /** And the exported helper implements that same rule rather than a looser one. */
+    assert.equal(waiverFor("independent-contrast", ".nothing-declares-this"), null);
+    assert.match(
+      read("src/a11y-gate.mjs"),
+      /export const waiverFor = \(id, group = null\) =>/,
+      "waiverFor must take the group it is asked about, or it is a second lookup rule",
+    );
+  });
+
+  it("declares which TREE it measured, because a head SHA is not what CI checked out", () => {
+    /**
+     * The authority banner said "on the head SHA" and that sentence was false on
+     * every pull_request run: actions/checkout checks out the MERGE of head into
+     * base and github.sha IS that merge commit. It is not pedantic. G-99's branch
+     * carried --sc-ok #2F7A52 and its own CI job measured #2E7750, because a
+     * sibling PR raising that token merged thirty minutes before the job ran - and
+     * the five-node disagreement that produced was read as an environment
+     * difference and theorised about in terms of clipping boxes for a day.
+     */
+    assert.ok(!AUTHORITATIVE.where.includes("head SHA"), "the figure of record must not claim a tree it does not measure");
+    const merged = treeOf({ commit: "merge111", headSha: "head222", eventName: "pull_request" });
+    assert.match(merged, /merge111/);
+    assert.match(merged, /head222/);
+    assert.match(merged, /MERGE of head/);
+    const pushed = treeOf({ commit: "same333", headSha: "same333", eventName: "push" });
+    assert.match(pushed, /the head tree/);
+    /** An unrecorded tree says so rather than reading like a recorded one. */
+    assert.match(treeOf({}), /not recorded/);
+    /** And the banner carries it, on an authoritative run and an indicative one. */
+    assert.match(authorityOf({ platform: "linux", ci: true, commit: "merge111", headSha: "head222" }).line, /merge111/);
+    assert.match(authorityOf({ platform: "win32", ci: false, commit: "abc" }).line, /abc/);
+    /** And the workflow actually exports it, or the gate prints "not recorded" forever. */
+    assert.match(read(".github/workflows/ci.yml"), /A11Y_HEAD_SHA:/, "the run cannot tell head from merge without it");
+  });
+});
+
 describe("G-95 the gate is wired and cannot skip", () => {
   it("runs as its own required CI job that installs the browser it needs", () => {
     /**
@@ -1007,6 +1267,13 @@ describe("G-95 the gate is wired and cannot skip", () => {
       "punctuation-contrast",
       "adjudication-refuted",
       "typeface-fallback",
+      /**
+       * G-101's classes. Both refuse something no instrument in this repo could
+       * see before: text nothing judged, and text quietly removed from the
+       * accessibility tree with nothing declaring it.
+       */
+      "unexamined-text",
+      "undeclared-decorative",
     ]) {
       assert.ok(PLANTS[id], `${id} has no plant, so that refusal class has never been watched firing`);
     }
@@ -1043,18 +1310,41 @@ describe("G-95 the gate is wired and cannot skip", () => {
       assert.match(w.countingRule, /\S/, `${w.rule} pins a number with no counting rule`);
     }
     /**
-     * The ledger is NO LONGER EMPTY, and that is a deliberate act rather than a
-     * drift: G-99 made the gate able to see two things it could not see before -
-     * a below-the-fold contrast pair and a punctuation glyph axe excludes by
-     * design - and both live in web/sc-kit.css and web/index.html, which this
-     * lane is forbidden to touch. Each entry is measured, owned and removable.
-     * The assertion is on the SHAPE and on the count, so a fourth entry appearing
-     * without a decision is visible.
+     * THE LEDGER IS EMPTY AGAIN (G-101), and both entries went out against their
+     * own removal conditions rather than being tidied away: .sep because the
+     * separator is now declared decorative and verifiably out of the
+     * accessibility tree, and .pill because the kit raised --sc-ok to #2E7750 in
+     * PR 35 and the cause was gone before the entry was even written. The count
+     * is asserted so a re-appearance is a decision somebody made rather than a
+     * drift, in either direction.
      */
-    assert.equal(WAIVERS.length, 2, "a waiver is a decision, not a detail; adding one is a deliberate act");
+    assert.equal(WAIVERS.length, 0, "a waiver is a decision, not a detail; adding one is a deliberate act");
     for (const w of WAIVERS) {
       assert.match(w.basis, /\d/, `${w.rule} is waived with a basis carrying no measured figure`);
       assert.ok(w.owner !== "G-99", `${w.rule} is waived and owned by the lane that waived it, which is amnesty`);
+    }
+    /**
+     * AND THE POPULATION THE .sep WAIVER CARRIED DID NOT VANISH WITH IT. It moved
+     * to the decorative ledger, which is held to the same standard: an exemption
+     * carries a criterion, a measured ratio, an owner, a basis and a removal
+     * condition, or it is amnesty wearing an ARIA attribute.
+     */
+    assert.ok(DECORATIVE_EXEMPTIONS.length >= 1, "the decorative ledger is where an aria-hidden exclusion is declared; an empty one means nothing is declared");
+    for (const d of DECORATIVE_EXEMPTIONS) {
+      assert.match(d.selector, /\S/, "a decorative exemption with no selector matches nothing and hides everything");
+      assert.match(d.criterion, /1\.4\.3|decorat/i, `${d.selector} exempts text without naming the criterion it is exempt from`);
+      assert.ok(d.measuredRatio && Object.keys(d.measuredRatio).length, `${d.selector} is exempted with no measured ratio, which is an exemption nobody can quote`);
+      assert.match(d.measuredBy, /\d/, `${d.selector} records a ratio with no method`);
+      assert.match(d.basis, /\S/, `${d.selector} is exempted with no basis`);
+      assert.match(d.owner, /\S/, `${d.selector} is exempted and nobody owns it`);
+      assert.match(d.remove, /\S/, `${d.selector} has no removal condition, which is amnesty`);
+      /**
+       * And it must say what it does NOT claim. The whole risk of a decorative
+       * exemption is that it reads as "the defect is fixed" when it means "the
+       * text is out of scope", and the entry is the only place that distinction
+       * can be written down next to the number.
+       */
+      assert.match(d.andWhatThisDoesNOTClaim, /\S/, `${d.selector} does not say what its exemption is NOT claiming`);
     }
     /**
      * And with an empty ledger the gate is at ZERO TOLERANCE, which is the

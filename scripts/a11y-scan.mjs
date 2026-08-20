@@ -124,6 +124,7 @@ import { THEMES, THEME_STORAGE_KEY } from "../src/theme.mjs";
 import {
   AUTHORITATIVE,
   CONFORMANCE_TAGS,
+  DECORATIVE_EXEMPTIONS,
   FULL_EXTENT_VIEWPORT,
   GATED_BEST_PRACTICE,
   REFERENCE_VIEWPORT,
@@ -151,6 +152,13 @@ const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
  * the list would be two implementations of one rule, which is the CTRL-1 shape.
  */
 const ADJUDICATED_SUBJECTS = [...new Set(REVIEW_ITEMS.flatMap((r) => r.subjects || []))];
+
+/**
+ * The selectors the decorative ledger declares, DERIVED from the ledger for the
+ * same reason the adjudicated subjects are: restating them here would be two
+ * implementations of one rule, which is the CTRL-1 shape DEV_PROCESS 2.4 names.
+ */
+const DECLARED_DECORATIVE_SELECTORS = DECORATIVE_EXEMPTIONS.map((d) => d.selector);
 
 export const PLANTS = {
   "scrollable-region-focusable": {
@@ -336,6 +344,56 @@ export const PLANTS = {
       const style = document.createElement("style");
       style.textContent = "#nav-demonstrated, #nav-sources-rule { color: #8a8a8a !important; background: #909090 !important; }";
       document.head.appendChild(style);
+    },
+  },
+  "unexamined-text": {
+    what: "rendered text that NO instrument judges and no exemption covers, which is the population a 100% coverage figure was counting as covered",
+    /**
+     * G-101. THE PLANT FOR THE CLASS THE COVERAGE NUMBER WAS STANDING IN FOR.
+     *
+     * It has to be invisible to BOTH instruments at once, which is a narrow
+     * target and is exactly why the class existed unnamed for two waves. So it is
+     * planted as the real thing rather than as a synthetic: punctuation-only
+     * text, which axe excludes by design (axe.js:28714), carrying a class that
+     * matches NONE of the declared contrast groups, so the second instrument
+     * never sweeps it either. Not aria-hidden and not disabled, so no exemption
+     * covers it.
+     *
+     * The product's own breadcrumb divider was precisely this - a bare
+     * `<span>/</span>` with no class - and nothing in the gate could see it. It
+     * happened to be legible. The next one might not be, and this is what makes
+     * that a measurement rather than luck.
+     */
+    apply: () => {
+      const p = document.createElement("p");
+      p.className = "l1-unswept-glyph";
+      p.setAttribute("style", `${window.__plantChrome}color:#8a8a8a;background:#909090;font-size:13px;padding:2px`);
+      p.textContent = "/";
+      document.body.appendChild(p);
+    },
+  },
+  "undeclared-decorative": {
+    what: "text hidden from the accessibility tree with no entry in the decorative ledger, which is how a contrast finding gets quieted by making the text disappear",
+    /**
+     * G-101. The other half of the two-way decorative contract.
+     *
+     * aria-hidden="true" removes text from the accessibility tree, from 1.4.3's
+     * scope and from the second instrument's computed population in one move. It
+     * is the strongest instrument-silencing attribute in this product, and
+     * without this plant the only thing standing between a real defect and a
+     * green build is whether anyone thought to look at the diff.
+     *
+     * This hides a run of real text at an unreadable pair and declares nothing.
+     * The gate must refuse it BECAUSE it is undeclared, not because of its
+     * colour - which is why the text is ordinary rather than punctuation.
+     */
+    apply: () => {
+      const p = document.createElement("p");
+      p.className = "l1-quietly-hidden";
+      p.setAttribute("aria-hidden", "true");
+      p.setAttribute("style", `${window.__plantChrome}color:#8a8a8a;background:#909090;font-size:13px;padding:2px`);
+      p.textContent = "Findings quietly removed from the accessibility tree";
+      document.body.appendChild(p);
     },
   },
   "typeface-fallback": {
@@ -630,6 +688,32 @@ const COVERAGE_PROBE = () => {
     !(r.bottom <= 0 || r.top >= innerHeight || r.right <= 0 || r.left >= innerWidth) &&
     r.width > 0 &&
     r.height > 0;
+  const overlaps = (a, b) => !(a.left >= b.right || a.right <= b.left || a.top >= b.bottom || a.bottom <= b.top);
+  /**
+   * AXE'S OWN CANDIDATE RULE, reimplemented beside the viewport rule so the two
+   * are measured over ONE population in ONE instant rather than argued about.
+   *
+   * colorContrastMatches (node_modules/axe-core/axe.js:28619, axe-core 4.13.0)
+   * ends by requiring a text rect to overlap the box of EVERY overflow-hidden
+   * ancestor, not merely the viewport - so an element inside a clipped panel can
+   * be inside the window and outside axe's evaluation set at the same time. That
+   * was the standing hypothesis for a five-node disagreement between two
+   * machines, and measuring it is what retired it: on this product the two rules
+   * diverge by 2 elements of 6,198 at the reference viewport and by 0 at full
+   * extent. It is measured on EVERY run rather than settled once, because "the
+   * two rules agree here" is a property of this markup and the next fixed-height
+   * panel can break it silently.
+   */
+  const clippingAncestors = (el) => {
+    const out = [];
+    let n = el.parentElement;
+    while (n) {
+      const cs = getComputedStyle(n);
+      if (/hidden|clip/.test(cs.overflowX) || /hidden|clip/.test(cs.overflowY)) out.push(n);
+      n = n.parentElement;
+    }
+    return out;
+  };
   const rendered = [...document.querySelectorAll("h1,h2,h3,h4,h5,h6,p,span,b,strong,em,a,button,td,th,li,label,caption,dt,dd")].filter(
     (el) =>
       [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim()) &&
@@ -638,10 +722,15 @@ const COVERAGE_PROBE = () => {
   );
   let deepest = 0;
   let inside = 0;
+  let eligible = 0;
   for (const el of rendered) {
     const r = el.getBoundingClientRect();
     if (inView(r)) inside += 1;
     else deepest = Math.max(deepest, r.bottom - innerHeight);
+    const clips = clippingAncestors(el);
+    if ([...el.getClientRects()].some((rect) => inView(rect) && clips.every((c) => overlaps(rect, c.getBoundingClientRect())))) {
+      eligible += 1;
+    }
   }
   let scrollHidden = 0;
   for (const el of document.querySelectorAll("*")) {
@@ -652,6 +741,16 @@ const COVERAGE_PROBE = () => {
     height: innerHeight,
     rendered: rendered.length,
     inViewport: inside,
+    /**
+     * NOT the same population as inViewport, and the two are reported side by
+     * side rather than merged. The growth loop still stops on `outside`, the
+     * viewport figure, because growing a window cannot pull an element back
+     * inside a fixed-height panel's clip: gating growth on the stricter rule
+     * would be a gate nobody can ever get to green, which DEV_PROCESS 2.0 calls
+     * a dead one.
+     */
+    axeEligible: eligible,
+    inViewportNotEligible: Math.max(0, inside - eligible),
     outside: rendered.length - inside,
     overflowBelow: Math.ceil(Math.max(deepest, scrollHidden)),
   };
@@ -849,27 +948,82 @@ const CONTRAST_SWEEP = (subjects, groups) => {
     failed: 0,
     couldNotCompute: 0,
     excludedAriaHidden: 0,
+    decorativeCouldNotCompute: 0,
     skippedByAxe: 0,
     ambiguousReasons: {},
     failures: [],
+    decorative: [],
     subjects: [],
   };
+  /**
+   * WHAT THIS INSTRUMENT TOUCHED, kept by identity for the evaluation probe that
+   * runs after it. Without this, "no instrument judged this element" cannot be
+   * distinguished from "this instrument judged it and it was fine", and those are
+   * the two states the whole coverage question turns on.
+   */
+  window.__l1Computed = [];
+  window.__l1Decorative = [];
   const failuresByGroup = new Map();
+  const decorativeByGroup = new Map();
   for (const [group, query] of Object.entries(groups)) {
     for (const el of document.querySelectorAll(query)) {
       if (![...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim())) continue;
-      if (el.closest('[aria-hidden="true"]')) {
+      const hidden = !!el.closest('[aria-hidden="true"]');
+      const m = measure(el);
+      /**
+       * THE POPULATION TEST COMES FIRST, FOR EVERY BUCKET. G-101, and the first
+       * draft of this very change got it wrong in the way this file exists to
+       * catch.
+       *
+       * The aria-hidden branch used to sit ABOVE the skip test, so
+       * excludedAriaHidden counted every matching element in the DOM across all
+       * 92 scans - 1,840 - and printed it in one sentence beside "334 could not
+       * be computed", which counts rendered, in-viewport elements. Two counting
+       * rules in one line, four words apart, in the instrument built to stop
+       * exactly that. Found by running it and reading the output, not by reading
+       * the code.
+       */
+      if (m.skip) continue;
+      if (hidden) {
+        /**
+         * DECLARED DECORATIVE, AND STILL MEASURED.
+         *
+         * Counting these and stopping is better than dropping them, and it is
+         * still not enough for a conformance report: an exemption whose SIZE is
+         * known but whose RATIO is not cannot be defended to an auditor, and the
+         * moment the count is its only trace, the 1.856:1 that made the exemption
+         * necessary disappears from the record entirely.
+         *
+         * So the ratio is computed anyway and reported under its own heading. It
+         * is never summed with the failures and never scored as one - a declared
+         * decorative element is exempt from 1.4.3 - but the number stays on the
+         * page, which is the difference between an exemption and a blind spot.
+         */
         out.excludedAriaHidden += 1;
+        window.__l1Decorative.push(el);
+        if (m.ambiguous) {
+          out.decorativeCouldNotCompute += 1;
+          continue;
+        }
+        const prevD = decorativeByGroup.get(group) || {
+          group,
+          nodes: 0,
+          ratio: m.ratio,
+          required: m.required,
+          sample: `${sel(el)} ${m.color} on ${m.bg} at ${m.font}`,
+        };
+        prevD.nodes += 1;
+        prevD.ratio = Math.min(prevD.ratio, m.ratio);
+        decorativeByGroup.set(group, prevD);
         continue;
       }
-      const m = measure(el);
-      if (m.skip) continue;
       if (m.ambiguous) {
         out.couldNotCompute += 1;
         out.ambiguousReasons[m.ambiguous] = (out.ambiguousReasons[m.ambiguous] || 0) + 1;
         continue;
       }
       out.computed += 1;
+      window.__l1Computed.push(el);
       if (!seen.has(el)) out.skippedByAxe += 1;
       if (m.ratio >= m.required) {
         out.passed += 1;
@@ -904,6 +1058,7 @@ const CONTRAST_SWEEP = (subjects, groups) => {
     }
   }
   out.failures = [...failuresByGroup.values()];
+  out.decorative = [...decorativeByGroup.values()];
   for (const subject of subjects) {
     for (const el of document.querySelectorAll(subject)) {
       const m = measure(el);
@@ -931,6 +1086,186 @@ const CONTRAST_GROUPS = {
   ".metric .n": ".metric .n",
   ".dt .id": ".dt .id",
   ".navitem": ".navitem",
+  /**
+   * G-101. THE SEPARATOR NOBODY HAD LOOKED AT.
+   *
+   * The breadcrumb divider is a bare `<span>/</span>` inside div.crumb. It is
+   * punctuation-only, so axe excludes it by the same documented rule that hides
+   * `|`; and it carries no class, so it matched none of the ten groups above.
+   * That made it the only population on this product that NEITHER instrument
+   * judged - 28 elements per theme, invisible to everything, found by counting
+   * the gap between what axe evaluated and what exists rather than by anyone
+   * noticing a `/`.
+   *
+   * It measures 5.559:1 in light and 5.232:1 in dark, both clear of 4.5:1, so it
+   * is not a defect. It is a blind spot that happened to be clean, which is only
+   * knowable by looking, and it is in the sweep now so that stays true by
+   * measurement rather than by luck.
+   */
+  ".crumb span": ".crumb span",
+};
+
+/**
+ * ---------------------------------------------------------------------------
+ * THE EVALUATION PROBE. G-101, and it is the one that makes the coverage figure
+ * mean what it says.
+ *
+ * The published bound read "full-extent covered 6198/6198 rendered text elements
+ * (100%)". Its actual counting rule was: 100% of them were INSIDE THE VIEWPORT
+ * BOX. Containment is not judgement, and on this product the gap between them is
+ * 244 elements - axe judged 5,954 of the 6,198 the coverage line called covered.
+ * A reader of an Accessibility Conformance Report will read 100% as "everything
+ * was checked", and the figure does not support that sentence.
+ *
+ * So this counts, over the SAME rendered denominator and by element IDENTITY
+ * rather than by selector string, which instrument actually judged what:
+ *
+ *   evaluated          axe's colour-contrast rules put it in a bucket - any
+ *                      bucket. This is the honest coverage numerator.
+ *   computed           the second instrument composited a ratio for it.
+ *   declaredDecorative it sits inside [aria-hidden="true"], so it is out of the
+ *                      accessibility tree and exempt from 1.4.3 as pure
+ *                      decoration. An EXEMPTION, which must be declared and
+ *                      counted, never a silent skip.
+ *   exemptDisabled     it is a disabled control. WCAG 1.4.3 exempts inactive
+ *                      user-interface components and axe declines them by design.
+ *   unexamined         none of the above, while being inside the viewport and
+ *                      satisfying axe's own candidate rule. Rendered text that
+ *                      NOTHING looked at and NO exemption covers. This is the
+ *                      class the gate now refuses on, and it is the whole point:
+ *                      silence read as success is the defect this gate exists
+ *                      for, and until now it had no name and no number.
+ *
+ * RUN AFTER BOTH INSTRUMENTS, in this order: axe, then the sweep, then this.
+ * Running it earlier reads empty stashes and reports every element unexamined,
+ * which is a plant-shaped failure rather than a silent one - and the test asserts
+ * the order for that reason.
+ * ---------------------------------------------------------------------------
+ */
+const EVALUATION_PROBE = (declaredDecorative) => {
+  const inView = (r) =>
+    !(r.bottom <= 0 || r.top >= innerHeight || r.right <= 0 || r.left >= innerWidth) &&
+    r.width > 0 &&
+    r.height > 0;
+  const overlaps = (a, b) => !(a.left >= b.right || a.right <= b.left || a.top >= b.bottom || a.bottom <= b.top);
+  const clippingAncestors = (el) => {
+    const out = [];
+    let n = el.parentElement;
+    while (n) {
+      const cs = getComputedStyle(n);
+      if (/hidden|clip/.test(cs.overflowX) || /hidden|clip/.test(cs.overflowY)) out.push(n);
+      n = n.parentElement;
+    }
+    return out;
+  };
+  const sel = (el) =>
+    el.id
+      ? "#" + el.id
+      : el.tagName.toLowerCase() + (String(el.className || "").trim() ? "." + String(el.className).trim().split(/\s+/).join(".") : "");
+  const axeSeen = new WeakSet();
+  const computed = new WeakSet();
+  const decorative = new WeakSet();
+  for (const el of window.__k2AxeSeen || []) axeSeen.add(el);
+  for (const el of window.__l1Computed || []) computed.add(el);
+  for (const el of window.__l1Decorative || []) decorative.add(el);
+  const rendered = [...document.querySelectorAll("h1,h2,h3,h4,h5,h6,p,span,b,strong,em,a,button,td,th,li,label,caption,dt,dd")].filter(
+    (el) =>
+      [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim()) &&
+      el.getClientRects().length > 0 &&
+      getComputedStyle(el).visibility !== "hidden",
+  );
+  const out = {
+    rendered: rendered.length,
+    evaluated: 0,
+    computed: 0,
+    judged: 0,
+    declaredDecorative: 0,
+    exemptDisabled: 0,
+    unexamined: 0,
+    unexaminedByClass: {},
+    unexaminedSample: [],
+    /**
+     * Every element carrying its own text that sits inside [aria-hidden="true"],
+     * whether or not any declared group swept it. This is the population the
+     * decorative ledger is checked against, so a lane cannot aria-hide a piece of
+     * text and have it simply vanish from every number in the run.
+     */
+    ariaHiddenText: 0,
+    ariaHiddenByClass: {},
+    /**
+     * Matched with the DOM's own matches(), never with a string heuristic on a
+     * computed selector - the same lesson the axe-seen set already paid for. An
+     * exemption that matches nothing has outlived its cause; a hidden element
+     * that matches no exemption is an undeclared exclusion, which is the shape
+     * this whole instrument exists to refuse.
+     */
+    declaredDecorativeHits: {},
+    undeclaredDecorative: 0,
+    undeclaredDecorativeByClass: {},
+  };
+  for (const s of declaredDecorative || []) out.declaredDecorativeHits[s] = 0;
+  for (const el of rendered) {
+    const hidden = !!el.closest('[aria-hidden="true"]');
+    if (hidden) {
+      out.ariaHiddenText += 1;
+      const k = sel(el);
+      out.ariaHiddenByClass[k] = (out.ariaHiddenByClass[k] || 0) + 1;
+      const matched = (declaredDecorative || []).filter((s) => {
+        try {
+          return el.matches(s) || !!el.closest(s);
+        } catch (err) {
+          void err;
+          return false;
+        }
+      });
+      if (matched.length) for (const s of matched) out.declaredDecorativeHits[s] += 1;
+      else {
+        out.undeclaredDecorative += 1;
+        out.undeclaredDecorativeByClass[k] = (out.undeclaredDecorativeByClass[k] || 0) + 1;
+      }
+    }
+    const clips = clippingAncestors(el);
+    const eligible = [...el.getClientRects()].some(
+      (rect) => inView(rect) && clips.every((c) => overlaps(rect, c.getBoundingClientRect())),
+    );
+    const wasEvaluated = axeSeen.has(el);
+    const wasComputed = computed.has(el);
+    if (wasEvaluated) out.evaluated += 1;
+    if (wasComputed) out.computed += 1;
+    if (wasEvaluated || wasComputed) out.judged += 1;
+    if (hidden || decorative.has(el)) {
+      out.declaredDecorative += 1;
+      continue;
+    }
+    /**
+     * NARROWED DELIBERATELY, to exactly what axe's own contrast rule exempts and
+     * what WCAG 1.4.3 names: an INACTIVE user-interface component. A native
+     * disabled control, or one inside a disabled fieldset.
+     *
+     * The first draft also accepted a bare [disabled] attribute on any ancestor
+     * and aria-disabled="true". Both are broader than axe, and an exemption
+     * broader than the tool it is compensating for is an exemption that can hide
+     * something the tool would have caught: [disabled] on a div disables nothing
+     * and would have exempted a whole subtree, and aria-disabled is a
+     * self-declaration any markup can make. Anything outside this falls through
+     * to the unexamined class, where it is visible and refused rather than
+     * quietly excused.
+     */
+    const disabled =
+      el.disabled === true ||
+      !!el.closest("fieldset[disabled]");
+    if (disabled) {
+      out.exemptDisabled += 1;
+      continue;
+    }
+    if (!eligible || wasEvaluated || wasComputed) continue;
+    out.unexamined += 1;
+    const own = [...el.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent.trim()).join("");
+    const key = sel(el) + (own.replace(/[\p{P}\p{S}\s]/gu, "").length === 0 ? " [punctuation-only]" : "");
+    out.unexaminedByClass[key] = (out.unexaminedByClass[key] || 0) + 1;
+    if (out.unexaminedSample.length < 6) out.unexaminedSample.push(`${sel(el)} ${JSON.stringify(own.slice(0, 24))}`);
+  }
+  return out;
 };
 
 /** One layout settle, so a measurement after a resize is of the new layout. */
@@ -1251,9 +1586,18 @@ async function scanOnce(browser, base, target, axe, plant) {
     const referenceCoverage = await page.evaluate(COVERAGE_PROBE);
     const referenceAxe = await runAxe(page, CONFORMANCE_TAGS);
     const referenceContrast = await sweepContrast(page);
+    /** THIRD, after both instruments have stashed what they touched. */
+    const referenceEvaluation = await page.evaluate(EVALUATION_PROBE, DECLARED_DECORATIVE_SELECTORS);
     rows.push({
       viewport: REFERENCE_VIEWPORT.id,
-      coverage: { ...referenceCoverage, steps: 0, stoppedBecause: REFERENCE_VIEWPORT.basis },
+      coverage: {
+        ...referenceCoverage,
+        steps: 0,
+        stoppedBecause: REFERENCE_VIEWPORT.basis,
+        evaluated: referenceEvaluation.evaluated,
+        judged: referenceEvaluation.judged,
+      },
+      evaluation: referenceEvaluation,
       violations: referenceAxe.violations,
       incomplete: referenceAxe.incomplete,
       independentContrast: referenceContrast,
@@ -1268,9 +1612,11 @@ async function scanOnce(browser, base, target, axe, plant) {
     const grown = await growToFullExtent(page, FULL_EXTENT_VIEWPORT);
     const fullAxe = await runAxe(page, CONFORMANCE_TAGS);
     const fullContrast = await sweepContrast(page);
+    const fullEvaluation = await page.evaluate(EVALUATION_PROBE, DECLARED_DECORATIVE_SELECTORS);
     rows.push({
       viewport: FULL_EXTENT_VIEWPORT.id,
-      coverage: grown,
+      coverage: { ...grown, evaluated: fullEvaluation.evaluated, judged: fullEvaluation.judged },
+      evaluation: fullEvaluation,
       violations: fullAxe.violations,
       incomplete: fullAxe.incomplete,
       independentContrast: fullContrast,
@@ -1348,7 +1694,16 @@ function conditions(summary) {
   const tf = summary.environment?.typefaceWitness;
   return [
     summary.environment?.authority?.line || "",
-    `BOUNDED BY: ${summary.viewports.map((v) => `${v.id} ${v.width}x${v.derived ? "derived" : v.height} covering ${cov[v.id]?.inViewport ?? "?"}/${cov[v.id]?.rendered ?? "?"} rendered text elements (${cov[v.id]?.pct ?? "?"}%)`).join("  |  ")}`,
+    /**
+     * TWO NUMBERS, AND THE NARROWER ONE FIRST. G-101.
+     *
+     * "covering 6198/6198 (100%)" reads as "everything was checked" and means
+     * "everything was inside the window". axe judged 96.1% of it. Both are
+     * printed, EVALUATED leads, and each carries its own word - JUDGED and
+     * CONTAINED - so neither can be quoted as the other.
+     */
+    `BOUNDED BY: ${summary.viewports.map((v) => `${v.id} ${v.width}x${v.derived ? "derived" : v.height} axe JUDGED ${cov[v.id]?.evaluated ?? "?"}/${cov[v.id]?.rendered ?? "?"} rendered text elements (${cov[v.id]?.pctEvaluated ?? "?"}%), of which ${cov[v.id]?.inViewport ?? "?"} (${cov[v.id]?.pct ?? "?"}%) were merely CONTAINED in the viewport box`).join("  |  ")}`,
+    `EVALUATED IS NOT COVERED: ${cov[FULL_EXTENT_VIEWPORT.id]?.countingRule || "counting rule unavailable"}`,
     `RENDERED BY: ${summary.environment?.platform || "?"} ${summary.environment?.arch || ""} chromium ${summary.environment?.chromium || "?"} axe ${summary.axeVersion} dpr ${summary.environment?.geometryWitness?.dpr ?? "?"} typeface ${JSON.stringify(summary.environment?.typefaceStates || [])}${tf ? ` (ui ${tf.uiWidth}px vs named ${tf.namedUiWidth}px, data ${tf.dataWidth}px vs named ${tf.namedDataWidth}px, ${tf.faceCount} face(s) registered)` : ""}`,
     `GEOMETRY WITNESS: ${JSON.stringify(summary.environment?.geometryWitness || null)}`,
   ];
@@ -1380,8 +1735,38 @@ function report(summary, out = process.stdout) {
     const full = summary.coverageByViewport?.[FULL_EXTENT_VIEWPORT.id];
     const hidden = ref && full ? full.inViewport - ref.inViewport : null;
     w(
-      `viewport bound: the ${REFERENCE_VIEWPORT.id} viewport left ${hidden === null ? "?" : hidden} rendered text element(s) UNEVALUATED that full extent reached. axe evaluates nothing outside the clipping box, so those were not judged clean - they were not judged. Full extent grew to at most ${full?.maxHeight ?? "?"}px.`,
+      `viewport bound: the ${REFERENCE_VIEWPORT.id} viewport left ${hidden === null ? "?" : hidden} rendered text element(s) OUTSIDE ITS BOX that full extent reached, and axe judged ${full && ref ? full.evaluated - ref.evaluated : "?"} more of them there. axe evaluates nothing outside the clipping box, so those were not judged clean - they were not judged. Full extent grew to at most ${full?.maxHeight ?? "?"}px.`,
     );
+  }
+  /**
+   * WHAT EACH INSTRUMENT ACTUALLY JUDGED, and what NEITHER did. G-101. Printed
+   * whether or not it is zero, because "we looked and found nothing" and "we did
+   * not look" are different sentences and only one of them is a pass.
+   */
+  {
+    const ref = summary.coverageByViewport?.[REFERENCE_VIEWPORT.id];
+    const full = summary.coverageByViewport?.[FULL_EXTENT_VIEWPORT.id];
+    for (const [id, c] of [[REFERENCE_VIEWPORT.id, ref], [FULL_EXTENT_VIEWPORT.id, full]]) {
+      if (!c) continue;
+      w(
+        `evaluation [${id}]: rendered ${c.rendered} | contained in viewport ${c.inViewport} (${c.pct}%) | axe-eligible ${c.axeEligible} | axe JUDGED ${c.evaluated} (${c.pctEvaluated}%) | judged by either instrument ${c.judged} (${c.pctJudged}%)`,
+      );
+      if (c.inViewportNotEligible) {
+        w(
+          `      ${c.inViewportNotEligible} element(s) were inside the viewport box and OUTSIDE axe's own candidate rule - inside a window, outside a clipping ancestor. That axis is measured on every run rather than assumed away.`,
+        );
+      }
+    }
+    const unexamined = (summary.evaluationFindings || []).filter((f) => f.kind === "unexamined-text").length;
+    w(
+      `      text NO instrument judged and no exemption covers: ${unexamined} scan(s) carrying any. Anything above zero fails the build.`,
+    );
+    for (const d of summary.decorativeExempt || []) {
+      w(
+        `      DECLARED DECORATIVE [${d.group}] ${d.nodes} element(s) at ${JSON.stringify(d.ratios)}:1 against ${d.required}:1 - exempt from 1.4.3 as pure decoration because they are outside the accessibility tree, and MEASURED anyway so the exemption is quotable. sample ${d.sample}`,
+      );
+    }
+    for (const f of summary.evaluationFindings || []) w(`  EVALUATION [${f.kind}] ${f.surface}: ${f.detail}`);
   }
   {
     const ic = summary.independentContrastCoverage || {};
@@ -1460,14 +1845,16 @@ function report(summary, out = process.stdout) {
   w(`UNMEASURED, reported rather than scored: ${summary.unmeasuredMounts.length} cross-origin mount(s)`);
   for (const m of summary.unmeasuredMounts) w(`  ${m}  (the mounted product answers for its own focus indicator)`);
   w("");
-  w("per scan  (conformance nodes | unresolved | evaluated/rendered | viewport height | focus stops | no indicator | title)");
+  /** The header used to say "evaluated/rendered" over a column of CONTAINED
+   *  counts. Both columns are printed now and each says which it is. */
+  w("per scan  (conformance nodes | unresolved | axe-judged/rendered | contained/rendered | viewport height | focus stops | no indicator | title)");
   for (const s of summary.perSurface) {
     w(
       `  ${s.surface.padEnd(56)} ${String(s.conformanceNodes ?? "ERR").padStart(4)} | ${String(
         s.unresolvedNodes ?? "-",
-      ).padStart(3)} | ${String(s.coverage ? `${s.coverage.inViewport}/${s.coverage.rendered}` : "-").padStart(9)} | ${String(
-        s.coverage?.height ?? "-",
-      ).padStart(5)} | ${String(s.focusStops ?? "-").padStart(3)} | ${String(s.focusWithoutIndicator ?? "-").padStart(3)} | ${s.title ?? s.url}`,
+      ).padStart(3)} | ${String(s.coverage ? `${s.coverage.evaluated ?? "?"}/${s.coverage.rendered}` : "-").padStart(9)} | ${String(
+        s.coverage ? `${s.coverage.inViewport}/${s.coverage.rendered}` : "-",
+      ).padStart(9)} | ${String(s.coverage?.height ?? "-").padStart(5)} | ${String(s.focusStops ?? "-").padStart(3)} | ${String(s.focusWithoutIndicator ?? "-").padStart(3)} | ${s.title ?? s.url}`,
     );
   }
   w("");
@@ -1501,6 +1888,19 @@ async function main() {
     node: process.version,
     ci: Boolean(process.env.CI),
     chromium: browser.version(),
+    /**
+     * WHICH TREE THIS RUN MEASURED. G-101, and it is not bookkeeping.
+     *
+     * On a `pull_request` event GITHUB_SHA is the MERGE of the head into the
+     * base, not the head; GITHUB_HEAD_REF's tip is in GITHUB_SHA only on a push.
+     * Two runs of one head SHA measured two different products for exactly this
+     * reason and the disagreement was read as an environment difference for a
+     * day. Read from the environment rather than from git, so it is the runner's
+     * own answer and not this process's guess about a checkout.
+     */
+    commit: process.env.GITHUB_SHA || process.env.A11Y_COMMIT || null,
+    headSha: process.env.A11Y_HEAD_SHA || null,
+    eventName: process.env.GITHUB_EVENT_NAME || null,
   };
   let results = [];
   try {
@@ -1554,7 +1954,8 @@ async function main() {
     `a11y gate PASSED: ${summary.conformanceNodes - waivedNodes} unwaived conformance node(s), ${waivedNodes} waived, and ${unresolved} UNRESOLVED node(s) that axe could not settle and a human has adjudicated (adjudicated is not measured-clean). ` +
       `Over ${summary.surfacesOk}/${summary.surfacesScanned} scans = ${summary.surfaceCount} surfaces x ${summary.themes.length} themes x ${summary.viewports.length} viewports. ` +
       `${summary.titleFindings.length} title findings, ${summary.focusFindings.length} focus findings over ${summary.focusStopsWalked} keyboard stops at the ${summary.focusViewport} viewport. ` +
-      `BOUND: ${VIEWPORT_IDS.map((id) => `${id} covered ${cov[id]?.inViewport}/${cov[id]?.rendered} rendered text elements (${cov[id]?.pct}%)`).join("; ")}. ` +
+      `BOUND: ${VIEWPORT_IDS.map((id) => `${id} axe JUDGED ${cov[id]?.evaluated}/${cov[id]?.rendered} rendered text elements (${cov[id]?.pctEvaluated}%), of which ${cov[id]?.inViewport} (${cov[id]?.pct}%) were merely CONTAINED in the viewport box`).join("; ")}. ` +
+      `JUDGED is axe's colour-contrast rules putting the element in a bucket, matched by identity; CONTAINED is its box intersecting the viewport box. The two are not the same number and the smaller one is the conformance bound. ` +
       `${auth.line}\n`,
   );
 }
