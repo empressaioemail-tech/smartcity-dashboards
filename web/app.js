@@ -1987,6 +1987,199 @@ function applyLensState(chipId, lensId, label) {
   if (badge) badge.textContent = label;
 }
 
+
+/* ------------------------------------------ G-97 Police and Fire and EMS
+
+Three more registered domains reach a pixel. Everything below READS the seam the
+product already serves at /api/domains/<id> and composes it with the SAME
+renderer G-97 R3 landed for Fleet and Public works: renderRegion, its kicker and
+head tables, renderRegionMetrics, statusLabelsFor, applyLensState, sourcedLabel
+and sourcedRule are reused rather than re-implemented.
+
+THAT REUSE IS THE POINT OF THIS BLOCK'S SHAPE, and it is a correction. This lane
+first shipped its own four-state resolver in a served src/ module, which was
+defensible while it was the only one; R3 merged first with the copy inline, and
+two implementations of one rule on one page is the CTRL-1 shape this program has
+paid for twice. Converging on the merged one costs this lane its Node-testable
+resolver and buys the product a single sentence per state across four lenses.
+The behavioural proof of all four states moves to the lane's rendered walk, which
+is where R3's proof already lives, and the close carries it.
+
+WHAT IS DIFFERENT HERE, and it is only the data. Police carries TWO regions, one
+of which is the single deliberately ungranted region in the product: spireon is
+kept off the demonstration axis on purpose, so patrol-vehicles renders BUILT and
+sourceless on the shipped demo pack. Fire and EMS carries one region with a
+station dimension. Nothing below invents a field the generators do not return:
+the camera domain carries no plate read, no person of interest and no counted
+occupancy, and the apparatus domain names no crew.
+*/
+
+/**
+ * The camera region. The site and occupancy dimensions are counted off the
+ * records by the generator and rendered as they arrive; occupancy is a BAND and
+ * one of the bands is "occupancy not measured", rendered as itself, because a
+ * camera that is not reporting has no occupancy and a zero there would be a
+ * count of people nobody took.
+ */
+function renderPoliceCameras(payload) {
+  const ok = renderRegion("police-cameras", payload);
+  renderRegionMetrics(document.getElementById("police-cameras-metrics"), payload);
+  const extras = payload.extras || {};
+  const records = ok && Array.isArray(payload.records) ? payload.records : [];
+  const labels = statusLabelsFor(payload);
+  fill(
+    document.getElementById("police-cameras-rows"),
+    records.map((record) => {
+      const row = document.createElement("tr");
+      row.append(
+        td(record.recordId, "id"),
+        statusCell(record, labels),
+        td(record.siteRef, "id"),
+        td(record.placement),
+        td(record.occupancyBand),
+      );
+      return row;
+    }),
+  );
+  const sites = ok && Array.isArray(extras.sites) ? extras.sites : [];
+  fill(
+    document.getElementById("police-cameras-site-rows"),
+    sites.map((site) => {
+      const row = document.createElement("tr");
+      row.append(td(site.siteRef, "id"), td(site.placement), td(String(site.cameraCount)));
+      return row;
+    }),
+  );
+  const occupancy = (ok && extras.occupancy) || {};
+  const bands = Array.isArray(occupancy.bands) ? occupancy.bands : [];
+  fill(
+    document.getElementById("police-cameras-occupancy-rows"),
+    bands.map((band) => {
+      const row = document.createElement("tr");
+      row.append(td(band.band, "subj"), td(String(band.count)));
+      return row;
+    }),
+  );
+  /** Every figure with its rule, at the point of use. */
+  setText(
+    "police-cameras-sites-rule",
+    sites.length ? sites[0].countingRule : "An opaque site reference, never an address",
+  );
+  setText(
+    "police-cameras-occupancy-basis",
+    occupancy.countingRule || "The occupancy dimension has not been read for this pack",
+  );
+  /**
+   * The privacy exclusion is a POSITIVE statement on the surface rather than a
+   * gap in it, and the words are the record contract's rather than this file's.
+   */
+  setText(
+    "police-cameras-privacy",
+    extras.excludedFamilies || "The excluded record families have not been read for this pack",
+  );
+  setText(
+    "police-cameras-inventory",
+    extras.inventoryBasis || "The inventory position has not been read for this pack",
+  );
+}
+
+/**
+ * The patrol roster, and it is the region this row exists to make visible. On
+ * the shipped demo pack it renders ungranted: BUILT, instrumented, and with no
+ * source, which is a different sentence from a region that does not exist and a
+ * different sentence again from a source that returned nothing.
+ */
+function renderPatrolRoster(payload) {
+  const ok = renderRegion("patrol-vehicles", payload);
+  renderRegionMetrics(document.getElementById("patrol-vehicles-metrics"), payload);
+  const records = ok && Array.isArray(payload.records) ? payload.records : [];
+  const labels = statusLabelsFor(payload);
+  fill(
+    document.getElementById("patrol-vehicles-rows"),
+    records.map((record) => {
+      const row = document.createElement("tr");
+      row.append(td(record.unitLabel, "subj"), statusCell(record, labels), td(record.operatorRef, "id"));
+      return row;
+    }),
+  );
+  setText(
+    "patrol-vehicles-operator",
+    (records[0] && records[0].operatorBasis) || "The operator reference has not been read for this pack",
+  );
+}
+
+async function loadPoliceLens(cityKey) {
+  const regions = await Promise.all([
+    loadDomain("police-cameras", cityKey),
+    loadDomain("patrol-vehicles", cityKey),
+  ]);
+  const cameras = regions[0] || unreadRegion("camera inventory", cityKey);
+  const patrol = regions[1] || unreadRegion("patrol roster", cityKey);
+  renderPoliceCameras(cameras);
+  renderPatrolRoster(patrol);
+  applyLensState("police-state-chip", "police", sourcedLabel([cameras, patrol]));
+  setText("police-region-rule", sourcedRule([cameras, patrol]));
+}
+
+/**
+ * The apparatus region. Readiness is counted PER STATION rather than city wide,
+ * because a city with every out of service truck in one station is a different
+ * fact from a city with one in each, and the rollup cannot say which.
+ */
+function renderFireApparatus(payload) {
+  const ok = renderRegion("fire-apparatus", payload);
+  renderRegionMetrics(document.getElementById("fire-apparatus-metrics"), payload);
+  const extras = payload.extras || {};
+  const records = ok && Array.isArray(payload.records) ? payload.records : [];
+  const labels = statusLabelsFor(payload);
+  fill(
+    document.getElementById("fire-apparatus-rows"),
+    records.map((record) => {
+      const row = document.createElement("tr");
+      row.append(
+        td(record.unitLabel, "subj"),
+        td(record.apparatusType),
+        statusCell(record, labels),
+        td(record.stationLabel),
+      );
+      return row;
+    }),
+  );
+  const stations = ok && Array.isArray(extras.stations) ? extras.stations : [];
+  fill(
+    document.getElementById("fire-apparatus-station-rows"),
+    stations.map((station) => {
+      const row = document.createElement("tr");
+      row.append(
+        td(station.stationLabel, "subj"),
+        td(String(station.apparatusCount)),
+        td(String(station.readyCount)),
+      );
+      return row;
+    }),
+  );
+  setText(
+    "fire-apparatus-stations-rule",
+    stations.length ? stations[0].countingRule : "Readiness per station, never a city-wide rollup",
+  );
+  setText(
+    "fire-apparatus-ready-rule",
+    extras.readyCountingRule || "The readiness counting rule has not been read for this pack",
+  );
+  /** A generated record names nobody, and says so rather than leaving a gap. */
+  setText(
+    "fire-apparatus-crew",
+    (stations[0] && stations[0].crewBasis) || "The crew position has not been read for this pack",
+  );
+}
+
+async function loadFireEmsLens(cityKey) {
+  const payload = (await loadDomain("fire-apparatus", cityKey)) || unreadRegion("apparatus", cityKey);
+  renderFireApparatus(payload);
+  applyLensState("fire-ems-state-chip", "fire-ems", sourcedLabel([payload]));
+  setText("fire-ems-region-rule", sourcedRule([payload]));
+}
+
 /* ------------------------------------------------------------------- boot */
 
 const staffLens = resolveStaffLensQuery(window.location.search);
@@ -2006,4 +2199,6 @@ loadPipeline(staffMap.cityKey);
 loadDevelopmentServices(staffMap.cityKey);
 loadFleetLens(staffMap.cityKey);
 loadPublicWorksLens(staffMap.cityKey);
+loadPoliceLens(staffMap.cityKey);
+loadFireEmsLens(staffMap.cityKey);
 if (resettle) resettle();
