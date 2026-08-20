@@ -295,6 +295,7 @@ export const WAIVERS = [
      * -----------------------------------------------------------------------
      */
     rule: "independent-contrast",
+    group: ".sep",
     element: ".sep, the separator glyph inside a .prov provenance chip",
     surfaces: ["every surface: .prov is shell chrome"],
     nodesByArm: {
@@ -312,28 +313,54 @@ export const WAIVERS = [
       "when the separator is either declared decorative and removed from the accessibility tree (aria-hidden=true on the .sep span alone, which puts it under the 1.4.3 pure-decoration exception), or repainted to at least 4.5:1 if it is to stay announced. Routed with the measurement to the planner; not this lane's edit. NOTE for whoever takes it: aria-hidden does NOT satisfy axe - measured, an aria-hidden element with real text is still reported as a violation - so this gate's own exclusion set is what makes the decorative route legible, and it counts what it excludes rather than dropping it.",
   },
   {
-    rule: "color-contrast",
-    element: ".p-ok.pill, the resolved-status pill in the Development services inspections table",
-    surfaces: ["lens-development-services-inspections"],
     /**
-     * Pinned on the full-extent arm alone and at ZERO on both reference arms,
-     * which is the whole shape of this finding: it is invisible above the fold
-     * and it is real below it. A node appearing at reference would mean the
-     * defect moved into the first screen and is a different, louder fact.
+     * -----------------------------------------------------------------------
+     * THE .p-ok PAIR, AND WHY IT IS HERE RATHER THAN IN AN AXE WAIVER.
+     *
+     * --sc-ok #2F7A52 on --sc-ok-wash #E3F0E8 measures 4.444:1 against the 4.5:1
+     * AA threshold, 0.056 short. R2 measured 4.444:1, R3 independently measured
+     * 4.44:1 on the same pair, and this instrument computes 4.444:1. Three
+     * measurements agreeing.
+     *
+     * It began as an axe waiver and the figure of record refused it, which is
+     * the ratchet working on its author: Windows reports 5 color-contrast nodes
+     * on light@full-extent and LINUX CI REPORTS 0 on every arm, so the waiver's
+     * zero arm fired with "the waiver's cause is gone". The cause is not gone -
+     * a hex pair is not a function of the operating system - so the entry was in
+     * the wrong ledger. A colour fact belongs to the instrument that computes
+     * colours directly and gets the same answer on every machine, not to the one
+     * whose evaluated population depends on a clipping box.
+     *
+     * THE RECONCILIATION THAT IS STILL OPEN, named rather than rounded off
+     * (DEV_PROCESS 1.4): why axe surfaces these five on one operating system and
+     * not the other, when coverage reads 100% at full extent on both. The
+     * candidate not eliminated inside this lane is that axe's matcher requires a
+     * text rect to overlap the box of EVERY overflow-hidden ancestor, and
+     * div.panel is one of those at 295px tall - a 20px layout shift can push a
+     * table row outside the PANEL's clip while it is still inside the viewport.
+     * If that is right, the coverage figure needs an inner-clip axis and "100%"
+     * is true of the viewport rather than of every clipping box. The second
+     * instrument measures these elements either way, which is what keeps the
+     * defect visible while the question is settled.
+     * -----------------------------------------------------------------------
      */
+    rule: "independent-contrast",
+    group: ".pill",
+    element: ".p-ok.pill, the resolved-status pill",
+    surfaces: ["lens-development-services-inspections", "lens-development-services-licenses"],
     nodesByArm: {
       "light@reference": 0,
-      "light@full-extent": 5,
+      "light@full-extent": 7,
       "dark@reference": 0,
       "dark@full-extent": 0,
     },
     countingRule:
-      "failing DOM elements per arm, where an arm is one theme at one viewport, summed over the 23 scanned surfaces",
+      "rendered, in-viewport .pill elements per arm whose independently computed ratio is below the AA threshold for their size, summed over the 23 scanned surfaces. PINNED FROM THE FIGURE OF RECORD, which is the Linux CI job; a run on another machine may legitimately differ and says so in its own banner.",
     owner: "the product-line token pass (the G-94-shaped cross-repo kit change)",
     basis:
-      "--sc-ok #2F7A52 on --sc-ok-wash #E3F0E8 measures 4.444:1 against the 4.5:1 AA threshold for normal text, 0.056 short. R2 measured it at 4.444:1 and R3 independently measured the same pair at 4.44:1; this gate is the third measurement and the first that can see it, because all five nodes sit below the fold at 1440x900 and axe does not evaluate outside the clipping box. The dark arm needs nothing: #55BE86 on the dark surface measures 7.679:1, which is why its pin is zero rather than unstated. web/sc-kit.css is byte-identical across smartcity-dashboards, smart-files and plan-review and its own header says a repo that edits a token value has forked the system, so this is not a Dashboards change - which is the same reason G-94 was opened as its own row.",
+      "4.444:1 measured against 4.5:1 required at 500 12px, light rgb(47, 122, 82) on rgb(227, 240, 232). The dark arm needs nothing: rgb(85, 190, 134) on the dark surface measures 6.143:1, which is why its pin is zero rather than unstated. web/sc-kit.css is byte-identical across smartcity-dashboards, smart-files and plan-review and its own header says a repo that edits a token value has forked the system, so this is not a Dashboards change - the same reason G-94 was opened as its own row.",
     remove:
-      "when the kit raises --sc-ok to at least #2E7750, which measures 4.623:1 on the wash, 5.425:1 on --sc-surface and 5.096:1 on --sc-surface-2. The zero arm of this ratchet fires the moment it lands and instructs whoever sees it to delete this entry.",
+      "when the kit raises --sc-ok to at least #2E7750, which measures 4.623:1 on the wash, 5.425:1 on --sc-surface and 5.096:1 on --sc-surface-2.",
   },
 ];
 
@@ -425,9 +452,9 @@ export const REVIEW_ITEMS = [
     surfaces: ["lens-development-services-inspections", "lens-development-services-licenses"],
     nodesByArm: {
       "light@reference": 0,
-      "light@full-extent": 1,
+      "light@full-extent": 0,
       "dark@reference": 0,
-      "dark@full-extent": 1,
+      "dark@full-extent": 0,
     },
     countingRule:
       "unresolved DOM elements per arm, where an arm is one theme at one viewport, summed over the 23 scanned surfaces",
@@ -1123,6 +1150,14 @@ export function verdict(summary, waivers = WAIVERS, reviewItems = REVIEW_ITEMS) 
     }
   }
   for (const w of waivers) {
+    /**
+     * The axe ledger's zero arm judges AXE RULES ONLY. A waiver on the second
+     * instrument's own findings has its own zero arm further down, and running
+     * both over one entry made the gate demand the deletion of a waiver whose
+     * cause was firing 334 times in the same run - the loudest possible way to
+     * be wrong, and it fired on the first end-to-end run.
+     */
+    if (w.rule.startsWith("independent-contrast")) continue;
     if (!found.has(w.rule)) {
       reasons.push(
         `${w.rule}: 0 node(s) on every arm. The waiver's cause is gone - delete its entry from WAIVERS in src/a11y-gate.mjs. A waived rule that no longer fails is an exception outliving its reason.`,
@@ -1226,7 +1261,10 @@ export function verdict(summary, waivers = WAIVERS, reviewItems = REVIEW_ITEMS) 
    * cannot fix is the one that already exists rather than a new one.
    */
   for (const f of summary.independentContrast || []) {
-    const w = waivers.find((x) => x.rule === f.id || x.rule === `${f.id}:${f.group}`);
+    /** Matched on rule AND GROUP: the second instrument reports per element
+     *  group, and one waiver covering every group would be a blanket exception
+     *  wearing a specific one's clothes. */
+    const w = waivers.find((x) => x.rule === f.id && x.group === f.group);
     if (!w) {
       reasons.push(
         `${f.id} [${f.group}]: ${f.nodes} rendered element(s) computed at ${JSON.stringify(f.ratios)}:1 against a ${f.required}:1 requirement, and axe reported them in NO bucket - not a violation, not a pass, not incomplete. No waiver. Sample ${JSON.stringify(f.sample)}`,

@@ -877,11 +877,20 @@ const CONTRAST_SWEEP = (subjects, groups) => {
       }
       out.failed += 1;
       /**
-       * ONLY the population axe never judged is reported as a finding here. An
-       * element axe DID judge already has a home in the first instrument, and
-       * reporting it twice would double-count it into a number nobody can quote.
+       * EVERY below-threshold element is reported here, including ones axe also
+       * judged, and the first draft skipped the latter to avoid double-counting.
+       * That was wrong twice over. It made the two instruments' numbers
+       * uncomparable - the whole value of a second instrument is that two
+       * measurements of one thing can be reconciled - and it made the finding
+       * DISAPPEAR on whichever environment axe happened to evaluate the element
+       * on, which is the silent-fallback shape this gate exists to refuse. The
+       * .p-ok pair at 4.444:1 vanished from this list on Linux for exactly that
+       * reason while remaining a real defect.
+       *
+       * The two numbers are not merged and never summed: they carry different
+       * counting rules and are printed under different headings, and
+       * skippedByAxe records how much of this population axe never saw.
        */
-      if (seen.has(el)) continue;
       const prev = failuresByGroup.get(group) || {
         group,
         nodes: 0,
