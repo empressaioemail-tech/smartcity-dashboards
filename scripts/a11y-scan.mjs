@@ -992,13 +992,23 @@ async function runAxe(page, tags) {
       runOnly: { type: "tag", values: [...t, "best-practice"] },
     });
     /**
-     * Every element axe actually judged, in any bucket, kept by IDENTITY so the
-     * second instrument can ask "did axe look at this at all" without guessing
-     * from a selector string.
+     * Every element AXE'S CONTRAST RULES actually judged, in any bucket, kept by
+     * IDENTITY so the second instrument can ask "did axe look at this at all"
+     * without guessing from a selector string.
+     *
+     * SCOPED TO THE CONTRAST RULES, and the first draft was not - it collected
+     * nodes from every rule in the run, so a span that merely passed
+     * `aria-allowed-attr` counted as "axe looked at its contrast". The effect was
+     * total: on a full run the sweep computed 4,908 elements, found 341 below
+     * threshold, and reported ZERO of them, because every one of them was in
+     * some other rule's pass list. A silent fail-open in the instrument built to
+     * catch silent fail-opens, found by running it rather than by reading it.
      */
+    const CONTRAST_RULES = ["color-contrast", "color-contrast-enhanced"];
     window.__k2AxeSeen = [];
     for (const group of ["violations", "incomplete", "passes"]) {
       for (const res of run[group]) {
+        if (!CONTRAST_RULES.includes(res.id)) continue;
         for (const n of res.nodes) if (n.element) window.__k2AxeSeen.push(n.element);
       }
     }
@@ -1016,6 +1026,25 @@ async function runAxe(page, tags) {
        * finding merely because it sorted fourth.
        */
       targets: v.nodes.slice(0, 200).map((n) => String(n.target)),
+      /**
+       * NODES AND TARGETS SPLIT BY REASON, because a rule can land in the
+       * incomplete bucket for several different reasons at once and they are
+       * different findings with different adjudications. Aggregating them under
+       * the rule alone made the gate compare a shortTextContent entry pinned at
+       * 1 against the whole rule's 44, and test an elmPartiallyObscuring subject
+       * set against targets that belonged to the other reason entirely. Both
+       * were wrong in the same run.
+       */
+      byReason: v.nodes.reduce((acc, n) => {
+        const reason =
+          [...(n.any || []), ...(n.all || []), ...(n.none || [])]
+            .map((c) => c.data?.messageKey || c.message || c.id)
+            .filter(Boolean)[0] || "unknown";
+        acc[reason] = acc[reason] || { nodes: 0, targets: [] };
+        acc[reason].nodes += 1;
+        if (acc[reason].targets.length < 200) acc[reason].targets.push(String(n.target));
+        return acc;
+      }, {}),
       /**
        * WHY, not just WHERE. An unresolved check that names only its element
        * tells a reader it exists and nothing about what to do; axe already
@@ -1382,13 +1411,13 @@ function report(summary, out = process.stdout) {
     `UNRESOLVED conformance checks (axe could not settle these; not a pass): ${summary.incompleteConformance.length} rule(s), ${summary.incompleteConformance.reduce((n, x) => n + x.nodes, 0)} node(s)`,
   );
   for (const inc of summary.incompleteConformance) {
-    const item = REVIEW_ITEMS.find((r) => r.rule === inc.id && inc.reasons.includes(r.reason));
+    const item = REVIEW_ITEMS.find((r) => r.rule === inc.id && r.reason === inc.reason);
     w(
-      `  ${inc.id.padEnd(30)} ${String(inc.nodes).padStart(4)} nodes  sample ${JSON.stringify(inc.sample)}  reason ${JSON.stringify(inc.reasons)}${
+      `  ${(inc.id + "/" + inc.reason).padEnd(38)} ${String(inc.nodes).padStart(4)} nodes  sample ${JSON.stringify(inc.sample)}${
         item ? (isSubjectBounded(item) ? "  ADJUDICATED BY SUBJECT (count unpinned, still reported)" : "  ADJUDICATED BY COUNT") : "  NOT ADJUDICATED"
       }`,
     );
-    w(`      per arm: ${JSON.stringify(Object.fromEntries(summary.arms.map((a) => [a, (summary.incompleteNodesByArmRule?.[a] || {})[inc.id] || 0])))}`);
+    w(`      per arm: ${JSON.stringify(Object.fromEntries(summary.arms.map((a) => [a, (summary.incompleteNodesByArmRule?.[a] || {})[inc.key] || 0])))}`);
     w(`      distinct targets: ${JSON.stringify([...new Set(inc.targets || [])].slice(0, 8))}`);
     w(`      on: ${[...new Set(inc.surfaces)].slice(0, 6).join(", ")}${inc.surfaces.length > 6 ? " ..." : ""}`);
     if (item) {

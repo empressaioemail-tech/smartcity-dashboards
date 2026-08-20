@@ -850,22 +850,42 @@ export function incompleteConformance(results) {
   for (const r of scanned(results)) {
     for (const v of r.incomplete || []) {
       if (!isConformance(v)) continue;
-      const prev = out.get(v.id) || {
-        id: v.id,
-        nodes: 0,
-        surfaces: [],
-        sample: v.sample,
-        reasons: [],
-        targets: [],
-      };
-      prev.reasons = [...new Set([...prev.reasons, ...(v.reasons || [])])];
-      prev.targets = [...new Set([...prev.targets, ...(v.targets || v.sample || [])])];
-      prev.nodes += v.nodes;
-      prev.surfaces.push(`${r.surface} [${r.theme}@${r.viewport}]`);
-      out.set(v.id, prev);
+      for (const [reason, hit] of Object.entries(byReasonOf(v))) {
+        const key = `${v.id}|${reason}`;
+        const prev = out.get(key) || {
+          id: v.id,
+          reason,
+          key,
+          nodes: 0,
+          surfaces: [],
+          sample: hit.targets.slice(0, 3),
+          targets: [],
+        };
+        prev.targets = [...new Set([...prev.targets, ...hit.targets])];
+        prev.nodes += hit.nodes;
+        prev.surfaces.push(`${r.surface} [${r.theme}@${r.viewport}]`);
+        out.set(key, prev);
+      }
     }
   }
   return [...out.values()].sort((a, b) => b.nodes - a.nodes);
+}
+
+/**
+ * ONE finding per rule AND REASON. axe puts several distinct findings in the
+ * incomplete bucket under one rule id, and they carry different adjudications:
+ * a geometry-dependent overlap that no count can pin, and a too-short-to-judge
+ * cell that a count pins exactly. Merging them made the gate check each entry
+ * against the other's number, and both checks were wrong in the same run.
+ *
+ * Falls back to the whole-entry counts only when a caller hands the old shape,
+ * and the fallback is EXPLICIT rather than silent: it names "unknown" as the
+ * reason so an entry with no reason cannot pass an adjudication that names one.
+ */
+function byReasonOf(v) {
+  if (v.byReason && Object.keys(v.byReason).length) return v.byReason;
+  const reason = (v.reasons || [])[0] || "unknown";
+  return { [reason]: { nodes: v.nodes, targets: v.targets || v.sample || [] } };
 }
 
 export function summarize(results, axe, base, env = {}) {
@@ -910,7 +930,10 @@ export function summarize(results, axe, base, env = {}) {
           byArmRule[arm][v.id] = (byArmRule[arm][v.id] || 0) + v.nodes;
         }
         for (const v of (r.incomplete || []).filter(isConformance)) {
-          incompleteByArmRule[arm][v.id] = (incompleteByArmRule[arm][v.id] || 0) + v.nodes;
+          for (const [reason, hit] of Object.entries(byReasonOf(v))) {
+            const key = `${v.id}|${reason}`;
+            incompleteByArmRule[arm][key] = (incompleteByArmRule[arm][key] || 0) + hit.nodes;
+          }
         }
       }
     }
@@ -1108,7 +1131,7 @@ export function verdict(summary, waivers = WAIVERS, reviewItems = REVIEW_ITEMS) 
   }
 
   for (const inc of summary.incompleteConformance || []) {
-    const context = `sample ${JSON.stringify(inc.sample)}; reason ${JSON.stringify(inc.reasons)}; on ${JSON.stringify([...new Set(inc.surfaces)].slice(0, 4))}`;
+    const context = `sample ${JSON.stringify(inc.sample)}; reason ${JSON.stringify(inc.reason)}; on ${JSON.stringify([...new Set(inc.surfaces)].slice(0, 4))}`;
     /**
      * Adjudicated only when EVERY reason axe gave is one that has been
      * adjudicated. One unrecognised reason in the set and the whole rule fails,
@@ -1116,14 +1139,14 @@ export function verdict(summary, waivers = WAIVERS, reviewItems = REVIEW_ITEMS) 
      * adjudicated reason and a new one without pretending to a precision this
      * aggregation does not have.
      */
-    const items = inc.reasons.map((r) => reviewFor(inc.id, r, reviewItems));
-    if (!inc.reasons.length || items.some((x) => !x)) {
+    const item = reviewFor(inc.id, inc.reason, reviewItems);
+    if (!item) {
       reasons.push(
-        `${inc.id}: ${inc.nodes} node(s) axe could NOT SETTLE across ${new Set(inc.surfaces).size} scan(s), and no adjudication covers ${JSON.stringify(inc.reasons.filter((r, i) => !items[i]))}. An unresolved conformance check is not a pass; ${context}`,
+        `${inc.id}: ${inc.nodes} node(s) axe could NOT SETTLE across ${new Set(inc.surfaces).size} scan(s), and no adjudication covers ${JSON.stringify(inc.reason)}. An unresolved conformance check is not a pass; ${context}`,
       );
       continue;
     }
-    for (const item of new Set(items)) {
+    {
       if (isSubjectBounded(item)) {
         /**
          * SUBJECT-BOUNDED. The count is not pinned, because it was measured at
@@ -1142,14 +1165,14 @@ export function verdict(summary, waivers = WAIVERS, reviewItems = REVIEW_ITEMS) 
         }
       } else {
         for (const [arm, pinned] of Object.entries(item.nodesByArm)) {
-          const actual = (summary.incompleteNodesByArmRule?.[arm] || {})[inc.id] || 0;
+          const actual = (summary.incompleteNodesByArmRule?.[arm] || {})[inc.key] || 0;
           if (actual > pinned) {
             reasons.push(
-              `${inc.id} [${arm}]: ${actual} unresolved node(s) exceeds the ${pinned} adjudicated as ${item.reason} (${item.countingRule}); an adjudication is a ceiling, not permission. ${context}`,
+              `${inc.id}/${inc.reason} [${arm}]: ${actual} unresolved node(s) exceeds the ${pinned} adjudicated (${item.countingRule}); an adjudication is a ceiling, not permission. ${context}`,
             );
           } else if (actual < pinned) {
             stale.push(
-              `${inc.id} [${arm}]: ${actual} unresolved node(s) is below the ${pinned} adjudicated; re-pin the REVIEW_ITEMS entry to ${actual}, or remove it (${item.remove}). Below the pin is a NOTE rather than a failure because an adjudication hides an unknown, not a violation.`,
+              `${inc.id}/${inc.reason} [${arm}]: ${actual} unresolved node(s) is below the ${pinned} adjudicated; re-pin the REVIEW_ITEMS entry to ${actual}, or remove it (${item.remove}). Below the pin is a NOTE rather than a failure because an adjudication hides an unknown, not a violation.`,
             );
           }
         }
@@ -1172,7 +1195,7 @@ export function verdict(summary, waivers = WAIVERS, reviewItems = REVIEW_ITEMS) 
    * which is a dead gate in the most literal sense.
    */
   for (const item of reviewItems) {
-    if (!(summary.incompleteConformance || []).some((inc) => inc.id === item.rule && inc.reasons.includes(item.reason))) {
+    if (!(summary.incompleteConformance || []).some((inc) => inc.id === item.rule && inc.reason === item.reason)) {
       stale.push(
         `${item.rule} / ${item.reason}: 0 unresolved node(s) here${isSubjectBounded(item) ? "" : `, against ${JSON.stringify(item.nodesByArm)} adjudicated`}. Either the cause is gone, in which case delete the REVIEW_ITEMS entry, or this environment simply renders it differently - which is what this entry records (${item.remove}).`,
       );
