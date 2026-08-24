@@ -667,6 +667,69 @@ describe("HTTP surface", () => {
     assert.equal("permits" in composed, false);
     assert.equal("fleet" in composed, false);
   });
+
+  /**
+   * G-102. THE COMPOSE ROUTE IS GATED, AND IT WAS NOT.
+   *
+   * It resolved a caller and then applied no read status, unlike the pipeline
+   * route registered directly beneath it which has carried the full 404/401/403
+   * check since G-79. So a tenant-private pack answered an anonymous visitor
+   * with 200 and its files-room scope, and an unknown pack answered 200 by
+   * composing a default. Asserted under the PRODUCTION condition, with
+   * DASHBOARDS_API_KEY set, for the reason the pipeline guard above states: every
+   * local run leaves the key unset and the divergence is what ships.
+   */
+  it("gates city-manager compose exactly as the pipeline route beside it", async () => {
+    process.env.DASHBOARDS_API_KEY = "scaffold-test-key";
+    process.env.HAUSKA_TENANT_KEYS = JSON.stringify({ "hauska-fixture": "fixture-city" });
+    try {
+      const base = `http://127.0.0.1:${port}`;
+      const compose = (query, headers = {}) =>
+        fetch(`${base}/api/lenses/city-manager/compose?${query}`, { headers });
+
+      // A tenant-private pack refuses the anonymous visitor, where it used to
+      // compose. The pipeline route beside it is asserted on the same pack in the
+      // same breath, so the two answers are compared rather than assumed equal.
+      const anonPrivate = await compose("cityKey=fixture-city");
+      assert.equal(anonPrivate.status, 401);
+      const pipelinePrivate = await fetch(
+        `${base}/api/lenses/development-services/pipeline?cityKey=fixture-city`,
+      );
+      assert.equal(anonPrivate.status, pipelinePrivate.status);
+      assert.deepEqual(await anonPrivate.json(), { error: "unauthorized" });
+
+      // A key that resolves to no tenant is not a caller, and a key that resolves
+      // to the WRONG tenant does not open somebody else's pack.
+      const badKey = await compose("cityKey=fixture-city", { "x-hauska-key": "not-a-key" });
+      assert.equal(badKey.status, 401);
+
+      // The pack's own subject reads it.
+      const subject = await compose("cityKey=fixture-city", { "x-hauska-key": "hauska-fixture" });
+      assert.equal(subject.status, 200);
+      assert.equal((await subject.json()).cityKey, "fixture-city");
+
+      // An unknown pack is a 404 that says so, not a 200 composed off a default.
+      const unknown = await compose("cityKey=no-such-city");
+      assert.equal(unknown.status, 404);
+      assert.deepEqual(await unknown.json(), { error: "unknown city pack" });
+
+      /**
+       * AND THE GATE IS NOT SHUT ON EVERYTHING, which is the failure mode a
+       * copy of the pipeline check could quietly introduce. A public-free pack
+       * still composes for an anonymous visitor with the key set, and so does
+       * the no-cityKey default, which is what the browser sends.
+       */
+      const anonPublic = await compose("cityKey=template-city");
+      assert.equal(anonPublic.status, 200);
+      assert.equal((await anonPublic.json()).cityKey, "template-city");
+      const defaulted = await compose("parcelNodeId=48021:34137");
+      assert.equal(defaulted.status, 200);
+      assert.equal((await defaulted.json()).cityKey, "template-city");
+    } finally {
+      delete process.env.DASHBOARDS_API_KEY;
+      delete process.env.HAUSKA_TENANT_KEYS;
+    }
+  });
 });
 
 

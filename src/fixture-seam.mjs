@@ -123,8 +123,50 @@ const FORBIDDEN_CONTENT = [
   },
   {
     id: "money",
-    // Labelling gate item 4: no money collected, no payment completed.
-    re: /\$\s?\d|\b\d+(\.\d{2})?\s?(usd|dollars)\b|\bpaid\b|\bpayment (complete|completed|received)\b|\bfees? collected\b/i,
+    /**
+     * Labelling gate item 4: no money collected, no payment completed.
+     *
+     * THIS RULE WAS NEEDLE SHAPED AND THE NEEDLE WAS THE DOLLAR SIGN. It read
+     * `\$\s?\d` plus a digit welded to the words usd or dollars, so the string
+     * "1.4 million" walked through it, through the vocabulary gate (a domain
+     * declares its own strings, so declaring that one permits it), and through
+     * all nine `includes("$")` assertions in this repo, none of which contain a
+     * dollar sign to find. A Finance lens is exactly the surface that would
+     * print it, and a fabricated budget figure standing beside a city seal is
+     * the failure this gate exists for.
+     *
+     * Four shapes now, and each is stated because a widened gate nobody can read
+     * is a gate that gets widened again:
+     *
+     * 1. A currency SYMBOL anywhere, not only in front of a digit. "$" alone,
+     *    and the euro, pound, yen and cent signs.
+     * 2. A currency WORD anywhere, unbound from any number: dollar, dollars,
+     *    usd, cent, cents, euro, euros. The old rule required a digit first,
+     *    which "one and a half million dollars" does not supply.
+     * 3. A digit group followed by a spelled MAGNITUDE - hundred, thousand,
+     *    million, billion, trillion - which is the form "1.4 million" takes.
+     * 4. The same in words: "one point four million", "two hundred thousand".
+     *
+     * WHAT IS DELIBERATELY STILL ALLOWED, because a gate that rejects legitimate
+     * vocabulary is its own defect and this one has to be usable by the lenses
+     * that have not shipped yet:
+     *
+     * - Plain digit groups of any size. "2,100,000 gallons" passes, and so does
+     *   "18 inches" and "48021:34137". Only the magnitude WORD is refused, which
+     *   is the money idiom rather than the quantity itself. A public works
+     *   domain that genuinely needs a large physical quantity writes the digits.
+     * - Counts, offsets, percentages, stages, statuses and every place label.
+     * - The word "payment" on its own, and "fee" on its own; the completion
+     *   verbs are what item 4 forbids, and "fee schedule" is a real region name.
+     *   `amount` and `fee` stay refused as FIELD names below, where a number is
+     *   what they would carry.
+     *
+     * A magnitude word cannot be told from a currency by a regex - "1.4 million
+     * gallons" is refused along with "1.4 million dollars" - and that trade is
+     * taken on purpose. The false positive costs one restatement in digits. The
+     * false negative puts an invented budget on a council screen.
+     */
+    re: /[$¢£¥€]|\b(usd|dollars?|cents?|euros?)\b|\b\d[\d,]*(\.\d+)?\s*(hundred|thousand|million|billion|trillion)\b|\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)([\s-]+(point|and)[\s-]+\w+)?[\s-]+(hundred|thousand|million|billion|trillion)\b|\bpaid\b|\bpayment (complete|completed|received)\b|\bfees? collected\b/i,
     says: "a generated record presents no money and no completed payment",
   },
   {
@@ -153,6 +195,19 @@ const FORBIDDEN_CONTENT = [
   },
 ];
 
+/**
+ * Field names a generated record may not carry at all, checked on the KEY and
+ * therefore independent of what the value looks like. This is the half of gate
+ * item 4 that the content regex cannot do: a money field holding a bare integer
+ * has no currency mark for any pattern to find, and 4200 in a field called
+ * `budget` reads as dollars to every human who sees it beside a department name.
+ *
+ * The money names below joined `amount` and `fee` at the same time the spelled
+ * money hole was closed above, and for the same reason: a Finance lens is the
+ * next surface to ship and both routes to a fabricated figure had to shut
+ * together. `total` is deliberately NOT here - a record count is a total and
+ * refusing the word would reject the counting rules this product is built on.
+ */
 const FORBIDDEN_KEYS = [
   "confidence",
   "assignee",
@@ -161,6 +216,16 @@ const FORBIDDEN_KEYS = [
   "vendorAccountId",
   "amount",
   "fee",
+  "budget",
+  "revenue",
+  "spend",
+  "cost",
+  "price",
+  "balance",
+  "invoice",
+  "valuation",
+  "appropriation",
+  "expenditure",
 ];
 
 const PARCEL_RE = /\b\d{5}:[A-Za-z0-9._-]+\b/g;
@@ -281,6 +346,31 @@ export function assertDomainShape(domain) {
   if (!Array.isArray(domain.vocabulary)) {
     throw new Error(`domain ${domain.id} requires a declared vocabulary[]`);
   }
+  /**
+   * THE VOCABULARY IS NOT A WAY ROUND THE CONTENT GATE, and until now it was.
+   *
+   * assertDeclaredVocabulary permits any string the domain declared, so a lane
+   * that wanted "1.4 million" on a tile only had to put it in its own
+   * vocabulary[] and the string was legal everywhere that domain rendered. The
+   * content gate runs over records too and would have caught it at compose, but
+   * only for a record that actually carried the string on the pack being read -
+   * so a declaration could sit in the tree unfired.
+   *
+   * Checking the declaration itself moves the failure to module load: a domain
+   * that DECLARES forbidden content cannot be imported, let alone composed. The
+   * vocabulary may widen what a domain says about itself; it may not widen what
+   * this product is allowed to say.
+   */
+  for (const word of domain.vocabulary) {
+    if (typeof word !== "string") {
+      throw new Error(`domain ${domain.id} declares a non-string vocabulary entry`);
+    }
+    try {
+      assertNoRealWorldContent({ word });
+    } catch (err) {
+      throw new Error(`domain ${domain.id} declares forbidden vocabulary: ${err.message}`);
+    }
+  }
   if (domain.formats !== undefined && !Array.isArray(domain.formats)) {
     throw new Error(`domain ${domain.id} formats must be an array of regexes`);
   }
@@ -322,6 +412,59 @@ export function fixtureBasisFor(kindId) {
   return `generated from the ${kindLabel(kindId)} adapter output contract; no city rows were read`;
 }
 
+/**
+ * The live grants on a pack, read defensively in the one place that reads them.
+ *
+ * Returns null rather than an empty array when the field is not an array at all,
+ * because "this pack grants nothing" and "nobody has told me what this pack
+ * grants" are different facts and the sentence below is a claim about the first
+ * one. Defaulting the second to the first is how the sentence became untrue.
+ */
+function packGrantedAdapters(pack) {
+  return Array.isArray(pack?.grantedAdapters) ? pack.grantedAdapters : null;
+}
+
+/**
+ * WHY THIS IS A FUNCTION AND NOT A TEMPLATE LITERAL.
+ *
+ * The sentence used to be `${cityKey} generates no records and no adapter is
+ * granted on it`, written inline, and it asserted the second clause while
+ * reading nothing. It was true only because all three shipped packs carry
+ * grantedAdapters: [] - and assertCityPackShape forbids a grant only on a pack
+ * that GENERATES, which is exactly the pack this branch is not about. The first
+ * connected city to reach a built region would have shipped a false sentence on
+ * eleven surfaces, and nothing in the repo would have said so.
+ *
+ * Three sentences now, one per real grant state, each derived from the grants:
+ * none at all, this region's gating adapter granted, and other adapters granted
+ * but not this one. The no-grant sentence is preserved WORD FOR WORD, because it
+ * is the one three suites already assert against empty-city and moving it would
+ * have been a rename wearing a fix's clothes.
+ */
+function noFixtureSourceBasis(pack, domain) {
+  const granted = packGrantedAdapters(pack);
+  if (granted === null) {
+    /**
+     * Fail closed rather than assume. This sentence is a claim about grants, so
+     * a pack that cannot answer the grant question does not get a sentence -
+     * assertCityPackShape requires grantedAdapters[] on every pack the store or
+     * the constants produce, so reaching here means a caller built a pack shape
+     * by hand and the raise is the correct outcome.
+     */
+    throw new Error(
+      `pack ${pack.cityKey} carries no grantedAdapters[], so no grant statement can be made about it`,
+    );
+  }
+  if (granted.length === 0) {
+    return `${pack.cityKey} generates no records and no adapter is granted on it`;
+  }
+  const gate = kindLabel(domain.gatedBy);
+  if (granted.some((grant) => grant?.kind === domain.gatedBy)) {
+    return `${pack.cityKey} generates no records; ${gate} is granted on it as a live feed, which this seam does not read`;
+  }
+  return `${pack.cityKey} generates no records, and ${gate} is not granted on it`;
+}
+
 function absence(domain, pack, status, basis) {
   return {
     domainId: domain.id,
@@ -360,12 +503,7 @@ export function composeDomain(pack, domain) {
   assertDomainShape(domain);
 
   if (pack.generatesFixtures !== true) {
-    return absence(
-      domain,
-      pack,
-      "no-fixture-source",
-      `${pack.cityKey} generates no records and no adapter is granted on it`,
-    );
+    return absence(domain, pack, "no-fixture-source", noFixtureSourceBasis(pack, domain));
   }
 
   const grants = packFixtureGrants(pack);

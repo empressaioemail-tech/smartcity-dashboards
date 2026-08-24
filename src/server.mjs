@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { listLenses, getLens } from "./lenses.mjs";
 import { listCityPacks, getCityPack, getPacksStore, ensureCityPacksTable } from "./city-pack.mjs";
 import { readMounts, smartsiteEmbedUrl, planReviewEmbedUrl, smartFilesEmbedUrl, assertNoSupplierDsn, assertNoSupplierMounts } from "./mounts.mjs";
-import { composeCityManager } from "./compose.mjs";
+import { composeCityManager, DEFAULT_CITY_KEY } from "./compose.mjs";
 import { listAdapterKinds } from "./adapters.mjs";
 import { composePipeline } from "./fixtures.mjs";
 import { composeDomainById, composeDomainMap } from "./domains.mjs";
@@ -198,11 +198,40 @@ async function handle(req, res) {
     return;
   }
 
+  /**
+   * The city-manager compose, GATED, which it was not.
+   *
+   * It resolved a caller and then never asked whether that caller may read the
+   * pack, so any cityKey composed for anybody: a tenant-private pack answered an
+   * anonymous visitor with 200 and its files-room scope, and an unknown pack
+   * answered 200 with an invented default rather than 404. The route below it has
+   * carried the full check since G-79 and this one was simply never given it,
+   * which is the shape this repo keeps paying for - a control written on one
+   * route and absent on its sibling.
+   *
+   * Same three answers as the pipeline route, from the same function, for the
+   * same reason: this is a CONTENT read, so a public-free pack must still answer
+   * an anonymous visitor on a deployment where DASHBOARDS_API_KEY is set.
+   *
+   * The pack is resolved BEFORE composing and its own cityKey is what composes,
+   * so the composed payload cannot name a pack the gate did not clear.
+   */
   if (req.method === "GET" && url.pathname === "/api/lenses/city-manager/compose") {
     const caller = await resolveCaller(req);
+    const cityKey = url.searchParams.get("cityKey") || DEFAULT_CITY_KEY;
+    const pack = await getCityPack(cityKey);
+    const status = packContentReadStatus(pack, caller);
+    if (status === 404) {
+      json(res, 404, { error: "unknown city pack" });
+      return;
+    }
+    if (status !== 200) {
+      json(res, status, { error: status === 401 ? "unauthorized" : "forbidden" });
+      return;
+    }
     const composed = await composeCityManager({
       parcelNodeId: url.searchParams.get("parcelNodeId") || "",
-      cityKey: url.searchParams.get("cityKey") || "",
+      cityKey: pack.cityKey,
       caller,
     });
     json(res, 200, composed);

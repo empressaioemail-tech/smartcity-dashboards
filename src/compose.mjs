@@ -1,5 +1,5 @@
 import { smartsiteEmbedUrl, planReviewEmbedUrl, smartFilesEmbedUrl } from "./mounts.mjs";
-import { atomVisibleToCaller } from "./tenancy.mjs";
+import { atomVisibleToCaller, callerIsPackSubject } from "./tenancy.mjs";
 import { meetingsFromPack } from "./municode-calendar.mjs";
 
 export const PARCEL_NODE_ID_RE = /^\d{5}:[A-Za-z0-9._-]+$/;
@@ -49,22 +49,34 @@ async function timedFetch(fetchImpl, url, headers) {
   });
 }
 
+/**
+ * `considered` is counted beside `atomCount` because refusing an atom and never
+ * receiving one are different facts and only one of them is the reader's.
+ *
+ * Since atomVisibleToCaller refuses an atom carrying no recognised accessPolicy,
+ * a chain can arrive full and summarise to zero. Reporting that as "atom-chain
+ * returned no atoms" would be a fabricated basis about an upstream that did
+ * answer, which is the same defect one layer over from the one the refusal
+ * closes. The count travels so readAtoms can say which of the two happened.
+ */
 function extractAtomSummary(body, caller, cityKey) {
-  if (!body || typeof body !== "object") return { atomCount: 0, types: [] };
+  if (!body || typeof body !== "object") return { atomCount: 0, types: [], considered: 0 };
   let list = [];
   if (Array.isArray(body.atoms)) list = body.atoms;
   else if (Array.isArray(body.chain)) list = body.chain;
   else if (Array.isArray(body.atomChain)) list = body.atomChain;
   const types = [];
   let atomCount = 0;
+  let considered = 0;
   for (const atom of list) {
     if (!atom || typeof atom !== "object") continue;
+    considered += 1;
     if (!atomVisibleToCaller(atom, caller, cityKey)) continue;
     atomCount += 1;
     const t = atom.entityType || atom.type || atom.atomType;
     if (typeof t === "string" && t && !types.includes(t)) types.push(t);
   }
-  return { atomCount, types };
+  return { atomCount, types, considered };
 }
 
 function slimFolders(body) {
@@ -129,6 +141,15 @@ async function readAtoms({ id, valid, env, fetchImpl, caller, cityKey }) {
     }
     const summary = extractAtomSummary(body, caller, cityKey);
     if (summary.atomCount === 0) {
+      /**
+       * The refusal states itself. A chain that answered with atoms none of
+       * which this caller may read is not an empty chain, and the number is
+       * deliberately left out: how many atoms a tenant-private subject holds is
+       * the thing the refusal is protecting.
+       */
+      if (summary.considered > 0) {
+        return emptyAtoms(id, "atom-chain returned no atoms readable by this caller");
+      }
       return emptyAtoms(id, basisFromBody(body, "atom-chain returned no atoms"));
     }
     return {
@@ -148,7 +169,30 @@ async function readAtoms({ id, valid, env, fetchImpl, caller, cityKey }) {
   }
 }
 
-async function readFiles({ cityKey, env, fetchImpl }) {
+/**
+ * The files room, read on the caller's behalf.
+ *
+ * TWO PATHS, AND ONLY ONE OF THEM CARRIES THE KEY. The scope is always
+ * tenant:cityKey, and until now the request went out unauthenticated no matter
+ * who asked - so there was no authenticated path at all and a tenant subject
+ * received whatever the anonymous view returns while reading a room addressed to
+ * itself. The anonymous leg stays exactly as it was, and is the fail-closed
+ * control it has always been: an unauthenticated caller must never spend the
+ * service key. The authenticated leg is new and it opens for one caller only,
+ * the pack's own tenant subject, by the same rule canReadPack and
+ * atomVisibleToCaller use for tenant-private content.
+ *
+ * A service bearer is deliberately NOT entitled. It is the platform, not the
+ * tenant, and tenancy.mjs already refuses it tenant-private packs and
+ * tenant-private atoms; a third reading of that rule pointing the other way is
+ * how a tenancy boundary loses a corner.
+ *
+ * AND AN ENTITLED CALLER WITH NO KEY CONFIGURED IS REFUSED RATHER THAN
+ * DOWNGRADED. Falling back to the anonymous fetch would hand a tenant the public
+ * view of its own room labelled as its own room, which is silent degradation:
+ * the deployment posture would change the answer without changing the sentence.
+ */
+async function readFiles({ cityKey, env, fetchImpl, caller }) {
   const scopeType = "tenant";
   const scopeId = cityKey;
   const empty = (status, basis) => ({
@@ -162,9 +206,15 @@ async function readFiles({ cityKey, env, fetchImpl }) {
   });
   const base = trimEnv(env, "SMART_FILES_BACKEND_URL").replace(/\/$/, "");
   if (!base) return empty("unavailable", "SMART_FILES_BACKEND_URL unset");
+  const entitled = callerIsPackSubject(caller, cityKey);
+  const key = entitled ? trimEnv(env, "SMART_FILES_API_KEY") : "";
+  if (entitled && !key) {
+    return empty("unavailable", "SMART_FILES_API_KEY unset; an entitled caller is not served the unauthenticated view");
+  }
+  const headers = entitled ? bearerHeaders(key) : {};
   const url = `${base}/api/smart-files/folders?scopeType=${encodeURIComponent(scopeType)}&scopeId=${encodeURIComponent(scopeId)}`;
   try {
-    const res = await timedFetch(fetchImpl, url, {});
+    const res = await timedFetch(fetchImpl, url, headers);
     const body = await asJson(res);
     if (res.status === 401 || res.status === 403) {
       return empty("unavailable", "files auth refused");
@@ -216,7 +266,7 @@ export async function composeCityManager({
       };
   const [atoms, filesRoom, meetings] = await Promise.all([
     readAtoms({ id, valid, env, fetchImpl, caller, cityKey: city }),
-    readFiles({ cityKey: city, env, fetchImpl }),
+    readFiles({ cityKey: city, env, fetchImpl, caller }),
     meetingsFromPack({ cityKey: city, env, fetchImpl }),
   ]);
   return {

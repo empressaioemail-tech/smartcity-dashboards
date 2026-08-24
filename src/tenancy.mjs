@@ -57,13 +57,32 @@ export async function resolveCaller(req, envMap = process.env, deps = {}) {
   return { kind: "anonymous" };
 }
 
+/**
+ * THE SUBJECT RULE, in one place.
+ *
+ * "This caller is the tenant this pack belongs to" was written out three times -
+ * in canReadPack's tenant-private branch, in atomVisibleToCaller's, and it was
+ * about to be written a fourth time for the files room. Three copies of one rule
+ * is how one of them ends up widened alone, and a widened tenant test is the
+ * whole tenancy control.
+ *
+ * A blank cityKey is NOT a subject. Without this the empty string would match a
+ * caller whose tenant is also blank, which is the shape a defaulted tenant field
+ * arrives in.
+ */
+export function callerIsPackSubject(caller, cityKey) {
+  const subject = String(cityKey || "").trim();
+  if (!subject) return false;
+  return caller?.kind === "tenant" && caller.tenant === subject;
+}
+
 export function canReadPack(pack, caller, envMap = process.env) {
   if (!pack) return false;
   const policy = ACCESS_POLICIES.has(pack.accessPolicy)
     ? pack.accessPolicy
     : "public-free";
   if (policy === "tenant-private") {
-    return caller?.kind === "tenant" && caller.tenant === pack.cityKey;
+    return callerIsPackSubject(caller, pack.cityKey);
   }
   if (caller?.kind === "tenant" || caller?.kind === "service") return true;
   const serviceKey = String(envMap.DASHBOARDS_API_KEY || "").trim();
@@ -108,14 +127,56 @@ export function packReadStatus(pack, caller, envMap = process.env) {
   return caller?.kind === "anonymous" ? 401 : 403;
 }
 
-export function atomVisibleToCaller(atom, caller, cityKey) {
-  if (!atom || typeof atom !== "object") return false;
+/**
+ * The atom-contract accessPolicy union, as the five values that contract ships.
+ * Declared here so an unrecognised sixth value is a value this product cannot
+ * reason about rather than a value it silently treats as public.
+ */
+const ATOM_ACCESS_POLICIES = new Set([
+  "public-free",
+  "public-paid",
+  "platform-internal",
+  "tenant-private",
+  "tenant-shared",
+]);
+
+/**
+ * The policy an atom carries, or null when it carries none this product knows.
+ *
+ * TOTAL BY CONSTRUCTION, and that is the point. atomVisibleToCaller used to read
+ * atom.accessPolicy directly and return TRUE for an absent or blank one, which
+ * meant a real city's atoms with no policy set were readable by an anonymous
+ * caller - the fail-open default this repo's governing defect class is named
+ * after. Absence is not a policy; it is the absence of one, and the answer to
+ * "may this caller read it" when nothing says so is no.
+ *
+ * WHY A RESOLUTION FUNCTION RATHER THAN A TYPE. A discriminated union the
+ * compiler enforces at every consumer would remove the question entirely, and
+ * this repo has no compile step: it is plain ESM run by node. The nearest
+ * available structural equivalent is to make the resolution total and to give
+ * the decision below no other input, so there is no path from a raw field to a
+ * permit. Every allow is an explicitly enumerated branch and the function ends
+ * in a refusal, which is default-deny by shape rather than by discipline.
+ *
+ * Absent, blank and unrecognised deliberately collapse to ONE null here, and
+ * that is not the three-states-collapsed defect: all three refuse, so the
+ * visibility decision cannot distinguish them anyway. The distinction that does
+ * carry information - a chain that returned nothing versus a chain whose atoms
+ * were all refused - is preserved by the caller, in src/compose.mjs, where it
+ * reaches a basis line a reader sees.
+ */
+export function resolveAtomAccessPolicy(atom) {
+  if (!atom || typeof atom !== "object") return null;
   const raw = atom.accessPolicy;
-  if (raw == null || String(raw).trim() === "") return true;
-  const policy = String(raw).trim();
+  if (typeof raw !== "string") return null;
+  const policy = raw.trim();
+  return ATOM_ACCESS_POLICIES.has(policy) ? policy : null;
+}
+
+export function atomVisibleToCaller(atom, caller, cityKey) {
+  const policy = resolveAtomAccessPolicy(atom);
+  if (policy === null) return false;
   if (policy === "public-free") return true;
-  if (policy === "tenant-private") {
-    return caller?.kind === "tenant" && caller.tenant === cityKey;
-  }
+  if (policy === "tenant-private") return callerIsPackSubject(caller, cityKey);
   return false;
 }
