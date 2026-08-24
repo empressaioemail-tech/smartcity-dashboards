@@ -66,11 +66,33 @@ export const SHELL_HOMES = [
   { table: "primary", job: "Money, budget, spend, scenario", home: "Finance", disposition: "Empty" },
   { table: "primary", job: "OpenGov embed / COA", home: "Finance", disposition: "Not built" },
   { table: "primary", job: "Permit fee revenue", home: "Finance source register, marked Partial", disposition: "Empty" },
-  { table: "primary", job: "Permitting pipeline", home: "Development services Pipeline", disposition: "Empty" },
-  { table: "primary", job: "Inspections", home: "Development services Inspections", disposition: "Not built" },
-  { table: "primary", job: "Work orders", home: "Development services Pipeline (staff only)", disposition: "Not built" },
-  { table: "primary", job: "Business licenses", home: "Development services Licenses", disposition: "Not built" },
-  { table: "primary", job: "Code enforcement", home: "Development services Code enforcement", disposition: "Not built" },
+  /**
+   * G-102. THE FIVE DEVELOPMENT SERVICES ROWS, AND WHY FOUR OF THEM MOVED.
+   *
+   * Four of these said "Not built" while their tabs shipped and rendered 72
+   * generated records between them - 21 inspections, 15 work orders, 17
+   * licences, 19 code cases, measured off composeDomainMap and not read out of
+   * a comment. G-100 derived the same claim for the nav badges and the Overview
+   * register and left this column hand-typed, which is why the disposition the
+   * G-100 preamble names as the shape that opened the programme went on being
+   * wrong for two more waves.
+   *
+   * EMPTY, NOT MOUNTED, and the register itself is the authority. Permitting
+   * pipeline has said Empty since G-77 while rendering 14 generated records
+   * under the same mygov gate, and MyGov's own row in the feeds table below
+   * still says Not connected. These four are that row's siblings in every
+   * respect, so Mounted would claim a feed none of them has.
+   *
+   * domainId is the link the check in src/lens-claims.test.mjs derives against.
+   * Permitting pipeline carries one too although its disposition did not move:
+   * a check whose every subject needed correcting is a check that would pass a
+   * refuse-everything rewrite, and this row is the case that keeps it honest.
+   */
+  { table: "primary", job: "Permitting pipeline", home: "Development services Pipeline", disposition: "Empty", domainId: "permits-pipeline" },
+  { table: "primary", job: "Inspections", home: "Development services Inspections", disposition: "Empty", domainId: "inspections" },
+  { table: "primary", job: "Work orders", home: "Development services Work orders", disposition: "Empty", domainId: "work-orders" },
+  { table: "primary", job: "Business licenses", home: "Development services Licenses", disposition: "Empty", domainId: "business-licenses" },
+  { table: "primary", job: "Code enforcement", home: "Development services Code enforcement", disposition: "Empty", domainId: "code-violations" },
   { table: "primary", job: "Property Intel / parcel dossier", home: "Development services Place; SmartSite map", disposition: "Mounted" },
   { table: "primary", job: "Second parcel map stack", home: "No product home. Stays on the city until a named cut.", disposition: "Island" },
   { table: "primary", job: "Emergency EOC", home: "Police + Fire and EMS", disposition: "Not built" },

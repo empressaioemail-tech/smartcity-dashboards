@@ -44,6 +44,7 @@ import { DOMAIN_REGISTRY, composeDomainById } from "./domains.mjs";
 import { DOMAIN_STATUSES, composeDomain, defineDomain } from "./fixture-seam.mjs";
 import { TEMPLATE_CITY, EMPTY_CITY } from "./city-pack.mjs";
 import { ROSTER_LENS_IDS, LENS_LABELS } from "./staff-review.mjs";
+import { ALL_HOME_ROWS } from "./shell-homes.mjs";
 import { FLEET_VEHICLES_DOMAIN } from "./domains/fleet-vehicles.mjs";
 import { PATROL_VEHICLES_DOMAIN } from "./domains/patrol-vehicles.mjs";
 
@@ -402,5 +403,224 @@ describe("G-100 the constraints", () => {
     assert.deepEqual(TEMPLATE_CITY.grantedAdapters, []);
     assert.deepEqual(TEMPLATE_CITY.fixtureGrants, ["mygov", "samsara", "verkada", "firstdue", "powerbi", "goto"]);
     assert.deepEqual(EMPTY_CITY.fixtureGrants, []);
+  });
+});
+
+/* ===========================================================================
+ * 6. THE CONNECTIONS REGISTER'S DISPOSITION COLUMN, DERIVED
+ * ======================================================================== */
+
+/**
+ * THE COLUMN THIS FILE'S OWN PREAMBLE NAMES AND DID NOT COVER.
+ *
+ * G-100 derived the nav badge and the Overview register from the registry and
+ * left the Connections register's `disposition` hand-typed - the very column its
+ * preamble cites as "the disposition column whose misreading opened this
+ * programme". Two waves later four Development services rows still said "Not
+ * built" while their tabs shipped and rendered 72 generated records, because
+ * nothing connected the word to the thing that decides whether a surface exists.
+ *
+ * THE RULE, and it is the registry's own, quoted from src/fixture-seam.mjs:
+ * "absent from the registry means the surface does not exist, which is the only
+ * surviving meaning of Not built." So a register row that names a REGISTERED
+ * domain may not say Not built, in either direction and without exception.
+ *
+ * TWO DERIVATIONS, NOT ONE FIELD READ TWICE. src/shell-homes.mjs is hand-written
+ * prose about the product; src/domains.mjs plus the files under src/domains/ are
+ * the product. Neither is generated from the other and one lane cannot satisfy
+ * both by editing a single line, which is what separates this from an internal
+ * consistency check that only catches typing errors.
+ *
+ * SCOPE, STATED, because a control whose scope is wider than its claim is its
+ * own defect. The coverage leg holds for Development services only, and the
+ * reason is derivable rather than chosen: that lens's register rows are
+ * REGION-granular and stand one-to-one with its five domains - Pipeline,
+ * Inspections, Work orders, Licences, Code enforcement. Every other lens is
+ * named by LENS-granular rows ("Police", "Fleet / operations") that no domain
+ * maps to without a ruling, and inventing the mapping to widen the check would
+ * be exactly the guess this rule exists to stop. Those rows are unlinked and
+ * therefore unchecked, and that is recorded rather than hidden: seven of them
+ * across Fleet, Police, Fire and EMS and Public works look stale in the same way
+ * and are routed, not edited here.
+ */
+const COVERED_LENS = "development-services";
+
+/**
+ * The predicate, returning every fault it finds rather than the first.
+ *
+ * One implementation, called by the assertion and by every injection arm below,
+ * so an arm cannot pass by agreeing with a second copy of the rule written in a
+ * test. It returns names, not a count: a count is not a record.
+ */
+function registerDispositionFaults(rows, registry) {
+  const faults = [];
+  const citedBy = new Map();
+  for (const row of rows) {
+    if (row.domainId === undefined) continue;
+    const domain = registry.find((d) => d.id === row.domainId) || null;
+    if (!domain) {
+      faults.push(`${row.job} cites ${row.domainId}, which is not a registered domain`);
+      continue;
+    }
+    citedBy.set(domain.id, [...(citedBy.get(domain.id) || []), row.job]);
+    if (row.disposition === "Not built") {
+      faults.push(`${row.job} says Not built while ${domain.id} is registered, so its surface exists`);
+    }
+  }
+  /**
+   * The anti-starvation leg. Without it the check has a trigger and correct
+   * logic and is never fed: a lane ships a sixth Development services domain,
+   * writes no register row, and a column that has drifted reports clean because
+   * nothing points at the drift.
+   */
+  for (const domain of registry) {
+    if (domain.lensId !== COVERED_LENS) continue;
+    const jobs = citedBy.get(domain.id) || [];
+    if (jobs.length !== 1) {
+      faults.push(`${domain.id} is cited by ${jobs.length} register rows and must be cited by exactly 1`);
+    }
+  }
+  return faults;
+}
+
+describe("G-102 no register row calls a registered surface Not built", () => {
+  it("agrees with the registry, and covers every Development services domain", () => {
+    assert.deepEqual(registerDispositionFaults(ALL_HOME_ROWS, DOMAIN_REGISTRY), []);
+
+    // Reported with its counting rule rather than asserted as a literal: the
+    // covered population is every registry entry on the covered lens.
+    const covered = DOMAIN_REGISTRY.filter((d) => d.lensId === COVERED_LENS).map((d) => d.id);
+    assert.deepEqual(covered.sort(), [
+      "business-licenses",
+      "code-violations",
+      "inspections",
+      "permits-pipeline",
+      "work-orders",
+    ]);
+    const cited = ALL_HOME_ROWS.filter((r) => r.domainId !== undefined);
+    assert.equal(cited.length, covered.length);
+
+    /**
+     * NOT VACUOUS, and this is the leg that matters. Permitting pipeline was
+     * already Empty before this lane touched anything and is checked all the
+     * same, so the predicate has a subject it did not have to change. A check
+     * every one of whose subjects needed correcting is a check a
+     * refuse-everything rewrite would also pass.
+     */
+    const pipeline = ALL_HOME_ROWS.find((r) => r.domainId === "permits-pipeline");
+    assert.equal(pipeline.disposition, "Empty");
+  });
+
+  it("carries the corrected column onto the served page, not only into the generator", () => {
+    /**
+     * The generator is served to nobody. web/index.html is what a customer
+     * reads, so the claim is asserted where the claim lands; the bake's
+     * fixed-point test in src/shell-homes.test.mjs keeps the two in step.
+     */
+    // The job is a literal, escaped: a future cited job carrying a bracket or a
+    // slash would otherwise compile to a pattern that matches the wrong row, or
+    // nothing, and a check that quietly matches nothing reports clean.
+    const literal = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    for (const row of ALL_HOME_ROWS.filter((r) => r.domainId !== undefined)) {
+      const rendered = html.match(
+        new RegExp(
+          `<div class="srcreg"[^>]*data-disposition="([^"]*)"[^>]*><i class="rail"></i><span class="nm"><b>${literal(row.job)}</b>`,
+        ),
+      );
+      assert.ok(rendered, `${row.job} has no baked register row`);
+      assert.equal(rendered[1], row.disposition, row.job);
+      assert.notEqual(rendered[1], "Not built", row.job);
+    }
+  });
+});
+
+describe("G-102 the register derivation can fail, in both directions", () => {
+  /**
+   * DEV_PROCESS 2.2, and deliberately in BOTH directions. A guard that only
+   * fires on the stale value would be passed by a rewrite that refuses
+   * everything, and a guard that only fires on over-claiming would be passed by
+   * one that permits everything. Each arm re-runs the same predicate the
+   * assertions above use.
+   */
+  const probeDomain = (id) =>
+    defineDomain({
+      id,
+      lensId: COVERED_LENS,
+      region: "Probe",
+      gatedBy: "mygov",
+      recordType: "permit-case",
+      vocabulary: [],
+      generate: () => ({ records: [] }),
+    });
+
+  it("fires when every registered surface is called Not built again", () => {
+    const stale = ALL_HOME_ROWS.map((r) =>
+      r.domainId === undefined ? r : { ...r, disposition: "Not built" },
+    );
+    const faults = registerDispositionFaults(stale, DOMAIN_REGISTRY);
+    assert.equal(faults.length, 5, faults.join(" | "));
+    for (const fault of faults) assert.match(fault, /says Not built while/);
+    assert.deepEqual(registerDispositionFaults(ALL_HOME_ROWS, DOMAIN_REGISTRY), []);
+  });
+
+  it("fires on ONE stale row, not only on a wholesale rewrite", () => {
+    for (const row of ALL_HOME_ROWS.filter((r) => r.domainId !== undefined)) {
+      const injected = ALL_HOME_ROWS.map((r) =>
+        r === row ? { ...r, disposition: "Not built" } : r,
+      );
+      const faults = registerDispositionFaults(injected, DOMAIN_REGISTRY);
+      assert.equal(faults.length, 1, `${row.job}: ${faults.join(" | ")}`);
+      assert.equal(faults[0].startsWith(`${row.job} says Not built`), true, faults[0]);
+    }
+  });
+
+  it("fires when a row cites a domain the registry does not carry", () => {
+    const injected = [
+      ...ALL_HOME_ROWS,
+      { table: "primary", job: "Probe job", home: "Probe", disposition: "Empty", domainId: "no-such-domain" },
+    ];
+    assert.deepEqual(registerDispositionFaults(injected, DOMAIN_REGISTRY), [
+      "Probe job cites no-such-domain, which is not a registered domain",
+    ]);
+  });
+
+  it("fires when a new covered domain ships with no register row", () => {
+    // The starvation arm. This is the drift the column has already suffered
+    // twice, arriving from the registry side instead of the register side.
+    const faults = registerDispositionFaults(ALL_HOME_ROWS, [
+      ...DOMAIN_REGISTRY,
+      probeDomain("probe-uncited"),
+    ]);
+    assert.deepEqual(faults, [
+      "probe-uncited is cited by 0 register rows and must be cited by exactly 1",
+    ]);
+  });
+
+  it("fires when two rows claim one domain", () => {
+    const injected = [
+      ...ALL_HOME_ROWS,
+      { table: "primary", job: "Probe duplicate", home: "Probe", disposition: "Empty", domainId: "inspections" },
+    ];
+    assert.deepEqual(registerDispositionFaults(injected, DOMAIN_REGISTRY), [
+      "inspections is cited by 2 register rows and must be cited by exactly 1",
+    ]);
+  });
+
+  it("does not fire on an unlinked row that genuinely is not built", () => {
+    /**
+     * The over-broad arm. A rule that refused every "Not built" anywhere would
+     * pass all five arms above and would be wrong: rows naming jobs no domain
+     * models - Emergency EOC, Prophecy document search, Sign out - are correctly
+     * Not built and must stay untouched by this check. The count is measured
+     * rather than pinned, because the population grows.
+     */
+    const unlinked = ALL_HOME_ROWS.filter(
+      (r) => r.domainId === undefined && r.disposition === "Not built",
+    );
+    assert.ok(unlinked.length > 20, `only ${unlinked.length} unlinked Not built rows`);
+    // Read against a registry with NO covered domains, so the coverage leg has
+    // nothing to say and the disposition leg is the only thing being measured.
+    const uncovered = DOMAIN_REGISTRY.filter((d) => d.lensId !== COVERED_LENS);
+    assert.deepEqual(registerDispositionFaults(unlinked, uncovered), []);
   });
 });

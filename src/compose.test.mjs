@@ -117,8 +117,12 @@ describe("city-manager compose", () => {
           return jsonResponse(200, {
             parcelNodeId: VALID,
             atoms: [
-              { entityType: "zoning-fact", body: { district: "SF-1", huge: "x".repeat(200) } },
-              { entityType: "setback-rule", body: { front: 25 } },
+              // accessPolicy is carried because the summary now REFUSES an atom
+              // that declares none. These two are stand-ins for a readable chain
+              // and the subject of this test is the count and the type list, so
+              // they say what they are rather than relying on a permissive default.
+              { entityType: "zoning-fact", accessPolicy: "public-free", body: { district: "SF-1", huge: "x".repeat(200) } },
+              { entityType: "setback-rule", accessPolicy: "public-free", body: { front: 25 } },
             ],
           });
         }
@@ -269,7 +273,18 @@ describe("city-manager compose", () => {
     assert.deepEqual(service.atoms.types, ["zoning-fact"]);
   });
 
-  it("treats missing or empty accessPolicy as public-free", async () => {
+  /**
+   * REPLACES "treats missing or empty accessPolicy as public-free", which
+   * asserted the defect as the specification.
+   *
+   * An absent, blank or unrecognised accessPolicy used to return TRUE from
+   * atomVisibleToCaller, so a real city's atoms with no policy set were readable
+   * by an anonymous caller - and the test above pinned that as correct, which is
+   * how a fail-open default survives a review. Absence is not a policy. The
+   * value the old test expected was recognised by no authority: the atom
+   * contract's accessPolicy union has five members and none of them is "unset".
+   */
+  it("refuses an atom whose accessPolicy is absent, blank or unrecognised", async () => {
     const composed = await composeCityManager({
       parcelNodeId: VALID,
       env: envWithMounts({ HAUSKA_RETRIEVAL_API_KEY: "retrieval-service" }),
@@ -281,6 +296,47 @@ describe("city-manager compose", () => {
               { type: "setback-rule", kind: "fact", payload: { front: 25 } },
               { type: "height-limit", kind: "fact", accessPolicy: "", payload: { maxFt: 35 } },
               { type: "impervious-cover", kind: "fact", accessPolicy: "   ", payload: { pct: 50 } },
+              { type: "slope-fact", kind: "fact", accessPolicy: "unset", payload: { pct: 12 } },
+              { type: "owner-fact", kind: "fact", accessPolicy: null, payload: { ownerName: "LEAK-NULL" } },
+            ],
+          });
+        }
+        return jsonResponse(200, { folders: [] });
+      }),
+    });
+    assert.equal(composed.atoms.atomCount, 0);
+    assert.deepEqual(composed.atoms.types, []);
+    /**
+     * AND THE REFUSAL SAYS SO. A chain that answered with five atoms none of
+     * which this caller may read is not an empty chain, and reporting it as one
+     * would put a fabricated basis in front of the reader - the same defect the
+     * refusal closes, one layer up. The count is deliberately absent from the
+     * sentence: how many atoms are being withheld is what the gate protects.
+     */
+    assert.equal(composed.atoms.status, "empty");
+    assert.equal(composed.atoms.basis, "atom-chain returned no atoms readable by this caller");
+    assert.notEqual(composed.atoms.basis, "atom-chain returned no atoms");
+    const dumped = JSON.stringify(composed);
+    assert.equal(dumped.includes("maxFt"), false);
+    assert.equal(dumped.includes("LEAK-NULL"), false);
+  });
+
+  /**
+   * The other half of the same rule, so the refusal above is not a gate that
+   * refuses everything. A declared public-free atom on the identical chain is
+   * read, which means the count of zero above is the policy answering and not
+   * the reader having stopped working.
+   */
+  it("still reads a declared public-free atom on a chain the rest of which is refused", async () => {
+    const composed = await composeCityManager({
+      parcelNodeId: VALID,
+      env: envWithMounts({ HAUSKA_RETRIEVAL_API_KEY: "retrieval-service" }),
+      fetchImpl: mockFetch((url) => {
+        if (url.includes("/atom-chain")) {
+          return jsonResponse(200, {
+            atoms: [
+              { type: "setback-rule", kind: "fact", payload: { front: 25 } },
+              { type: "height-limit", kind: "fact", accessPolicy: "public-free", payload: { maxFt: 35 } },
             ],
           });
         }
@@ -288,9 +344,8 @@ describe("city-manager compose", () => {
       }),
     });
     assert.equal(composed.atoms.status, "ok");
-    assert.equal(composed.atoms.atomCount, 3);
-    assert.deepEqual(composed.atoms.types, ["setback-rule", "height-limit", "impervious-cover"]);
-    assert.equal(JSON.stringify(composed).includes("maxFt"), false);
+    assert.equal(composed.atoms.atomCount, 1);
+    assert.deepEqual(composed.atoms.types, ["height-limit"]);
   });
 
   it("does not send SMART_FILES_API_KEY on the unauthenticated files fetch", async () => {
@@ -306,6 +361,86 @@ describe("city-manager compose", () => {
     });
     assert.equal(folderAuths.includes(undefined), true);
     assert.equal(JSON.stringify(composed).includes("files-secret"), false);
+  });
+
+  /**
+   * THE AUTHENTICATED HALF, WHICH DID NOT EXIST.
+   *
+   * The test above is the fail-closed control on the anonymous path and it
+   * stands unchanged. What it could not say is whether any other path existed,
+   * and none did: composeCityManager passed the caller into readAtoms and
+   * omitted it from readFiles, so a tenant subject reading a room addressed to
+   * its own tenant scope was served the anonymous view of it. That is not a
+   * missing feature, it is a silent downgrade - the request carried the scope of
+   * an authenticated read and the credentials of an unauthenticated one.
+   *
+   * Entitlement is the pack subject rule, unchanged from canReadPack and
+   * atomVisibleToCaller: the tenant whose key resolves to this pack, and nobody
+   * else. Asserted here on all four callers so the boundary is measured rather
+   * than assumed for three of them.
+   */
+  it("sends SMART_FILES_API_KEY only for the pack's own tenant subject", async () => {
+    const seen = [];
+    const run = (caller, cityKey) =>
+      composeCityManager({
+        parcelNodeId: VALID,
+        cityKey,
+        caller,
+        env: envWithMounts({ SMART_FILES_API_KEY: "files-secret" }),
+        fetchImpl: mockFetch((url, opts) => {
+          if (url.includes("/atom-chain")) return jsonResponse(200, { atoms: [] });
+          seen.push(opts.headers?.Authorization);
+          return jsonResponse(200, {
+            folders: [{ folderId: "folder:tenant:fixture-city:room", label: "Room" }],
+          });
+        }),
+      });
+
+    const subject = await run({ kind: "tenant", tenant: "fixture-city" }, "fixture-city");
+    assert.equal(seen.at(-1), "Bearer files-secret");
+    assert.equal(subject.filesRoom.status, "ok");
+    assert.equal(subject.filesRoom.scopeId, "fixture-city");
+    // The key authenticates the read; it never reaches the payload.
+    assert.equal(JSON.stringify(subject).includes("files-secret"), false);
+
+    // Every other caller stays on the unauthenticated path, including a tenant
+    // reading somebody else's pack and the service bearer, which is the platform
+    // rather than the tenant and is refused tenant-private content everywhere else.
+    await run({ kind: "tenant", tenant: "other-city" }, "fixture-city");
+    assert.equal(seen.at(-1), undefined);
+    await run({ kind: "service" }, "fixture-city");
+    assert.equal(seen.at(-1), undefined);
+    await run({ kind: "anonymous" }, "fixture-city");
+    assert.equal(seen.at(-1), undefined);
+    await run(undefined, "fixture-city");
+    assert.equal(seen.at(-1), undefined);
+  });
+
+  it("refuses rather than downgrading an entitled caller when no files key is configured", async () => {
+    /**
+     * Falling back to the anonymous fetch here would hand a tenant the public
+     * view of its own room, labelled as its own room, and the deployment posture
+     * would decide which one it got without changing a word of the answer. That
+     * is the silent-degradation shape, so the read refuses and names the reason.
+     */
+    let called = false;
+    const composed = await composeCityManager({
+      parcelNodeId: VALID,
+      cityKey: "fixture-city",
+      caller: { kind: "tenant", tenant: "fixture-city" },
+      env: envWithMounts({ SMART_FILES_API_KEY: "" }),
+      fetchImpl: mockFetch((url) => {
+        if (url.includes("/atom-chain")) return jsonResponse(200, { atoms: [] });
+        called = true;
+        return jsonResponse(200, { folders: [{ folderId: "f", label: "Room" }] });
+      }),
+    });
+    assert.equal(called, false, "an entitled caller must not fall through to the anonymous fetch");
+    assert.equal(composed.filesRoom.status, "unavailable");
+    assert.match(composed.filesRoom.basis, /SMART_FILES_API_KEY unset/);
+    assert.match(composed.filesRoom.basis, /not served the unauthenticated view/);
+    assert.equal(composed.filesRoom.folderCount, 0);
+    assert.deepEqual(composed.filesRoom.folders, []);
   });
 
   it("does not denylist type names; public-free owner-fact stays visible", async () => {

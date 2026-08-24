@@ -14,6 +14,7 @@ import {
 } from "./city-pack.mjs";
 import {
   DOMAIN_STATUSES,
+  assertNoRealWorldContent,
   composeDomain,
   defineDomain,
   packFixtureGrants as packFixtureGrantsFromSeam,
@@ -230,6 +231,26 @@ describe("G-91 the seam enforces both guards, structurally", () => {
       ["subject", "Bastrop city hall remodel", /no held city identity/],
       ["subject", "Addition at 1200 Main Street", /no street address/],
       ["subject", "Fee $1,200", /no money/],
+      /**
+       * G-102. THE SPELLED-OUT MONEY HOLE, watched firing.
+       *
+       * Every one of these passed the old rule, which was a dollar sign welded
+       * to a digit. "1.4 million" is the one that matters: it is what a Finance
+       * tile prints, it needed no currency mark to read as money beside a
+       * department name, and it satisfied the vocabulary gate the moment a
+       * domain declared it.
+       */
+      ["subject", "1.4 million", /no money/],
+      ["subject", "1.4 million dollars", /no money/],
+      ["subject", "Budget 250 thousand", /no money/],
+      ["subject", "two hundred thousand", /no money/],
+      ["subject", "one point four million", /no money/],
+      ["subject", "12000 USD", /no money/],
+      ["subject", "Refund in cents", /no money/],
+      ["subject", "Balance €400", /no money/],
+      ["budget", 42000, /no budget field/],
+      ["revenue", 0, /no revenue field/],
+      ["cost", "unknown", /no cost field/],
       ["subject", "Account 448812 renewal", /no vendor account identifier/],
       ["subject", "last synced from the vendor", /invents no freshness/],
       ["confidence", 0.92, /no confidence field/],
@@ -360,6 +381,67 @@ describe("G-91 ungranted is not empty, and neither is not-built", () => {
     const notBuilt = composeDomainById(TEMPLATE_CITY, "parks-facilities");
     assert.equal(notBuilt.status, "not-registered");
     assert.match(notBuilt.basis, /not a registered domain, so this surface is not built/);
+  });
+
+  it("derives the no-fixture-source sentence from the grants instead of asserting them", () => {
+    /**
+     * G-102. THE SENTENCE THAT ASSERTED A GRANT STATE IT NEVER READ.
+     *
+     * `${cityKey} generates no records and no adapter is granted on it` was a
+     * template literal. Its second clause was true only because all three
+     * shipped packs carry grantedAdapters: [] - and assertCityPackShape forbids
+     * a grant only on a pack that GENERATES, which is not the pack this branch
+     * is about. The first connected city to reach a built region would have
+     * shipped a false sentence on eleven surfaces with nothing to say so.
+     *
+     * Both directions measured: the no-grant sentence is unchanged (three suites
+     * assert it, and moving it would have been a rename wearing a fix's
+     * clothes), and a pack that DOES carry a grant now gets a different one.
+     */
+    const connected = (grants) => ({
+      ...EMPTY_CITY,
+      cityKey: "connected-city",
+      environment: "live",
+      grantedAdapters: grants,
+    });
+    const grant = (kind) => ({
+      kind,
+      purpose: "records",
+      writesTo: "spine",
+      accessPolicy: "platform-internal",
+      sourceUrl: "https://records.example.gov/api",
+    });
+
+    // Arm A, unchanged: no grants at all, and the sentence is the historical one.
+    const none = composeDomain(connected([]), PATROL_VEHICLES_DOMAIN);
+    assert.equal(none.status, "no-fixture-source");
+    assert.equal(none.basis, "connected-city generates no records and no adapter is granted on it");
+
+    // Arm B: the gating adapter IS granted, so the old sentence would have been
+    // a flat lie. It names the grant and says what this seam does with it.
+    const gated = composeDomain(connected([grant("spireon")]), PATROL_VEHICLES_DOMAIN);
+    assert.equal(gated.status, "no-fixture-source");
+    assert.match(gated.basis, /Spireon is granted on it as a live feed, which this seam does not read/);
+    assert.equal(/no adapter is granted/.test(gated.basis), false);
+    assert.notEqual(gated.basis, none.basis);
+
+    // Arm C: grants exist but not this region's. A third sentence, because "no
+    // adapter at all" and "not this one" are different facts to a customer.
+    const other = composeDomain(connected([grant("mygov")]), PATROL_VEHICLES_DOMAIN);
+    assert.equal(other.status, "no-fixture-source");
+    assert.match(other.basis, /and Spireon is not granted on it/);
+    assert.equal(/no adapter is granted/.test(other.basis), false);
+    assert.notEqual(other.basis, none.basis);
+    assert.notEqual(other.basis, gated.basis);
+
+    // Arm D, fail closed: a pack that cannot answer the grant question gets no
+    // sentence about grants. The raise is the correct outcome, not a default.
+    const { grantedAdapters, ...noField } = connected([]);
+    assert.equal("grantedAdapters" in noField, false);
+    assert.throws(
+      () => composeDomain(noField, PATROL_VEHICLES_DOMAIN),
+      /carries no grantedAdapters\[\], so no grant statement can be made about it/,
+    );
   });
 
   it("proves the ungranted region is a source state and not a stub: a fixture grant populates it", () => {
@@ -504,6 +586,84 @@ describe("G-91 the money rule is per pack, on both arms", () => {
     // assertion above is not passing merely because everything is empty.
     assert.ok(composeDomainMap(TEMPLATE_CITY).withRecords > 0);
     assert.equal(composeDomainMap(EMPTY_CITY).withRecords, 0);
+  });
+
+  it("re-reads every shipped payload through the GATE, not through a dollar sign", () => {
+    /**
+     * G-102. `includes("$")` is a needle, and this repo carries nine of them.
+     * Every one is satisfied by "1.4 million", which is exactly the string a
+     * Finance tile prints, so the assertion above proved less than it looked.
+     * This runs the actual gate over the same payloads: whatever the money rule
+     * forbids, none of it is on a shipped surface.
+     */
+    for (const pack of PACKS) {
+      const composed = composeAllDomains(pack);
+      for (const [domainId, region] of Object.entries(composed)) {
+        assert.doesNotThrow(() => assertNoRealWorldContent(region), `${pack.cityKey} ${domainId}`);
+      }
+    }
+  });
+
+  it("still allows the vocabulary it is not meant to refuse", () => {
+    /**
+     * THE OVER-BROAD ARM, and it is the one that keeps this gate usable. A money
+     * rule that rejected legitimate strings would be its own defect, and the
+     * failure would arrive as a wave-2 lane widening the rule until it permitted
+     * everything again. So the line is stated as assertions rather than as prose.
+     *
+     * Read directly through assertNoRealWorldContent rather than through a
+     * composed domain, because assertDeclaredVocabulary would refuse these
+     * strings for a different reason and the two answers would be indistinguishable.
+     */
+    for (const allowed of [
+      "2,100,000 gallons",
+      "18 inches of clearance",
+      "Block 12, Lot 3",
+      "48021:34137",
+      "14 records on the board",
+      "72 hour target",
+      "100 percent of the queue",
+      "Fee schedule review",
+      "Payment portal integration",
+      "Template Commons Block 1, Lot 1",
+      "due in 12 days",
+      "Water main leak repair",
+    ]) {
+      assert.doesNotThrow(() => assertNoRealWorldContent({ text: allowed }), allowed);
+    }
+    // And the same call shape refuses the money forms, so the passes above are
+    // the rule answering rather than the gate having stopped looking.
+    for (const refused of ["1.4 million", "$40", "250 thousand", "40 USD"]) {
+      assert.throws(() => assertNoRealWorldContent({ text: refused }), /no money/, refused);
+    }
+  });
+
+  it("refuses a domain that DECLARES forbidden vocabulary, at definition time", () => {
+    /**
+     * The vocabulary was the way round the content gate: a domain declares its
+     * own strings, so declaring "1.4 million" made it legal wherever that domain
+     * rendered. Checking the declaration moves the failure to module load, which
+     * is before any pack, any caller and any surface.
+     */
+    const define = (vocabulary) =>
+      defineDomain({
+        id: "probe-vocab",
+        lensId: "probe",
+        region: "Probe",
+        gatedBy: "mygov",
+        recordType: "permit-case",
+        vocabulary,
+        generate: () => ({ records: [] }),
+      });
+    assert.throws(() => define(["1.4 million"]), /declares forbidden vocabulary/);
+    assert.throws(() => define(["Bastrop"]), /declares forbidden vocabulary/);
+    assert.throws(() => define(["last synced"]), /declares forbidden vocabulary/);
+    assert.throws(() => define([42]), /non-string vocabulary entry/);
+    // Not a gate that refuses every vocabulary: the shipped ones still define.
+    assert.doesNotThrow(() => define(["Sign permit", "intake", "in-review"]));
+    for (const domain of DOMAIN_REGISTRY) {
+      assert.doesNotThrow(() => define(domain.vocabulary), domain.id);
+    }
   });
 });
 
