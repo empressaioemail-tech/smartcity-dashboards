@@ -37,6 +37,33 @@ describe("G-13 mounts", () => {
     );
   });
 
+  it("G-114: threads cityKey onto both embeds, so the SAME static origin serves a genuinely city-scoped URL", () => {
+    assert.equal(
+      planReviewEmbedUrl({}, "template-city"),
+      "https://plan-review-app-ten.vercel.app/?embed=1&cityKey=template-city",
+    );
+    assert.equal(
+      smartFilesEmbedUrl({}, "template-city"),
+      "https://smart-files-app.vercel.app/?embed=1&cityKey=template-city",
+    );
+    // No cityKey argument at all -- the pre-G-114 call shape -- keeps behaving
+    // exactly as before. This is what every OTHER call site in this repo does
+    // today (server.mjs's diagnostic /?work= examples); it must not regress.
+    assert.equal(planReviewEmbedUrl({}), "https://plan-review-app-ten.vercel.app/?embed=1");
+    assert.equal(smartFilesEmbedUrl({}), "https://smart-files-app.vercel.app/?embed=1");
+    // Two different cities produce two different URLs from the identical env.
+    assert.notEqual(
+      planReviewEmbedUrl({}, "template-city"),
+      planReviewEmbedUrl({}, "bastrop"),
+    );
+    // A malicious/malformed cityKey cannot smuggle a second query param or
+    // break out of the value position.
+    assert.equal(
+      planReviewEmbedUrl({}, "x&evil=1"),
+      "https://plan-review-app-ten.vercel.app/?embed=1&cityKey=x%26evil%3D1",
+    );
+  });
+
   it("refuses a city or spine DSN", () => {
     assert.throws(
       () =>

@@ -648,9 +648,15 @@ describe("HTTP surface", () => {
     assert.match(composed.meetings.basis, /no municode calendar grant/);
     assert.deepEqual(composed.meetings.records, []);
     assert.equal(composed.planReview.contract, "embed");
-    assert.equal(composed.planReview.url, "https://plan-review-app-ten.vercel.app/?embed=1");
+    assert.equal(
+      composed.planReview.url,
+      "https://plan-review-app-ten.vercel.app/?embed=1&cityKey=template-city",
+    );
     assert.equal(composed.smartFiles.contract, "embed");
-    assert.equal(composed.smartFiles.url, "https://smart-files-app.vercel.app/?embed=1");
+    assert.equal(
+      composed.smartFiles.url,
+      "https://smart-files-app.vercel.app/?embed=1&cityKey=template-city",
+    );
     assert.deepEqual(Object.keys(composed).sort(), [
       "atoms",
       "cityKey",
