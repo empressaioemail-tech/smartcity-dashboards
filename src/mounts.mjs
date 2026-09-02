@@ -67,34 +67,43 @@ export const DEFAULT_PLAN_REVIEW_EMBED_ORIGIN = "https://plan-review-app-ten.ver
  * Plan Review mounts at city altitude, so the embed must suppress the host's own
  * product top bar. The host ships html[data-embed="1"] rules; embed=1 sets it.
  * Same contract as smartFilesEmbedUrl.
+ *
+ * G-114: every city's compose response used to embed this SAME static origin
+ * regardless of which city was being viewed -- invisible with only one real
+ * tenant, a real scope trap the moment a second city exists. cityKey is now
+ * threaded onto the URL so the embed genuinely names the city it belongs to.
  */
-export function planReviewEmbedUrl(envMap = process.env) {
+export function planReviewEmbedUrl(envMap = process.env, cityKey) {
   const raw = envMap?.PLAN_REVIEW_EMBED_ORIGIN;
   const origin = String(
     raw == null || String(raw).trim() === "" ? DEFAULT_PLAN_REVIEW_EMBED_ORIGIN : raw,
   ).trim();
-  return withEmbedQuery(origin, DEFAULT_PLAN_REVIEW_EMBED_ORIGIN);
+  return withEmbedQuery(origin, DEFAULT_PLAN_REVIEW_EMBED_ORIGIN, cityKey);
 }
 
-function withEmbedQuery(origin, fallback = DEFAULT_SMART_FILES_EMBED_ORIGIN) {
+function withEmbedQuery(origin, fallback = DEFAULT_SMART_FILES_EMBED_ORIGIN, cityKey) {
+  const city = String(cityKey || "").trim();
   try {
     const url = new URL(origin);
     if (!url.searchParams.has("embed")) url.searchParams.set("embed", "1");
+    if (city && !url.searchParams.has("cityKey")) url.searchParams.set("cityKey", city);
     return url.toString();
   } catch {
     const base = String(origin || fallback).replace(/\/$/, "");
-    return `${base}/?embed=1`;
+    const params = new URLSearchParams({ embed: "1" });
+    if (city) params.set("cityKey", city);
+    return `${base}/?${params.toString()}`;
   }
 }
 
-export function smartFilesEmbedUrl(envMap = process.env) {
+export function smartFilesEmbedUrl(envMap = process.env, cityKey) {
   const raw = envMap?.SMART_FILES_EMBED_ORIGIN;
   const origin = String(
     raw == null || String(raw).trim() === ""
       ? DEFAULT_SMART_FILES_EMBED_ORIGIN
       : raw,
   ).trim();
-  return withEmbedQuery(origin);
+  return withEmbedQuery(origin, DEFAULT_SMART_FILES_EMBED_ORIGIN, cityKey);
 }
 
 export function assertNoSupplierDsn(envMap = process.env) {

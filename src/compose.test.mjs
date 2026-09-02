@@ -46,9 +46,17 @@ describe("city-manager compose", () => {
     assert.equal(unset.atoms.atomCount, 0);
     assert.equal("atoms" in unset.atoms, false);
     assert.equal(unset.smartsite.url.includes("parcelNodeId=48021%3A34137"), true);
-    assert.equal(unset.planReview.url, "https://plan-review-app-ten.vercel.app/?embed=1");
+    // G-114: the embed carries the composing city's own identity, not a bare
+    // static origin -- defaults to DEFAULT_CITY_KEY since none was passed here.
+    assert.equal(
+      unset.planReview.url,
+      "https://plan-review-app-ten.vercel.app/?embed=1&cityKey=template-city",
+    );
     assert.equal(unset.smartFiles.contract, "embed");
-    assert.equal(unset.smartFiles.url, "https://smart-files-app.vercel.app/?embed=1");
+    assert.equal(
+      unset.smartFiles.url,
+      "https://smart-files-app.vercel.app/?embed=1&cityKey=template-city",
+    );
     assert.equal(unset.filesRoom.status, "unavailable");
     assert.equal(unset.filesRoom.basis, "SMART_FILES_BACKEND_URL unset");
 
@@ -483,6 +491,31 @@ describe("city-manager compose", () => {
     assert.deepEqual(composed.filesRoom.folders, []);
   });
 
+  it("G-114: two different cities embed two different plan-review/files URLs", async () => {
+    const fetchImpl = mockFetch((url) => {
+      if (url.includes("/atom-chain")) return jsonResponse(200, { atoms: [] });
+      return jsonResponse(200, { folders: [] });
+    });
+    const cityA = await composeCityManager({
+      parcelNodeId: VALID,
+      cityKey: "template-city",
+      env: envWithMounts(),
+      fetchImpl,
+    });
+    const cityB = await composeCityManager({
+      parcelNodeId: VALID,
+      cityKey: "bastrop",
+      env: envWithMounts(),
+      fetchImpl,
+    });
+    assert.notEqual(cityA.planReview.url, cityB.planReview.url);
+    assert.notEqual(cityA.smartFiles.url, cityB.smartFiles.url);
+    assert.match(cityA.planReview.url, /cityKey=template-city/);
+    assert.match(cityB.planReview.url, /cityKey=bastrop/);
+    assert.match(cityA.smartFiles.url, /cityKey=template-city/);
+    assert.match(cityB.smartFiles.url, /cityKey=bastrop/);
+  });
+
   it("is G-13 mounts only; not a vendor JSON lens", async () => {
     const composed = await composeCityManager({
       parcelNodeId: VALID,
@@ -506,9 +539,15 @@ describe("city-manager compose", () => {
     assert.equal(composed.meetings.contract, "files-record-read");
     assert.equal("mygov" in composed.meetings, false);
     assert.equal(composed.planReview.contract, "embed");
-    assert.equal(composed.planReview.url, "https://plan-review-app-ten.vercel.app/?embed=1");
+    assert.equal(
+      composed.planReview.url,
+      "https://plan-review-app-ten.vercel.app/?embed=1&cityKey=template-city",
+    );
     assert.equal(composed.smartFiles.contract, "embed");
-    assert.equal(composed.smartFiles.url, "https://smart-files-app.vercel.app/?embed=1");
+    assert.equal(
+      composed.smartFiles.url,
+      "https://smart-files-app.vercel.app/?embed=1&cityKey=template-city",
+    );
     assert.equal("mygov" in composed, false);
     assert.equal("samsara" in composed, false);
     assert.equal("permits" in composed, false);
