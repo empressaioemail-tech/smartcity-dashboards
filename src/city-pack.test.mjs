@@ -42,10 +42,16 @@ describe("city packs", () => {
     assert.equal(bastrop.environment, "staging");
     assert.equal(bastrop.jurisdictionFips, "48021");
     // G-116 Phase 1: the one real feed already proven end to end (G-71/G-74)
-    // now lives on the real pack instead of being held off it.
-    assert.equal(bastrop.grantedAdapters.length, 1);
-    assert.equal(bastrop.grantedAdapters[0].kind, "municode");
-    assert.equal(bastrop.grantedAdapters[0].sourceUrl, "https://bastrop-tx.municodemeetings.com/");
+    // now lives on the real pack instead of being held off it. Phase 2: the
+    // real mygov permits feed joins it.
+    assert.equal(bastrop.grantedAdapters.length, 2);
+    const bastropKinds = bastrop.grantedAdapters.map((g) => g.kind).sort();
+    assert.deepEqual(bastropKinds, ["municode", "mygov"]);
+    const municodeGrant = bastrop.grantedAdapters.find((g) => g.kind === "municode");
+    assert.equal(municodeGrant.sourceUrl, "https://bastrop-tx.municodemeetings.com/");
+    const mygovGrant = bastrop.grantedAdapters.find((g) => g.kind === "mygov");
+    assert.equal(mygovGrant.purpose, "permits");
+    assert.equal(mygovGrant.accessPolicy, "tenant-private");
     assert.equal("repo" in template, false);
     assertCityPackShape(template);
     assertCityPackShape(empty);
@@ -205,9 +211,9 @@ describe("city packs", () => {
     assert.equal(fixture.accessPolicy, "tenant-private");
     assert.deepEqual(fixture.grantedAdapters, []);
     assert.deepEqual(template.grantedAdapters, []);
-    // G-116 Phase 1: the real municode grant round-trips through Neon too.
-    assert.equal(bastrop.grantedAdapters.length, 1);
-    assert.equal(bastrop.grantedAdapters[0].kind, "municode");
+    // G-116 Phase 1/2: both real grants round-trip through Neon too.
+    assert.equal(bastrop.grantedAdapters.length, 2);
+    assert.deepEqual(bastrop.grantedAdapters.map((g) => g.kind).sort(), ["municode", "mygov"]);
     // The records dimension survives the round trip through the store, so a
     // deployment reading Neon cannot lose the fixture declaration.
     assert.equal(template.generatesFixtures, true);

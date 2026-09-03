@@ -828,6 +828,30 @@ export const TEMPLATE_MUNICODE_CALENDAR_GRANT = {
 };
 
 /**
+ * G-116 Phase 2. The first real feed for a mygov-gated region. writesTo
+ * "spine" matches the catalog's own declared shape for this kind
+ * (ADAPTER_KINDS above); this grant does not literally write anywhere --
+ * it is a live server-to-server read-through, verified live against a real
+ * bastrop_tx read (25 real Bastrop permits, 2026-09-03) -- so the field
+ * describes the record's conceptual home, not this grant's own mechanism.
+ * accessPolicy tenant-private matches mygov's defaultAccessPolicy (real
+ * permit records are not public-free the way a municode meeting calendar
+ * is). sourceUrl is smartcity-os's new platform-internal endpoint
+ * (`_decisions/2026-09-03_smartcity_os_platform_read_authorization.md`),
+ * gated there by PLATFORM_INTERNAL_API_KEY -- this grant object carries no
+ * key itself; src/mygov-permits.mjs reads that from its own env at request
+ * time, the same separation of "where" from "how authenticated" every
+ * other feed in this file already uses.
+ */
+export const PLATFORM_MYGOV_PERMITS_GRANT = {
+  kind: "mygov",
+  purpose: "permits",
+  writesTo: "spine",
+  accessPolicy: "tenant-private",
+  sourceUrl: "https://smartcity-api-7dyaiy7wha-uc.a.run.app/api/platform/mygov/permits",
+};
+
+/**
  * G-116. cityKey is the pack this URL is being evaluated FOR, not a label on
  * the URL itself. The Bastrop clerk host is held (refused) on every pack
  * except the one real, ratified Bastrop pack (`bastrop_tx`,
@@ -916,4 +940,9 @@ export function calendarGrantFor(pack) {
   return (
     grants.find((g) => g && g.kind === "municode" && g.purpose === "calendar") || null
   );
+}
+
+export function mygovPermitsGrantFor(pack) {
+  const grants = Array.isArray(pack?.grantedAdapters) ? pack.grantedAdapters : [];
+  return grants.find((g) => g && g.kind === "mygov" && g.purpose === "permits") || null;
 }

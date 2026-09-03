@@ -7,9 +7,10 @@ import { listLenses, getLens } from "./lenses.mjs";
 import { listCityPacks, getCityPack, getPacksStore, ensureCityPacksTable } from "./city-pack.mjs";
 import { readMounts, smartsiteEmbedUrl, planReviewEmbedUrl, smartFilesEmbedUrl, assertNoSupplierDsn, assertNoSupplierMounts } from "./mounts.mjs";
 import { composeCityManager, DEFAULT_CITY_KEY } from "./compose.mjs";
-import { listAdapterKinds } from "./adapters.mjs";
+import { listAdapterKinds, mygovPermitsGrantFor } from "./adapters.mjs";
+import { composeRealPermits } from "./mygov-permits.mjs";
 import { composePipeline } from "./fixtures.mjs";
-import { composeDomainById, composeDomainMap } from "./domains.mjs";
+import { composeDomainById, composeDomainMap, getDomain } from "./domains.mjs";
 import { cityIdentity } from "./city-identity.mjs";
 import { runMunicodeCalendar } from "./municode-calendar.mjs";
 import { loadDotenv } from "./load-env.mjs";
@@ -288,7 +289,42 @@ async function handle(req, res) {
       json(res, status, { error: status === 401 ? "unauthorized" : "forbidden" });
       return;
     }
-    json(res, 200, composeDomainMap(pack));
+    const map = composeDomainMap(pack);
+    /**
+     * G-116 Phase 2. Same real-source branch as /api/domains/:id below --
+     * kept consistent on purpose. Without this, the map would say
+     * permits-pipeline has "no-fixture-source" while the domain's own
+     * endpoint returns real records for the identical pack: two different,
+     * disagreeing answers to "does this region have a source", which is
+     * exactly the sentence-collapse ruling 1 (this route's own header
+     * comment) exists to prevent.
+     */
+    if (pack.generatesFixtures !== true) {
+      const grant = mygovPermitsGrantFor(pack);
+      if (grant) {
+        const domain = getDomain("permits-pipeline");
+        const real = await composeRealPermits(pack, domain, grant);
+        const idx = map.regions.findIndex((r) => r.domainId === "permits-pipeline");
+        if (idx >= 0) {
+          const before = map.regions[idx];
+          map.regions[idx] = {
+            domainId: real.domainId,
+            lensId: real.lensId,
+            region: real.region,
+            gatedBy: real.gatedBy,
+            recordType: real.recordType,
+            status: real.status,
+            granted: real.granted,
+            generated: real.generated,
+            basis: real.basis,
+            recordCount: real.recordCount,
+            countingRule: real.countingRule,
+          };
+          if (before.recordCount === 0 && real.recordCount > 0) map.withRecords += 1;
+        }
+      }
+    }
+    json(res, 200, map);
     return;
   }
 
@@ -310,6 +346,27 @@ async function handle(req, res) {
     if (status !== 200) {
       json(res, status, { error: status === 401 ? "unauthorized" : "forbidden" });
       return;
+    }
+    /**
+     * G-116 Phase 2. The one domain with a real, live source instead of a
+     * fixture. composeDomain/composeDomainById (domains.mjs, fixture-seam.mjs)
+     * stay entirely synchronous and fixture-only by design -- this branch sits
+     * beside them, not inside them, the same way meetingsFromPack sits beside
+     * composeDomain for the municode calendar feed rather than becoming a
+     * branch inside it. Only fires for a pack that is NOT generating fixtures
+     * and DOES carry a real mygov grant; every other pack/domain combination
+     * (all of template-city, all ten other domains on every pack) is
+     * completely unaffected and still calls composeDomainById exactly as
+     * before.
+     */
+    if (domainId === "permits-pipeline" && pack.generatesFixtures !== true) {
+      const grant = mygovPermitsGrantFor(pack);
+      if (grant) {
+        const domain = getDomain(domainId);
+        const composed = await composeRealPermits(pack, domain, grant);
+        json(res, 200, composed);
+        return;
+      }
     }
     const composed = composeDomainById(pack, domainId);
     json(res, composed.status === "not-registered" ? 404 : 200, composed);

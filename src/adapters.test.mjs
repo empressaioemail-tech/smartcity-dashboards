@@ -123,6 +123,6 @@ describe("adapter kinds", () => {
     // the real Bastrop identity, not a blanket refusal of every source.
     assert.equal(isIdentityHeldClerkHost("https://example.com/meetings", "template-city"), false);
     // BASTROP_TX itself carries this exact grant and validates as a real pack.
-    assert.deepEqual(BASTROP_TX.grantedAdapters, [TEMPLATE_MUNICODE_CALENDAR_GRANT]);
+    assert.ok(BASTROP_TX.grantedAdapters.includes(TEMPLATE_MUNICODE_CALENDAR_GRANT));
   });
 });

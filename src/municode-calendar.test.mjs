@@ -214,7 +214,7 @@ describe("municode calendar adapter", () => {
   });
 
   it("G-116: runs the real municode fetch and write for bastrop_tx — the identity hold lifts only for this pack", async () => {
-    assert.deepEqual(BASTROP_TX.grantedAdapters, [TEMPLATE_MUNICODE_CALENDAR_GRANT]);
+    assert.ok(BASTROP_TX.grantedAdapters.includes(TEMPLATE_MUNICODE_CALENDAR_GRANT));
     const calls = [];
     const filesClient = {
       async listFolders(args) {
