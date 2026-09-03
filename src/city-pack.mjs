@@ -1,7 +1,7 @@
 import { LEAD_LENSES } from "./lenses.mjs";
 import { getPool } from "./db.mjs";
 import { assertNoSupplierDsn } from "./mounts.mjs";
-import { adapterKindById, assertGrantedAdapterShape } from "./adapters.mjs";
+import { adapterKindById, assertGrantedAdapterShape, TEMPLATE_MUNICODE_CALENDAR_GRANT } from "./adapters.mjs";
 
 /**
  * The demonstration axis, read defensively in one place. Declared here rather
@@ -105,7 +105,16 @@ export const BASTROP_TX = {
   environment: "staging",
   generatesFixtures: false,
   lenses: LEAD_LENSES.map((l) => l.id),
-  grantedAdapters: [],
+  /**
+   * G-116 Phase 1. The one real feed this program already proved end to
+   * end (public municode meeting calendar) -- previously misplaced on
+   * template-city (G-71, corrected G-74) because no real Bastrop pack
+   * existed to hold it. It belongs here now. Municode's own accessPolicy
+   * is public-free (public meeting minutes are public record) independent
+   * of this pack's own tenant-private policy -- the two axes are separate
+   * on purpose, same as every other grant in this file.
+   */
+  grantedAdapters: [TEMPLATE_MUNICODE_CALENDAR_GRANT],
   notes:
     "The real Bastrop, TX city pack. Not a demo, not a fixture. Parallel to live smartcityos.io/PermitFlow, which stays untouched and is not superseded by this pack existing. Staging until a real staff go-live is declared as its own item.",
 };
@@ -362,7 +371,7 @@ export function assertCityPackShape(pack) {
     throw new Error("a pack that generates no fixtures declares no fixtureGrants");
   }
   for (const grant of pack.grantedAdapters) {
-    assertGrantedAdapterShape(grant);
+    assertGrantedAdapterShape(grant, pack.cityKey);
   }
   return true;
 }

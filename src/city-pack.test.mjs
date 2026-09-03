@@ -33,7 +33,6 @@ describe("city packs", () => {
     assert.deepEqual(template.grantedAdapters, []);
     assert.deepEqual(empty.grantedAdapters, []);
     assert.deepEqual(fixture.grantedAdapters, []);
-    assert.deepEqual(bastrop.grantedAdapters, []);
     assert.notEqual(template.cityKey, "bastrop");
     assert.notEqual(fixture.cityKey, "bastrop");
     assert.notEqual(bastrop.cityKey, "bastrop");
@@ -42,6 +41,11 @@ describe("city packs", () => {
     assert.equal(bastrop.generatesFixtures, false);
     assert.equal(bastrop.environment, "staging");
     assert.equal(bastrop.jurisdictionFips, "48021");
+    // G-116 Phase 1: the one real feed already proven end to end (G-71/G-74)
+    // now lives on the real pack instead of being held off it.
+    assert.equal(bastrop.grantedAdapters.length, 1);
+    assert.equal(bastrop.grantedAdapters[0].kind, "municode");
+    assert.equal(bastrop.grantedAdapters[0].sourceUrl, "https://bastrop-tx.municodemeetings.com/");
     assert.equal("repo" in template, false);
     assertCityPackShape(template);
     assertCityPackShape(empty);
@@ -201,7 +205,9 @@ describe("city packs", () => {
     assert.equal(fixture.accessPolicy, "tenant-private");
     assert.deepEqual(fixture.grantedAdapters, []);
     assert.deepEqual(template.grantedAdapters, []);
-    assert.deepEqual(bastrop.grantedAdapters, []);
+    // G-116 Phase 1: the real municode grant round-trips through Neon too.
+    assert.equal(bastrop.grantedAdapters.length, 1);
+    assert.equal(bastrop.grantedAdapters[0].kind, "municode");
     // The records dimension survives the round trip through the store, so a
     // deployment reading Neon cannot lose the fixture declaration.
     assert.equal(template.generatesFixtures, true);

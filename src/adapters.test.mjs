@@ -5,9 +5,11 @@ import {
   assertAdapterKindShape,
   assertGrantedAdapterShape,
   assertPublicFeedSourceUrl,
+  isIdentityHeldClerkHost,
   listAdapterKinds,
+  TEMPLATE_MUNICODE_CALENDAR_GRANT,
 } from "./adapters.mjs";
-import { FIXTURE_CITY, TEMPLATE_CITY } from "./city-pack.mjs";
+import { BASTROP_TX, FIXTURE_CITY, TEMPLATE_CITY } from "./city-pack.mjs";
 import { FORBIDDEN_PRODUCT_STRINGS } from "./catalog.mjs";
 
 describe("adapter kinds", () => {
@@ -96,5 +98,31 @@ describe("adapter kinds", () => {
         }),
       /not a city feed/,
     );
+  });
+
+  it("G-116: the identity hold is not vacuous — it lifts for bastrop_tx specifically, and only bastrop_tx", () => {
+    const bastropUrl = "https://bastrop-tx.municodemeetings.com/";
+    // Still held on every pack that isn't the ratified real Bastrop pack,
+    // including no cityKey at all (refuse rather than guess).
+    assert.equal(isIdentityHeldClerkHost(bastropUrl), true);
+    assert.equal(isIdentityHeldClerkHost(bastropUrl, "template-city"), true);
+    assert.equal(isIdentityHeldClerkHost(bastropUrl, "fixture-city"), true);
+    assert.equal(isIdentityHeldClerkHost(bastropUrl, "some-other-city"), true);
+    assert.throws(
+      () => assertPublicFeedSourceUrl(bastropUrl, "template-city"),
+      /Bastrop clerk host/,
+    );
+    // Lifts for bastrop_tx, and only bastrop_tx.
+    assert.equal(isIdentityHeldClerkHost(bastropUrl, "bastrop_tx"), false);
+    assert.equal(assertPublicFeedSourceUrl(bastropUrl, "bastrop_tx"), true);
+    assert.equal(
+      assertGrantedAdapterShape(TEMPLATE_MUNICODE_CALENDAR_GRANT, "bastrop_tx"),
+      true,
+    );
+    // A non-clerk host is never held, on any pack — the guard is specific to
+    // the real Bastrop identity, not a blanket refusal of every source.
+    assert.equal(isIdentityHeldClerkHost("https://example.com/meetings", "template-city"), false);
+    // BASTROP_TX itself carries this exact grant and validates as a real pack.
+    assert.deepEqual(BASTROP_TX.grantedAdapters, [TEMPLATE_MUNICODE_CALENDAR_GRANT]);
   });
 });

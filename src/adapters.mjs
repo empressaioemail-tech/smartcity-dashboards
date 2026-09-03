@@ -827,21 +827,35 @@ export const TEMPLATE_MUNICODE_CALENDAR_GRANT = {
   sourceUrl: "https://bastrop-tx.municodemeetings.com/",
 };
 
-export function isIdentityHeldClerkHost(sourceUrl) {
+/**
+ * G-116. cityKey is the pack this URL is being evaluated FOR, not a label on
+ * the URL itself. The Bastrop clerk host is held (refused) on every pack
+ * except the one real, ratified Bastrop pack (`bastrop_tx`,
+ * `_decisions/2026-09-03_bastrop_tx_dashboards_pack_ratified.md`) -- the
+ * G-74 finding this function exists for (real Bastrop government data
+ * landing on the public demo pack) stays fully closed for template-city,
+ * fixture-city, empty-city, and any future pack that isn't bastrop_tx.
+ * Omitting cityKey defaults to held, matching every call site's behaviour
+ * before this change -- "refuse rather than guess" when identity is unknown.
+ */
+export function isIdentityHeldClerkHost(sourceUrl, cityKey) {
   const raw = String(sourceUrl || "").trim();
+  let isClerkHost;
   try {
     const host = new URL(raw).hostname.toLowerCase();
-    return host === "bastrop-tx.municodemeetings.com" || host.includes("bastrop");
+    isClerkHost = host === "bastrop-tx.municodemeetings.com" || host.includes("bastrop");
   } catch {
-    return /bastrop/i.test(raw);
+    isClerkHost = /bastrop/i.test(raw);
   }
+  if (!isClerkHost) return false;
+  return cityKey !== "bastrop_tx";
 }
 
 export function adapterKindById(id) {
   return ADAPTER_KINDS.find((kind) => kind.id === id) || null;
 }
 
-export function assertPublicFeedSourceUrl(sourceUrl) {
+export function assertPublicFeedSourceUrl(sourceUrl, cityKey) {
   const raw = String(sourceUrl || "").trim();
   if (!raw) throw new Error("grant requires sourceUrl");
   let parsed;
@@ -858,8 +872,8 @@ export function assertPublicFeedSourceUrl(sourceUrl) {
   if (host === "smartcityos.io" || host.endsWith(".smartcityos.io")) {
     throw new Error("refusing smartcityos.io calendar host");
   }
-  if (isIdentityHeldClerkHost(parsed.href)) {
-    throw new Error("refusing Bastrop clerk host on template-city");
+  if (isIdentityHeldClerkHost(parsed.href, cityKey)) {
+    throw new Error(`refusing Bastrop clerk host on ${cityKey || "an unidentified pack"}`);
   }
   if (path.includes("/api/calendar/")) {
     throw new Error("refusing city /api/calendar/ path");
@@ -867,7 +881,7 @@ export function assertPublicFeedSourceUrl(sourceUrl) {
   return true;
 }
 
-export function assertGrantedAdapterShape(grant) {
+export function assertGrantedAdapterShape(grant, cityKey) {
   if (!grant || typeof grant !== "object") {
     throw new Error("grant requires an object");
   }
@@ -893,7 +907,7 @@ export function assertGrantedAdapterShape(grant) {
       throw new Error("writesTo override requires a named reason");
     }
   }
-  assertPublicFeedSourceUrl(grant.sourceUrl);
+  assertPublicFeedSourceUrl(grant.sourceUrl, cityKey);
   return true;
 }
 
