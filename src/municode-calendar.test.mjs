@@ -10,7 +10,7 @@ import {
   DEFAULT_MUNICODE_SOURCE,
 } from "./municode-calendar.mjs";
 import { assertPublicFeedSourceUrl, TEMPLATE_MUNICODE_CALENDAR_GRANT } from "./adapters.mjs";
-import { FIXTURE_CITY, TEMPLATE_CITY } from "./city-pack.mjs";
+import { BASTROP_TX, FIXTURE_CITY, TEMPLATE_CITY } from "./city-pack.mjs";
 
 const SAMPLE_HTML = `
 <table>
@@ -211,5 +211,77 @@ describe("municode calendar adapter", () => {
     assert.equal(held.honesty, "partial");
     assert.match(held.basis, /identity hold/);
     assert.deepEqual(held.records, []);
+  });
+
+  it("G-116: runs the real municode fetch and write for bastrop_tx — the identity hold lifts only for this pack", async () => {
+    assert.deepEqual(BASTROP_TX.grantedAdapters, [TEMPLATE_MUNICODE_CALENDAR_GRANT]);
+    const calls = [];
+    const filesClient = {
+      async listFolders(args) {
+        calls.push(["listFolders", args]);
+        return { folders: [] };
+      },
+      async createFolder(args) {
+        calls.push(["createFolder", args]);
+        assert.equal(args.label, "Public meetings");
+        assert.equal(args.orgId, "bastrop_tx");
+        assert.equal(args.userId, "staff");
+        return { folder: { folderId: "folder-bastrop-meetings", label: "Public meetings" } };
+      },
+      async uploadFile(args) {
+        calls.push(["uploadFile", args]);
+        const record = JSON.parse(Buffer.from(args.bytesBase64, "base64").toString("utf8"));
+        assert.equal(record.cityKey, "bastrop_tx");
+        assert.equal(record.title, "Public Library Board");
+        assert.equal(record.sourceUrl, TEMPLATE_MUNICODE_CALENDAR_GRANT.sourceUrl);
+        return { file: { entityId: "smartfile:tenant:bastrop_tx:2026-09-14-public-library-board" } };
+      },
+    };
+    const ran = await runMunicodeCalendar({
+      cityKey: "bastrop_tx",
+      env: { SMART_FILES_ACTOR_USER: "staff" },
+      fetchImpl: async () =>
+        new Response(SAMPLE_HTML, { status: 200, headers: { "content-type": "text/html" } }),
+      filesClient,
+    });
+    assert.equal(ran.status, "ok");
+    assert.equal(ran.fetched, 1);
+    assert.equal(ran.written, 1);
+    assert.equal(ran.sourceUrl, TEMPLATE_MUNICODE_CALENDAR_GRANT.sourceUrl);
+    assert.equal(calls[0][0], "listFolders");
+    assert.equal(calls[1][0], "createFolder");
+    assert.equal(calls[2][0], "uploadFile");
+  });
+
+  it("G-116: overview meetings actually reads for bastrop_tx instead of dropping them", async () => {
+    const record = {
+      title: "Public Library Board",
+      when: "2026-09-14T18:00:00-05:00",
+      sourceUrl: TEMPLATE_MUNICODE_CALENDAR_GRANT.sourceUrl,
+      accessPolicy: "public-free",
+    };
+    const read = await listMeetingsForOverview({
+      cityKey: "bastrop_tx",
+      grant: TEMPLATE_MUNICODE_CALENDAR_GRANT,
+      env: { SMART_FILES_BACKEND_URL: "https://files.example" },
+      filesClient: {
+        async listFolders() {
+          return { folders: [{ folderId: "folder-bastrop-meetings", label: "Public meetings" }] };
+        },
+        async listFolderFiles() {
+          return { files: [{ entityId: "smartfile:tenant:bastrop_tx:lib", title: "lib" }] };
+        },
+        async readDocument() {
+          return { version: { contentCid: "cid-1" } };
+        },
+        async getBlob() {
+          return { bytes: Buffer.from(JSON.stringify(record)), contentType: "application/json" };
+        },
+      },
+    });
+    assert.equal(read.status, "ok");
+    assert.equal(read.honesty, "read");
+    assert.equal(read.records.length, 1);
+    assert.equal(read.records[0].title, "Public Library Board");
   });
 });

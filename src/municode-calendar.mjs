@@ -51,9 +51,10 @@ export function parseMunicodeMeetingsHtml(html, sourceUrl) {
 
 export async function fetchMunicodeMeetings({
   sourceUrl = DEFAULT_MUNICODE_SOURCE,
+  cityKey,
   fetchImpl = globalThis.fetch,
 } = {}) {
-  assertPublicFeedSourceUrl(sourceUrl);
+  assertPublicFeedSourceUrl(sourceUrl, cityKey);
   const res = await fetchImpl(sourceUrl, {
     headers: { accept: "text/html,application/xhtml+xml", "user-agent": "Hauska-G71-calendar/1.0" },
     signal: AbortSignal.timeout(15000),
@@ -228,10 +229,10 @@ export async function listMeetingsForOverview({
   if (!grant) {
     return honestMeetings("empty", `no municode calendar grant on ${cityKey}`);
   }
-  if (isIdentityHeldClerkHost(grant.sourceUrl)) {
+  if (isIdentityHeldClerkHost(grant.sourceUrl, cityKey)) {
     return honestMeetings(
       "empty",
-      "identity hold: Bastrop clerk calendar is not a template-city source",
+      `identity hold: Bastrop clerk calendar is not a ${cityKey} source`,
     );
   }
   if (!filesBaseUrl(env)) {
@@ -241,10 +242,10 @@ export async function listMeetingsForOverview({
   try {
     return honestMeetings(
       ...(await (async () => {
-        if (isIdentityHeldClerkHost(grant.sourceUrl)) {
+        if (isIdentityHeldClerkHost(grant.sourceUrl, cityKey)) {
           return [
             "empty",
-            "identity hold: Bastrop clerk calendar is not a template-city source",
+            `identity hold: Bastrop clerk calendar is not a ${cityKey} source`,
             [],
           ];
         }
@@ -253,11 +254,19 @@ export async function listMeetingsForOverview({
           filesClient: client,
           sourceUrl: grant.sourceUrl,
         });
-        const leaked = (read.records || []).some((row) => isIdentityHeldClerkHost(row.source));
+        // G-116: a leaked row here means real Bastrop-hosted records exist
+        // under a pack that isn't the ratified bastrop_tx identity -- still
+        // the exact G-71 mistake this guards against on every OTHER pack.
+        // On the real bastrop_tx pack itself this can never fire: its own
+        // records are held under cityKey "bastrop_tx", which
+        // isIdentityHeldClerkHost now correctly does not hold.
+        const leaked = (read.records || []).some(
+          (row) => isIdentityHeldClerkHost(row.source, cityKey),
+        );
         if (leaked) {
           return [
             "empty",
-            "identity hold: Bastrop clerk calendar is not a template-city source",
+            `identity hold: Bastrop clerk calendar is not a ${cityKey} source`,
             [],
           ];
         }
@@ -288,20 +297,21 @@ export async function runMunicodeCalendar({
       records: [],
     };
   }
-  if (isIdentityHeldClerkHost(grant.sourceUrl)) {
+  if (isIdentityHeldClerkHost(grant.sourceUrl, cityKey)) {
     return {
       cityKey,
       status: "empty",
-      basis: "identity hold: Bastrop clerk calendar is not a template-city source",
+      basis: `identity hold: Bastrop clerk calendar is not a ${cityKey} source`,
       fetched: 0,
       written: 0,
       records: [],
     };
   }
-  assertPublicFeedSourceUrl(grant.sourceUrl);
+  assertPublicFeedSourceUrl(grant.sourceUrl, cityKey);
   const fetchedAt = new Date().toISOString();
   const fetched = await fetchMunicodeMeetings({
     sourceUrl: grant.sourceUrl,
+    cityKey,
     fetchImpl,
   });
   if (fetched.records.length === 0) {

@@ -11,34 +11,50 @@ import {
   TEMPLATE_CITY,
   FIXTURE_CITY,
   EMPTY_CITY,
+  BASTROP_TX,
   PACK_COLUMNS,
 } from "./city-pack.mjs";
 
 describe("city packs", () => {
-  it("ships three packs: template-city public-free, empty-city public-free, fixture-city tenant-private, none of them Bastrop", async () => {
+  it("ships four packs: template-city public-free, empty-city public-free, fixture-city tenant-private, bastrop_tx tenant-private (real, staging) — none of them the literal 'bastrop' key", async () => {
     assert.equal(getPacksStore({}), "memory");
     const listed = await listCityPacks({});
-    assert.equal(listed.length, 3);
+    assert.equal(listed.length, 4);
     const keys = listed.map((p) => p.cityKey).sort();
-    assert.deepEqual(keys, ["empty-city", "fixture-city", "template-city"]);
+    assert.deepEqual(keys, ["bastrop_tx", "empty-city", "fixture-city", "template-city"]);
     const template = await getCityPack("template-city", {});
     const empty = await getCityPack("empty-city", {});
     const fixture = await getCityPack("fixture-city", {});
+    const bastrop = await getCityPack("bastrop_tx", {});
     assert.equal(template.accessPolicy, "public-free");
     assert.equal(empty.accessPolicy, "public-free");
     assert.equal(fixture.accessPolicy, "tenant-private");
+    assert.equal(bastrop.accessPolicy, "tenant-private");
     assert.deepEqual(template.grantedAdapters, []);
     assert.deepEqual(empty.grantedAdapters, []);
     assert.deepEqual(fixture.grantedAdapters, []);
     assert.notEqual(template.cityKey, "bastrop");
     assert.notEqual(fixture.cityKey, "bastrop");
+    assert.notEqual(bastrop.cityKey, "bastrop");
+    // G-116: real, not a demo/fixture, and not yet live — a go-live is its own,
+    // later, explicit item (same shape as G-115's item 6).
+    assert.equal(bastrop.generatesFixtures, false);
+    assert.equal(bastrop.environment, "staging");
+    assert.equal(bastrop.jurisdictionFips, "48021");
+    // G-116 Phase 1: the one real feed already proven end to end (G-71/G-74)
+    // now lives on the real pack instead of being held off it.
+    assert.equal(bastrop.grantedAdapters.length, 1);
+    assert.equal(bastrop.grantedAdapters[0].kind, "municode");
+    assert.equal(bastrop.grantedAdapters[0].sourceUrl, "https://bastrop-tx.municodemeetings.com/");
     assert.equal("repo" in template, false);
     assertCityPackShape(template);
     assertCityPackShape(empty);
     assertCityPackShape(fixture);
+    assertCityPackShape(bastrop);
     assert.equal(TEMPLATE_CITY.cityKey, "template-city");
     assert.equal(FIXTURE_CITY.cityKey, "fixture-city");
     assert.equal(EMPTY_CITY.cityKey, "empty-city");
+    assert.equal(BASTROP_TX.cityKey, "bastrop_tx");
   });
 
   it("carries the records dimension: only template-city generates, and only in demo", async () => {
@@ -181,19 +197,25 @@ describe("city packs", () => {
       throw new Error(`unexpected sql ${sql}`);
     };
     const listed = await listCityPacks(neonEnv, { query });
-    assert.equal(listed.length, 3);
+    assert.equal(listed.length, 4);
     const fixture = await getCityPack("fixture-city", neonEnv, { query });
     const template = await getCityPack("template-city", neonEnv, { query });
     const empty = await getCityPack("empty-city", neonEnv, { query });
+    const bastrop = await getCityPack("bastrop_tx", neonEnv, { query });
     assert.equal(fixture.accessPolicy, "tenant-private");
     assert.deepEqual(fixture.grantedAdapters, []);
     assert.deepEqual(template.grantedAdapters, []);
+    // G-116 Phase 1: the real municode grant round-trips through Neon too.
+    assert.equal(bastrop.grantedAdapters.length, 1);
+    assert.equal(bastrop.grantedAdapters[0].kind, "municode");
     // The records dimension survives the round trip through the store, so a
     // deployment reading Neon cannot lose the fixture declaration.
     assert.equal(template.generatesFixtures, true);
     assert.equal(empty.generatesFixtures, false);
     assert.equal(fixture.generatesFixtures, false);
+    assert.equal(bastrop.generatesFixtures, false);
     assert.equal(template.environment, "demo");
+    assert.equal(bastrop.environment, "staging");
     // And so does the demonstration axis, which is the failure generatesFixtures
     // itself had before G-79: written, never selected, silently false on Neon.
     assert.deepEqual(template.fixtureGrants, [

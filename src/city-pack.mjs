@@ -1,7 +1,7 @@
 import { LEAD_LENSES } from "./lenses.mjs";
 import { getPool } from "./db.mjs";
 import { assertNoSupplierDsn } from "./mounts.mjs";
-import { adapterKindById, assertGrantedAdapterShape } from "./adapters.mjs";
+import { adapterKindById, assertGrantedAdapterShape, TEMPLATE_MUNICODE_CALENDAR_GRANT } from "./adapters.mjs";
 
 /**
  * The demonstration axis, read defensively in one place. Declared here rather
@@ -84,9 +84,45 @@ export const FIXTURE_CITY = {
     "Tenant-private tenancy test subject, not the demo. Not Bastrop. Not a connected feed. Generates nothing and grants stay empty.",
 };
 
+/**
+ * G-116. The first real (non-demo, non-fixture) city pack. Ratified
+ * `_decisions/2026-09-03_bastrop_tx_dashboards_pack_ratified.md` — the G-11
+ * guard below only blocks the literal cityKey "bastrop"; this decision is
+ * what makes bastrop_tx itself sanctioned, matching the identity plan-review
+ * already established for this same city (G-115).
+ *
+ * environment "staging", not "live": no real staff use this pack yet and no
+ * go-live has been declared for it (that stays its own, later, explicit
+ * item, same shape as G-115's item 6). grantedAdapters starts empty on
+ * purpose — every domain reads honestly not-granted until a real feed is
+ * actually wired, one at a time, per the program's own sequencing.
+ */
+export const BASTROP_TX = {
+  cityKey: "bastrop_tx",
+  jurisdictionFips: "48021",
+  displayName: "Bastrop, TX",
+  accessPolicy: "tenant-private",
+  environment: "staging",
+  generatesFixtures: false,
+  lenses: LEAD_LENSES.map((l) => l.id),
+  /**
+   * G-116 Phase 1. The one real feed this program already proved end to
+   * end (public municode meeting calendar) -- previously misplaced on
+   * template-city (G-71, corrected G-74) because no real Bastrop pack
+   * existed to hold it. It belongs here now. Municode's own accessPolicy
+   * is public-free (public meeting minutes are public record) independent
+   * of this pack's own tenant-private policy -- the two axes are separate
+   * on purpose, same as every other grant in this file.
+   */
+  grantedAdapters: [TEMPLATE_MUNICODE_CALENDAR_GRANT],
+  notes:
+    "The real Bastrop, TX city pack. Not a demo, not a fixture. Parallel to live smartcityos.io/PermitFlow, which stays untouched and is not superseded by this pack existing. Staging until a real staff go-live is declared as its own item.",
+};
+
 memoryPacks.set(TEMPLATE_CITY.cityKey, TEMPLATE_CITY);
 memoryPacks.set(EMPTY_CITY.cityKey, EMPTY_CITY);
 memoryPacks.set(FIXTURE_CITY.cityKey, FIXTURE_CITY);
+memoryPacks.set(BASTROP_TX.cityKey, BASTROP_TX);
 
 const CREATE_CITY_PACKS_SQL = `
 CREATE TABLE IF NOT EXISTS city_packs (
@@ -227,6 +263,7 @@ export async function ensureCityPacksTable(envMap = process.env, deps = {}) {
   await runQuery(envMap, UPSERT_PACK_SQL, packParams(TEMPLATE_CITY), deps);
   await runQuery(envMap, UPSERT_PACK_SQL, packParams(EMPTY_CITY), deps);
   await runQuery(envMap, UPSERT_PACK_SQL, packParams(FIXTURE_CITY), deps);
+  await runQuery(envMap, UPSERT_PACK_SQL, packParams(BASTROP_TX), deps);
   return true;
 }
 
@@ -334,7 +371,7 @@ export function assertCityPackShape(pack) {
     throw new Error("a pack that generates no fixtures declares no fixtureGrants");
   }
   for (const grant of pack.grantedAdapters) {
-    assertGrantedAdapterShape(grant);
+    assertGrantedAdapterShape(grant, pack.cityKey);
   }
   return true;
 }
