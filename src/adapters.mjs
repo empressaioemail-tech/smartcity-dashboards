@@ -852,6 +852,65 @@ export const PLATFORM_MYGOV_PERMITS_GRANT = {
 };
 
 /**
+ * G-116 Phase 2, third batch. Five more real grants, one per kind (unlike
+ * mygov's kind-level grouping across five domains, each of these gates
+ * exactly one domain: samsara->fleet-vehicles, spireon->patrol-vehicles,
+ * firstdue->fire-apparatus, powerbi->cip-projects, goto->call-analytics).
+ * writesTo matches each kind's own catalog declaration (ADAPTER_KINDS
+ * above); none of these literally write anywhere, same "conceptual home,
+ * not this grant's mechanism" note as the permits grant.
+ *
+ * FirstDue and GoTo are granted here even though live-verified 2026-09-03
+ * to be genuinely unavailable right now (FirstDue: real 403, apparatus/
+ * assets API scope not granted to the current credential -- contact
+ * dashboards@firstarriving.com; GoTo: OAuth consent never completed, a
+ * human action via GET /api/goto/authorize on smartcity-os). The grant
+ * describes what smartcity-dashboards is entitled to read, not whether
+ * the read currently succeeds -- vendor-side availability is the source
+ * route's own honest status field to report each time it's actually
+ * called, not something to gate the grant itself on.
+ */
+export const PLATFORM_SAMSARA_FLEET_GRANT = {
+  kind: "samsara",
+  purpose: "fleet-vehicles",
+  writesTo: "files",
+  accessPolicy: "tenant-private",
+  sourceUrl: "https://smartcity-api-7dyaiy7wha-uc.a.run.app/api/platform/samsara/vehicles",
+};
+
+export const PLATFORM_SPIREON_PATROL_GRANT = {
+  kind: "spireon",
+  purpose: "patrol-vehicles",
+  writesTo: "files",
+  accessPolicy: "tenant-private",
+  sourceUrl: "https://smartcity-api-7dyaiy7wha-uc.a.run.app/api/platform/spireon/vehicles",
+};
+
+export const PLATFORM_FIRSTDUE_APPARATUS_GRANT = {
+  kind: "firstdue",
+  purpose: "fire-apparatus",
+  writesTo: "files",
+  accessPolicy: "tenant-private",
+  sourceUrl: "https://smartcity-api-7dyaiy7wha-uc.a.run.app/api/platform/firstdue/apparatus",
+};
+
+export const PLATFORM_POWERBI_CIP_GRANT = {
+  kind: "powerbi",
+  purpose: "cip-projects",
+  writesTo: "files",
+  accessPolicy: "tenant-private",
+  sourceUrl: "https://smartcity-api-7dyaiy7wha-uc.a.run.app/api/platform/powerbi/cip-projects",
+};
+
+export const PLATFORM_GOTO_CALLS_GRANT = {
+  kind: "goto",
+  purpose: "call-analytics",
+  writesTo: "files",
+  accessPolicy: "tenant-private",
+  sourceUrl: "https://smartcity-api-7dyaiy7wha-uc.a.run.app/api/platform/goto/call-summary",
+};
+
+/**
  * G-116. cityKey is the pack this URL is being evaluated FOR, not a label on
  * the URL itself. The Bastrop clerk host is held (refused) on every pack
  * except the one real, ratified Bastrop pack (`bastrop_tx`,
@@ -965,4 +1024,16 @@ export function mygovPermitsGrantFor(pack) {
 export function mygovLiveGrantFor(pack) {
   const grants = Array.isArray(pack?.grantedAdapters) ? pack.grantedAdapters : [];
   return grants.find((g) => g && g.kind === "mygov") || null;
+}
+
+/**
+ * G-116 Phase 2, third batch. The general form mygovLiveGrantFor is a
+ * special case of -- kept as its own named function rather than replaced,
+ * since it already shipped and is tested. Any grant matching a kind
+ * unlocks that kind's real domain(s); each of samsara/spireon/firstdue/
+ * powerbi/goto gates exactly one domain, so this is the whole check.
+ */
+export function platformGrantForKind(pack, kind) {
+  const grants = Array.isArray(pack?.grantedAdapters) ? pack.grantedAdapters : [];
+  return grants.find((g) => g && g.kind === kind) || null;
 }

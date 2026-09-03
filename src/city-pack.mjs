@@ -6,6 +6,11 @@ import {
   assertGrantedAdapterShape,
   TEMPLATE_MUNICODE_CALENDAR_GRANT,
   PLATFORM_MYGOV_PERMITS_GRANT,
+  PLATFORM_SAMSARA_FLEET_GRANT,
+  PLATFORM_SPIREON_PATROL_GRANT,
+  PLATFORM_FIRSTDUE_APPARATUS_GRANT,
+  PLATFORM_POWERBI_CIP_GRANT,
+  PLATFORM_GOTO_CALLS_GRANT,
 } from "./adapters.mjs";
 
 /**
@@ -119,7 +124,15 @@ export const BASTROP_TX = {
    * of this pack's own tenant-private policy -- the two axes are separate
    * on purpose, same as every other grant in this file.
    */
-  grantedAdapters: [TEMPLATE_MUNICODE_CALENDAR_GRANT, PLATFORM_MYGOV_PERMITS_GRANT],
+  grantedAdapters: [
+    TEMPLATE_MUNICODE_CALENDAR_GRANT,
+    PLATFORM_MYGOV_PERMITS_GRANT,
+    PLATFORM_SAMSARA_FLEET_GRANT,
+    PLATFORM_SPIREON_PATROL_GRANT,
+    PLATFORM_FIRSTDUE_APPARATUS_GRANT,
+    PLATFORM_POWERBI_CIP_GRANT,
+    PLATFORM_GOTO_CALLS_GRANT,
+  ],
   notes:
     "The real Bastrop, TX city pack. Not a demo, not a fixture. Parallel to live smartcityos.io/PermitFlow, which stays untouched and is not superseded by this pack existing. Staging until a real staff go-live is declared as its own item.",
 };
