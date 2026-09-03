@@ -946,3 +946,23 @@ export function mygovPermitsGrantFor(pack) {
   const grants = Array.isArray(pack?.grantedAdapters) ? pack.grantedAdapters : [];
   return grants.find((g) => g && g.kind === "mygov" && g.purpose === "permits") || null;
 }
+
+/**
+ * G-116 second batch. Kind-level, matching how the fixture axis already
+ * treats "mygov" -- packFixtureGrants/noFixtureSourceBasis check kind only,
+ * so granting mygov once makes every mygov-gated domain (permits,
+ * work-orders, inspections, code-violations, business-licenses) generate
+ * together, not one grant per domain. The real side follows the same
+ * granularity: the platform-internal MyGov key is one credential covering
+ * the whole resource family (smartcity-os's own single MyGov login), so
+ * any mygov grant on the pack -- today just PLATFORM_MYGOV_PERMITS_GRANT --
+ * is sufficient to unlock the other four real reads too. Deliberately does
+ * NOT require purpose === "permits": that field still names what the one
+ * grant object is FOR (it carries the real sourceUrl for permits
+ * specifically), it just isn't the gate for whether mygov as a kind is
+ * granted.
+ */
+export function mygovLiveGrantFor(pack) {
+  const grants = Array.isArray(pack?.grantedAdapters) ? pack.grantedAdapters : [];
+  return grants.find((g) => g && g.kind === "mygov") || null;
+}
