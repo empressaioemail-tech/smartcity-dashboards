@@ -7,8 +7,14 @@ import { listLenses, getLens } from "./lenses.mjs";
 import { listCityPacks, getCityPack, getPacksStore, ensureCityPacksTable } from "./city-pack.mjs";
 import { readMounts, smartsiteEmbedUrl, planReviewEmbedUrl, smartFilesEmbedUrl, assertNoSupplierDsn, assertNoSupplierMounts } from "./mounts.mjs";
 import { composeCityManager, DEFAULT_CITY_KEY } from "./compose.mjs";
-import { listAdapterKinds, mygovPermitsGrantFor } from "./adapters.mjs";
+import { listAdapterKinds, mygovLiveGrantFor } from "./adapters.mjs";
 import { composeRealPermits } from "./mygov-permits.mjs";
+import {
+  composeRealWorkOrders,
+  composeRealInspections,
+  composeRealCodeViolations,
+  composeRealBusinessLicenses,
+} from "./mygov-live.mjs";
 import { composePipeline } from "./fixtures.mjs";
 import { composeDomainById, composeDomainMap, getDomain } from "./domains.mjs";
 import { cityIdentity } from "./city-identity.mjs";
@@ -17,6 +23,31 @@ import { loadDotenv } from "./load-env.mjs";
 import { pingDb } from "./db.mjs";
 import { MCP_TOOL_NAMES } from "./catalog.mjs";
 import { canReadPack, packContentReadStatus, packReadStatus, resolveCaller, isServiceBearer } from "./tenancy.mjs";
+
+/**
+ * G-116 Phase 2. Every domain with a real (non-fixture) mygov source, and
+ * how to compose it. permits-pipeline's composer takes the grant as its
+ * third argument (it reads grant.accessPolicy for the real permit
+ * sourceUrl this program ratified); the other four (mygov-live.mjs) don't
+ * need the grant object itself, only that ONE exists (mygovLiveGrantFor) --
+ * see that function's own comment for why kind-level, not per-domain,
+ * grants are correct here.
+ */
+const REAL_MYGOV_DOMAINS = {
+  "permits-pipeline": (pack, domain, grant) => composeRealPermits(pack, domain, grant),
+  "work-orders": (pack, domain) => composeRealWorkOrders(pack, domain),
+  inspections: (pack, domain) => composeRealInspections(pack, domain),
+  "code-violations": (pack, domain) => composeRealCodeViolations(pack, domain),
+  "business-licenses": (pack, domain) => composeRealBusinessLicenses(pack, domain),
+};
+
+async function composeRealMygovDomain(domainId, pack, grant) {
+  const composer = REAL_MYGOV_DOMAINS[domainId];
+  if (!composer) return null;
+  const domain = getDomain(domainId);
+  if (!domain) return null;
+  return composer(pack, domain, grant);
+}
 import { deliverFeedback, shellState } from "./shell-state.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -292,20 +323,21 @@ async function handle(req, res) {
     const map = composeDomainMap(pack);
     /**
      * G-116 Phase 2. Same real-source branch as /api/domains/:id below --
-     * kept consistent on purpose. Without this, the map would say
-     * permits-pipeline has "no-fixture-source" while the domain's own
-     * endpoint returns real records for the identical pack: two different,
+     * kept consistent on purpose. Without this, the map would say a mygov
+     * domain has "no-fixture-source" while the domain's own endpoint
+     * returns real records for the identical pack: two different,
      * disagreeing answers to "does this region have a source", which is
      * exactly the sentence-collapse ruling 1 (this route's own header
      * comment) exists to prevent.
      */
     if (pack.generatesFixtures !== true) {
-      const grant = mygovPermitsGrantFor(pack);
-      if (grant) {
-        const domain = getDomain("permits-pipeline");
-        const real = await composeRealPermits(pack, domain, grant);
-        const idx = map.regions.findIndex((r) => r.domainId === "permits-pipeline");
-        if (idx >= 0) {
+      const liveGrant = mygovLiveGrantFor(pack);
+      if (liveGrant) {
+        for (const domainId of Object.keys(REAL_MYGOV_DOMAINS)) {
+          const idx = map.regions.findIndex((r) => r.domainId === domainId);
+          if (idx < 0) continue;
+          const real = await composeRealMygovDomain(domainId, pack, liveGrant);
+          if (!real) continue;
           const before = map.regions[idx];
           map.regions[idx] = {
             domainId: real.domainId,
@@ -348,24 +380,27 @@ async function handle(req, res) {
       return;
     }
     /**
-     * G-116 Phase 2. The one domain with a real, live source instead of a
-     * fixture. composeDomain/composeDomainById (domains.mjs, fixture-seam.mjs)
-     * stay entirely synchronous and fixture-only by design -- this branch sits
-     * beside them, not inside them, the same way meetingsFromPack sits beside
+     * G-116 Phase 2. The five domains with a real, live source instead of a
+     * fixture (permits, work-orders, inspections, code-violations,
+     * business-licenses -- REAL_MYGOV_DOMAINS below). composeDomain/
+     * composeDomainById (domains.mjs, fixture-seam.mjs) stay entirely
+     * synchronous and fixture-only by design -- this branch sits beside
+     * them, not inside them, the same way meetingsFromPack sits beside
      * composeDomain for the municode calendar feed rather than becoming a
-     * branch inside it. Only fires for a pack that is NOT generating fixtures
-     * and DOES carry a real mygov grant; every other pack/domain combination
-     * (all of template-city, all ten other domains on every pack) is
-     * completely unaffected and still calls composeDomainById exactly as
-     * before.
+     * branch inside it. Only fires for a pack that is NOT generating
+     * fixtures and DOES carry a real mygov grant; every other pack/domain
+     * combination (all of template-city, all six non-mygov domains on
+     * every pack) is completely unaffected and still calls
+     * composeDomainById exactly as before.
      */
-    if (domainId === "permits-pipeline" && pack.generatesFixtures !== true) {
-      const grant = mygovPermitsGrantFor(pack);
+    if (REAL_MYGOV_DOMAINS[domainId] && pack.generatesFixtures !== true) {
+      const grant = mygovLiveGrantFor(pack);
       if (grant) {
-        const domain = getDomain(domainId);
-        const composed = await composeRealPermits(pack, domain, grant);
-        json(res, 200, composed);
-        return;
+        const composed = await composeRealMygovDomain(domainId, pack, grant);
+        if (composed) {
+          json(res, 200, composed);
+          return;
+        }
       }
     }
     const composed = composeDomainById(pack, domainId);
