@@ -421,16 +421,29 @@ describe("G-90 anonymous stays the default path", () => {
      * defect class in this program. Measured rather than promised.
      *
      * Nothing this card added stores per-visitor state on the server - the one
-     * POST forwards and keeps nothing - and the one piece of client state is the
-     * theme preference, which is device-scoped and survives a future sign-in
-     * untouched. So there is no anonymous work for a sign-in to strand, and this
-     * asserts the two properties that make that true rather than the conclusion.
+     * POST forwards and keeps nothing - and the theme preference is
+     * device-scoped and survives a future sign-in untouched. So there is no
+     * anonymous WORK for a sign-in to strand.
+     *
+     * G-116 adds a second key, deliberately, and it does not weaken this
+     * guard: HAUSKA_KEY_STORAGE holds a credential a caller explicitly
+     * brought via ?hauskaKey=..., never something an anonymous visitor
+     * produced by using the product. shellSession's own basis text (this
+     * file, "a Hauska product key resolved to a city pack tenant") already
+     * describes exactly this mechanism; this is the bootstrap that lets a
+     * browser actually present the key shellSession was written to expect.
+     * An anonymous visitor's localStorage still holds nothing this key
+     * would touch.
      */
     assert.equal(app.includes("sessionStorage"), false, "no per-visitor client session state");
     const localStorageKeys = [...app.matchAll(/localStorage\.(?:get|set|remove)Item\(([^,)]+)/g)].map((m) =>
       m[1].trim(),
     );
-    assert.deepEqual(localStorageKeys, ["THEME_STORAGE_KEY"], "the theme is the only thing stored on the device");
+    assert.deepEqual(
+      [...new Set(localStorageKeys)].sort(),
+      ["HAUSKA_KEY_STORAGE", "THEME_STORAGE_KEY"],
+      "only the theme and an explicitly-presented Hauska key are ever stored on the device",
+    );
     // The capability resolver's anonymous answer is the DEFAULT rather than a
     // degraded one: every control renders, states its reason, and the surface
     // works without a credential.
