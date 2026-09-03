@@ -1,7 +1,12 @@
 import { LEAD_LENSES } from "./lenses.mjs";
 import { getPool } from "./db.mjs";
 import { assertNoSupplierDsn } from "./mounts.mjs";
-import { adapterKindById, assertGrantedAdapterShape, TEMPLATE_MUNICODE_CALENDAR_GRANT } from "./adapters.mjs";
+import {
+  adapterKindById,
+  assertGrantedAdapterShape,
+  TEMPLATE_MUNICODE_CALENDAR_GRANT,
+  PLATFORM_MYGOV_PERMITS_GRANT,
+} from "./adapters.mjs";
 
 /**
  * The demonstration axis, read defensively in one place. Declared here rather
@@ -114,7 +119,7 @@ export const BASTROP_TX = {
    * of this pack's own tenant-private policy -- the two axes are separate
    * on purpose, same as every other grant in this file.
    */
-  grantedAdapters: [TEMPLATE_MUNICODE_CALENDAR_GRANT],
+  grantedAdapters: [TEMPLATE_MUNICODE_CALENDAR_GRANT, PLATFORM_MYGOV_PERMITS_GRANT],
   notes:
     "The real Bastrop, TX city pack. Not a demo, not a fixture. Parallel to live smartcityos.io/PermitFlow, which stays untouched and is not superseded by this pack existing. Staging until a real staff go-live is declared as its own item.",
 };
