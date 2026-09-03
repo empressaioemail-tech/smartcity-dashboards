@@ -42,11 +42,11 @@ describe("city packs", () => {
     assert.equal(bastrop.environment, "staging");
     assert.equal(bastrop.jurisdictionFips, "48021");
     // G-116 Phase 1: the one real feed already proven end to end (G-71/G-74)
-    // now lives on the real pack instead of being held off it. Phase 2: the
-    // real mygov permits feed joins it.
-    assert.equal(bastrop.grantedAdapters.length, 2);
+    // now lives on the real pack instead of being held off it. Phase 2: six
+    // more real grants join it (mygov plus five single-domain vendors).
+    assert.equal(bastrop.grantedAdapters.length, 7);
     const bastropKinds = bastrop.grantedAdapters.map((g) => g.kind).sort();
-    assert.deepEqual(bastropKinds, ["municode", "mygov"]);
+    assert.deepEqual(bastropKinds, ["firstdue", "goto", "municode", "mygov", "powerbi", "samsara", "spireon"]);
     const municodeGrant = bastrop.grantedAdapters.find((g) => g.kind === "municode");
     assert.equal(municodeGrant.sourceUrl, "https://bastrop-tx.municodemeetings.com/");
     const mygovGrant = bastrop.grantedAdapters.find((g) => g.kind === "mygov");
@@ -211,9 +211,9 @@ describe("city packs", () => {
     assert.equal(fixture.accessPolicy, "tenant-private");
     assert.deepEqual(fixture.grantedAdapters, []);
     assert.deepEqual(template.grantedAdapters, []);
-    // G-116 Phase 1/2: both real grants round-trip through Neon too.
-    assert.equal(bastrop.grantedAdapters.length, 2);
-    assert.deepEqual(bastrop.grantedAdapters.map((g) => g.kind).sort(), ["municode", "mygov"]);
+    // G-116 Phase 1/2: all seven real grants round-trip through Neon too.
+    assert.equal(bastrop.grantedAdapters.length, 7);
+    assert.deepEqual(bastrop.grantedAdapters.map((g) => g.kind).sort(), ["firstdue", "goto", "municode", "mygov", "powerbi", "samsara", "spireon"]);
     // The records dimension survives the round trip through the store, so a
     // deployment reading Neon cannot lose the fixture declaration.
     assert.equal(template.generatesFixtures, true);

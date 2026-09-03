@@ -1,0 +1,289 @@
+/* -------------------------------------------------------------- vendor live
+
+G-116 Phase 2, third batch. The five non-mygov real feeds: fleet-vehicles
+(Samsara), patrol-vehicles (Spireon), fire-apparatus (FirstDue),
+cip-projects (PowerBI), call-analytics (GoTo). Same architecture as
+mygov-permits.mjs/mygov-live.mjs (both untouched -- additive only): a
+separate module from fixture-seam.mjs/composeDomain, branched at the
+server.mjs route level, records carry origin "feed".
+
+REAL STATUS VALUES, SAME STANCE AS EVERY MYGOV DOMAIN. Fleet/patrol
+vehicle status is not force-mapped onto VEHICLE_STATUS_VALUES (this
+product's own invented out-of-service/inspection-due/in-shop/in-service
+taxonomy) -- real Samsara/Spireon data has no such classification; it has
+raw telemetry (engineState, nspireStatus). Real status is kept as-is.
+
+TWO OF FIVE ARE HONESTLY UNAVAILABLE TODAY, NOT BROKEN. Live-verified
+2026-09-03: Samsara, Spireon and PowerBI return real data. FirstDue
+returns a real, specific 403 (the source route's own code already
+documents this: current API credentials lack apparatus/assets scope,
+contact dashboards@firstarriving.com). GoTo returns "not authorized"
+(needsAuth: true) -- the OAuth consent flow (GET /api/goto/authorize) has
+never been completed by a human. Neither is a code defect; both need a
+real-world action outside engineering. This module reports whichever
+state is genuinely true each time it's called, not a cached assumption.
+*/
+
+function platformKey(env = process.env) {
+  return String(env.PLATFORM_INTERNAL_API_KEY || "").trim();
+}
+
+async function fetchLiveJson(url, { env = process.env, fetchImpl = globalThis.fetch } = {}) {
+  const key = platformKey(env);
+  if (!key) {
+    return { status: "unavailable", basis: "PLATFORM_INTERNAL_API_KEY unset", body: null };
+  }
+  let res;
+  try {
+    res = await fetchImpl(url, {
+      headers: { authorization: `Bearer ${key}`, accept: "application/json" },
+      signal: AbortSignal.timeout(15000),
+    });
+  } catch (err) {
+    return { status: "unavailable", basis: `platform fetch failed: ${err.message}`, body: null };
+  }
+  const body = await res.json().catch(() => null);
+  if (!res.ok) {
+    const basis = body?.message || body?.error || `platform HTTP ${res.status}`;
+    return { status: "unavailable", basis, body };
+  }
+  return { status: "ok", basis: "live", body };
+}
+
+function envelope(pack, domain) {
+  return {
+    domainId: domain.id,
+    lensId: domain.lensId,
+    region: domain.region,
+    cityKey: pack.cityKey,
+    displayName: pack.displayName,
+    environment: pack.environment,
+    kind: domain.gatedBy,
+    recordType: domain.recordType,
+    gatedBy: domain.gatedBy,
+    source: "live",
+  };
+}
+
+function unavailableResult(base, basis) {
+  return {
+    ...base,
+    granted: true,
+    generated: false,
+    status: "unavailable",
+    basis,
+    recordCount: 0,
+    countingRule: `no records: ${basis}`,
+    records: [],
+    extras: {},
+  };
+}
+
+function okResult(base, records, basis, denominatorLabel) {
+  if (records.length === 0) {
+    return {
+      ...base,
+      granted: true,
+      generated: false,
+      status: "granted-empty",
+      basis: `${base.gatedBy} is granted on ${base.cityKey} and the live read returned zero ${denominatorLabel}`,
+      recordCount: 0,
+      countingRule: `no records: ${basis}`,
+      records: [],
+      extras: {},
+    };
+  }
+  return {
+    ...base,
+    granted: true,
+    generated: false,
+    status: "ok",
+    basis,
+    recordCount: records.length,
+    countingRule: `${records.length} real ${denominatorLabel} read live from smartcity-os for ${base.cityKey}`,
+    records,
+    extras: {},
+  };
+}
+
+/* --------------------------------------------------------------- samsara */
+
+export function mapRealFleetVehicleRecord(row, cityKey) {
+  return {
+    recordId: String(row.id || "").trim() || `unknown-vehicle`,
+    kind: "samsara",
+    recordType: "fleet-vehicle",
+    cityKey,
+    origin: "feed",
+    accessPolicy: "tenant-private",
+    unitLabel: row.name || `${row.make || ""} ${row.model || ""}`.trim() || "Unnamed unit",
+    status: String(row.stats?.engineState || "unknown"),
+    operator: null,
+    department: (row.tags || [])[0] || null,
+    make: row.make || null,
+    model: row.model || null,
+    vin: row.vin || null,
+    odometerMiles: row.stats?.odometerMiles ?? row.stats?.obdOdometerMiles ?? null,
+    fuelPercent: row.stats?.fuelPercent ?? null,
+    provenance: {
+      source: "smartcity-os /api/platform/samsara/vehicles",
+      basis: "cachedFetch('vehicles', '/fleet/vehicles'), 60s TTL",
+      readAt: new Date().toISOString(),
+      readAtBasis: "read live for this request; not generated",
+    },
+  };
+}
+
+export async function composeRealFleetVehicles(pack, domain, opts = {}) {
+  const base = envelope(pack, domain);
+  const fetched = await fetchLiveJson("https://smartcity-api-7dyaiy7wha-uc.a.run.app/api/platform/samsara/vehicles", opts);
+  if (fetched.status !== "ok") return unavailableResult(base, fetched.basis);
+  const rows = Array.isArray(fetched.body?.vehicles) ? fetched.body.vehicles : [];
+  const records = rows.map((row) => mapRealFleetVehicleRecord(row, pack.cityKey));
+  return okResult(base, records, fetched.body?.contract || "live", "fleet-vehicle records");
+}
+
+/* -------------------------------------------------------------- spireon */
+
+export function mapRealPatrolVehicleRecord(row, cityKey) {
+  return {
+    recordId: String(row.spireonId || row.id || "").trim() || `unknown-patrol`,
+    kind: "spireon",
+    recordType: "patrol-vehicle",
+    cityKey,
+    origin: "feed",
+    accessPolicy: "tenant-private",
+    unitLabel: row.name || "Unnamed unit",
+    status: String(row.nspireStatus || row.status || "unknown"),
+    department: row.department || null,
+    place: {
+      label: row.address || "Address not on record",
+      parcelNodeId: null,
+      parcelBasis: "vehicle location is a GPS fix, not attached to a parcel id",
+    },
+    speed: row.speed ?? null,
+    odometer: row.odometer ?? null,
+    engineHours: row.engineHours ?? null,
+    lastUpdate: row.lastUpdate || null,
+    provenance: {
+      source: "smartcity-os /api/platform/spireon/vehicles",
+      basis: "getCredentials/fetchLiveVehicles, active vehicles only",
+      readAt: new Date().toISOString(),
+      readAtBasis: "read live for this request; not generated",
+    },
+  };
+}
+
+export async function composeRealPatrolVehicles(pack, domain, opts = {}) {
+  const base = envelope(pack, domain);
+  const fetched = await fetchLiveJson("https://smartcity-api-7dyaiy7wha-uc.a.run.app/api/platform/spireon/vehicles", opts);
+  if (fetched.status !== "ok") return unavailableResult(base, fetched.basis);
+  const rows = Array.isArray(fetched.body?.vehicles) ? fetched.body.vehicles : [];
+  const records = rows.map((row) => mapRealPatrolVehicleRecord(row, pack.cityKey));
+  return okResult(base, records, fetched.body?.contract || "live", "patrol-vehicle records");
+}
+
+/* ------------------------------------------------------------- firstdue */
+
+export function mapRealFireApparatusRecord(row, cityKey) {
+  return {
+    recordId: String(row.id || row.unitId || "").trim() || `unknown-apparatus`,
+    kind: "firstdue",
+    recordType: "fire-apparatus",
+    cityKey,
+    origin: "feed",
+    accessPolicy: "tenant-private",
+    unitLabel: row.name || row.unitName || "Unnamed apparatus",
+    status: String(row.status || "unknown"),
+    station: row.station || row.stationName || null,
+    provenance: {
+      source: "smartcity-os /api/platform/firstdue/apparatus",
+      basis: "live",
+      readAt: new Date().toISOString(),
+      readAtBasis: "read live for this request; not generated",
+    },
+  };
+}
+
+export async function composeRealFireApparatus(pack, domain, opts = {}) {
+  const base = envelope(pack, domain);
+  const fetched = await fetchLiveJson("https://smartcity-api-7dyaiy7wha-uc.a.run.app/api/platform/firstdue/apparatus", opts);
+  if (fetched.status !== "ok") return unavailableResult(base, fetched.basis);
+  const rows = Array.isArray(fetched.body?.apparatus) ? fetched.body.apparatus : [];
+  const records = rows.map((row) => mapRealFireApparatusRecord(row, pack.cityKey));
+  return okResult(base, records, fetched.body?.contract || "live", "fire-apparatus records");
+}
+
+/* -------------------------------------------------------------- powerbi */
+
+export function mapRealCipProjectRecord(row, cityKey) {
+  return {
+    recordId: String(row.name || "").trim() || `unknown-project`,
+    kind: "powerbi",
+    recordType: "capital-project",
+    cityKey,
+    origin: "feed",
+    accessPolicy: "tenant-private",
+    projectName: row.name || "Untitled project",
+    completion: row.overallCompletion ?? null,
+    startDate: row.startDate || null,
+    endDate: row.endDate || null,
+    phaseCount: Array.isArray(row.phases) ? row.phases.length : 0,
+    provenance: {
+      source: "smartcity-os /api/platform/powerbi/cip-projects",
+      basis: "getCIPProjectData()",
+      readAt: new Date().toISOString(),
+      readAtBasis: "read live for this request; not generated",
+    },
+  };
+}
+
+export async function composeRealCipProjects(pack, domain, opts = {}) {
+  const base = envelope(pack, domain);
+  const fetched = await fetchLiveJson("https://smartcity-api-7dyaiy7wha-uc.a.run.app/api/platform/powerbi/cip-projects", opts);
+  if (fetched.status !== "ok") return unavailableResult(base, fetched.basis);
+  const rows = Array.isArray(fetched.body?.projects) ? fetched.body.projects : [];
+  const records = rows.map((row) => mapRealCipProjectRecord(row, pack.cityKey));
+  return okResult(base, records, fetched.body?.contract || "live", "capital-project records");
+}
+
+/* ------------------------------------------------------------------ goto */
+
+/**
+ * Aggregate only, one record representing "all queues, today" -- see
+ * module header and the source route's own comment (server-side) for why:
+ * real call detail is not exposed, matching this product's own fixture
+ * domain drawing the identical line for invented data.
+ */
+export function mapRealCallSummaryRecord(summary, cityKey) {
+  return {
+    recordId: `today-${new Date().toISOString().slice(0, 10)}`,
+    kind: "goto",
+    recordType: "call-volume",
+    cityKey,
+    origin: "feed",
+    accessPolicy: "tenant-private",
+    queueLabel: "All queues",
+    dayLabel: "Today",
+    callsAnswered: summary.answeredCalls ?? 0,
+    callsMissed: summary.missedCalls ?? 0,
+    callsOffered: summary.totalCalls ?? 0,
+    answerRate: summary.answerRate ?? null,
+    avgHandleTimeSec: summary.avgHandleTimeSec ?? null,
+    provenance: {
+      source: "smartcity-os /api/platform/goto/call-summary",
+      basis: "aggregate only, no individual call detail",
+      readAt: new Date().toISOString(),
+      readAtBasis: "read live for this request; not generated",
+    },
+  };
+}
+
+export async function composeRealCallAnalytics(pack, domain, opts = {}) {
+  const base = envelope(pack, domain);
+  const fetched = await fetchLiveJson("https://smartcity-api-7dyaiy7wha-uc.a.run.app/api/platform/goto/call-summary", opts);
+  if (fetched.status !== "ok") return unavailableResult(base, fetched.basis);
+  const summary = fetched.body?.summary;
+  const records = summary ? [mapRealCallSummaryRecord(summary, pack.cityKey)] : [];
+  return okResult(base, records, fetched.body?.contract || "live", "call-volume aggregate");
+}
