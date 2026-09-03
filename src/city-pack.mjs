@@ -84,9 +84,36 @@ export const FIXTURE_CITY = {
     "Tenant-private tenancy test subject, not the demo. Not Bastrop. Not a connected feed. Generates nothing and grants stay empty.",
 };
 
+/**
+ * G-116. The first real (non-demo, non-fixture) city pack. Ratified
+ * `_decisions/2026-09-03_bastrop_tx_dashboards_pack_ratified.md` — the G-11
+ * guard below only blocks the literal cityKey "bastrop"; this decision is
+ * what makes bastrop_tx itself sanctioned, matching the identity plan-review
+ * already established for this same city (G-115).
+ *
+ * environment "staging", not "live": no real staff use this pack yet and no
+ * go-live has been declared for it (that stays its own, later, explicit
+ * item, same shape as G-115's item 6). grantedAdapters starts empty on
+ * purpose — every domain reads honestly not-granted until a real feed is
+ * actually wired, one at a time, per the program's own sequencing.
+ */
+export const BASTROP_TX = {
+  cityKey: "bastrop_tx",
+  jurisdictionFips: "48021",
+  displayName: "Bastrop, TX",
+  accessPolicy: "tenant-private",
+  environment: "staging",
+  generatesFixtures: false,
+  lenses: LEAD_LENSES.map((l) => l.id),
+  grantedAdapters: [],
+  notes:
+    "The real Bastrop, TX city pack. Not a demo, not a fixture. Parallel to live smartcityos.io/PermitFlow, which stays untouched and is not superseded by this pack existing. Staging until a real staff go-live is declared as its own item.",
+};
+
 memoryPacks.set(TEMPLATE_CITY.cityKey, TEMPLATE_CITY);
 memoryPacks.set(EMPTY_CITY.cityKey, EMPTY_CITY);
 memoryPacks.set(FIXTURE_CITY.cityKey, FIXTURE_CITY);
+memoryPacks.set(BASTROP_TX.cityKey, BASTROP_TX);
 
 const CREATE_CITY_PACKS_SQL = `
 CREATE TABLE IF NOT EXISTS city_packs (
@@ -227,6 +254,7 @@ export async function ensureCityPacksTable(envMap = process.env, deps = {}) {
   await runQuery(envMap, UPSERT_PACK_SQL, packParams(TEMPLATE_CITY), deps);
   await runQuery(envMap, UPSERT_PACK_SQL, packParams(EMPTY_CITY), deps);
   await runQuery(envMap, UPSERT_PACK_SQL, packParams(FIXTURE_CITY), deps);
+  await runQuery(envMap, UPSERT_PACK_SQL, packParams(BASTROP_TX), deps);
   return true;
 }
 
