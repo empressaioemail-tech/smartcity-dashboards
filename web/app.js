@@ -14,6 +14,53 @@ import {
   themeToggleTitle,
 } from "/theme.mjs";
 
+/**
+ * G-116. Real Hauska tenant-key bootstrap, for real (tenant-private) city
+ * packs. No login UI exists yet -- real staff auth is a named,
+ * deliberately-unbuilt future item (src/shell-state.mjs, badged "Not
+ * built") -- this is the smallest bridge to let an already-issued Hauska
+ * key reach this browser's API calls, not a login system.
+ *
+ * A ?hauskaKey=... query param seeds localStorage once, then the browser
+ * drops the param from the visible URL/history via replaceState (so the
+ * raw key doesn't linger past the one load that set it); every same-origin
+ * /api/ fetch after that carries the header from localStorage. Nothing
+ * changes for any public-free demo pack: no key is ever set for one, and
+ * this wrapper is a no-op when localStorage holds nothing.
+ */
+const HAUSKA_KEY_STORAGE = "hauska_key";
+(function bootstrapHauskaKey() {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const fromUrl = params.get("hauskaKey");
+    if (fromUrl) {
+      window.localStorage.setItem(HAUSKA_KEY_STORAGE, fromUrl);
+      params.delete("hauskaKey");
+      const clean = `${window.location.pathname}${params.toString() ? `?${params}` : ""}${window.location.hash}`;
+      window.history.replaceState(null, "", clean);
+    }
+  } catch {
+    // localStorage unavailable (private browsing, etc.) -- the key simply
+    // won't attach; every existing public-free pack call is unaffected.
+  }
+})();
+
+const _originalFetch = window.fetch.bind(window);
+window.fetch = (input, init = {}) => {
+  let key = "";
+  try {
+    key = window.localStorage.getItem(HAUSKA_KEY_STORAGE) || "";
+  } catch {
+    key = "";
+  }
+  const url = typeof input === "string" ? input : input?.url || "";
+  const sameOriginApi = url.startsWith("/api/") || url.startsWith(`${window.location.origin}/api/`);
+  if (!key || !sameOriginApi) return _originalFetch(input, init);
+  const headers = new Headers(init.headers || (typeof input !== "string" ? input.headers : undefined));
+  headers.set("x-hauska-key", key);
+  return _originalFetch(input, { ...init, headers });
+};
+
 /*
   G-95. The three label maps that used to live here now live in
   src/staff-review.mjs, and they moved rather than being copied.
