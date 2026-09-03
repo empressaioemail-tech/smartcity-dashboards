@@ -8,12 +8,15 @@ import {
   declaredRecordShapes,
   recordShapeFor,
 } from "./adapters.mjs";
-import { DOMAIN_REGISTRY } from "./domains.mjs";
+import { DOMAIN_REGISTRY, getDomain } from "./domains.mjs";
 import { PERMITS_PIPELINE_DOMAIN } from "./domains/permits-pipeline.mjs";
+import { composeRealPermits } from "./mygov-permits.mjs";
+import { PLATFORM_MYGOV_PERMITS_GRANT } from "./adapters.mjs";
 import {
   TEMPLATE_CITY,
   EMPTY_CITY,
   FIXTURE_CITY,
+  BASTROP_TX,
   environmentBadgeLabel,
 } from "./city-pack.mjs";
 import {
@@ -398,5 +401,51 @@ describe("the generator", () => {
     for (const pack of [TEMPLATE_CITY, EMPTY_CITY, FIXTURE_CITY]) {
       assert.deepEqual(pack.grantedAdapters, [], pack.cityKey);
     }
+  });
+});
+
+describe("composePipeline real branch (G-116 close, the fixed route-dispatch gap)", () => {
+  const domain = getDomain("permits-pipeline");
+
+  it("adapts a real composeRealPermits result onto the pipeline shape, generated true, real counts not fixture metrics", async () => {
+    const fetchImpl = async () => ({
+      ok: true,
+      json: async () => ({ permits: [{ id: "1", permitNumber: "21-1", status: "active" }], contract: "live" }),
+    });
+    const real = await composeRealPermits(BASTROP_TX, domain, PLATFORM_MYGOV_PERMITS_GRANT, {
+      env: { PLATFORM_INTERNAL_API_KEY: "test-key" },
+      fetchImpl,
+    });
+    const pipeline = composePipeline(BASTROP_TX, real);
+    assert.equal(pipeline.cityKey, "bastrop_tx");
+    assert.equal(pipeline.tab, "pipeline");
+    assert.equal(pipeline.generated, true);
+    assert.equal(pipeline.status, "ok");
+    assert.equal(pipeline.sourceStatus, "ok");
+    assert.equal(pipeline.recordCount, 1);
+    assert.equal(pipeline.metrics, null);
+    assert.deepEqual(pipeline.realStatusCounts, [{ status: "active", count: 1 }]);
+    assert.equal(pipeline.records[0].origin, "feed");
+  });
+
+  it("does not claim a real, empty pipeline 'generates none' -- that phrase is only true of a fixture pack", async () => {
+    const fetchImpl = async () => ({ ok: true, json: async () => ({ permits: [], contract: "live" }) });
+    const real = await composeRealPermits(BASTROP_TX, domain, PLATFORM_MYGOV_PERMITS_GRANT, {
+      env: { PLATFORM_INTERNAL_API_KEY: "test-key" },
+      fetchImpl,
+    });
+    const pipeline = composePipeline(BASTROP_TX, real);
+    assert.equal(pipeline.generated, false);
+    assert.equal(pipeline.status, "empty");
+    assert.equal(pipeline.sourceStatus, "granted-empty");
+    assert.equal(/this pack generates none/.test(pipeline.countingRule), false);
+    assert.equal(pipeline.realStatusCounts, null);
+  });
+
+  it("with no precomposed real result, behaves exactly as before (fixture-only, unaffected)", () => {
+    const pipeline = composePipeline(TEMPLATE_CITY);
+    assert.equal(pipeline.realStatusCounts, null);
+    assert.ok(Array.isArray(pipeline.metrics));
+    assert.equal(pipeline.metrics.length, pipelineMetrics([]).length);
   });
 });

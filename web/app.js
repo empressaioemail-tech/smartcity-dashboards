@@ -652,7 +652,12 @@ count true across the whole product rather than across four fifths of it.
 function td(text, className) {
   const cell = document.createElement("td");
   if (className) cell.className = className;
-  cell.textContent = text;
+  /**
+   * A real record legitimately lacks fields the fixture always carried
+   * (permits-pipeline's stage, e.g.) -- an absent value renders blank,
+   * never the literal word "undefined".
+   */
+  cell.textContent = text == null ? "" : text;
   return cell;
 }
 
@@ -670,12 +675,21 @@ function dueCell(record) {
   const cell = document.createElement("td");
   const value = document.createElement("span");
   value.className = "t-data";
-  value.textContent = record.dueLabel;
+  /** Real records carry no fixture dueLabel -- blank, not "undefined". */
+  value.textContent = record.dueLabel || "";
   cell.append(value);
   return cell;
 }
 
 function renderPipelineMetrics(pipeline) {
+  if (Array.isArray(pipeline.realStatusCounts)) {
+    renderRealStatusTiles(
+      document.getElementById("ds-metrics"),
+      pipeline.realStatusCounts,
+      `of ${pipeline.recordCount} real cases in flight`,
+    );
+    return;
+  }
   for (const metric of pipeline.metrics || []) {
     const el = document.querySelector(`#ds-metrics .metric[data-metric="${metric.id}"]`);
     if (!el) continue;
@@ -850,7 +864,7 @@ function pillCell(label, severity) {
   const cell = document.createElement("td");
   const pill = document.createElement("span");
   pill.className = `pill ${SEVERITY_PILL[severity] || "p-quiet"}`;
-  pill.textContent = label;
+  pill.textContent = label || "";
   cell.append(pill);
   return cell;
 }
@@ -1030,8 +1044,16 @@ function workOrderRow(record, payload) {
     td(stageLabel(record.stage)),
     placeCell(record),
     dueCell(record),
-    /** The target travels with the elapsed figure, so the number is readable. */
-    dataCell(`${record.slaElapsedHours} h of ${record.slaTargetHours} h`),
+    /**
+     * The target travels with the elapsed figure, so the number is readable.
+     * A real work order carries no fixture SLA clock -- blank, not a string
+     * built from two missing numbers ("undefined h of undefined h").
+     */
+    dataCell(
+      record.slaElapsedHours != null && record.slaTargetHours != null
+        ? `${record.slaElapsedHours} h of ${record.slaTargetHours} h`
+        : "",
+    ),
     statusCell(record, statusLabelsFor(payload)),
   );
   return row;
@@ -1781,10 +1803,50 @@ function renderRegion(prefix, payload) {
  * and never shows a zero, because a zero here would be a claim the city has not
  * made. Every value that does render carries its denominator.
  */
+/**
+ * Real domains carry no fixture tile vocabulary to match against.
+ * mygov-permits.mjs's own header says it plainly: real status values don't
+ * line up with a domain's invented fixture taxonomy except by coincidence,
+ * so nothing populates extras.metrics for a real payload -- only
+ * extras.realStatusCounts, an honest count per REAL value, unknown
+ * cardinality. Forcing that into the fixture's fixed, named tile slots
+ * would be the same category error the compose layer already refuses to
+ * make; the strip is rebuilt instead, one tile per real value actually
+ * returned, labelled with that real value.
+ */
+function renderRealStatusTiles(strip, counts, noteText) {
+  if (!strip) return;
+  strip.replaceChildren(
+    ...counts.map(({ status, count }) => {
+      const tile = document.createElement("div");
+      tile.className = "metric has-value";
+      const k = document.createElement("span");
+      k.className = "k";
+      k.textContent = status;
+      const v = document.createElement("span");
+      v.className = "v";
+      v.textContent = String(count);
+      const n = document.createElement("span");
+      n.className = "n";
+      n.textContent = noteText;
+      tile.append(k, v, n);
+      return tile;
+    }),
+  );
+}
+
 function renderRegionMetrics(strip, payload) {
   if (!strip) return;
   const ok = payload.status === "ok";
   const extras = payload.extras || {};
+  if (ok && Array.isArray(extras.realStatusCounts)) {
+    renderRealStatusTiles(
+      strip,
+      extras.realStatusCounts,
+      `of ${payload.recordCount} real ${payload.recordType} records`,
+    );
+    return;
+  }
   const metrics = ok && Array.isArray(extras.metrics) ? extras.metrics : [];
   const byId = {};
   for (const metric of metrics) byId[metric.id] = metric;

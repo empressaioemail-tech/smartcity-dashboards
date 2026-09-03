@@ -456,6 +456,30 @@ describe("G-77 fixture pack on Development services", () => {
     assert.match(app, /of \$\{pipeline\.recordCount\} generated cases in flight/);
   });
 
+  it("G-116 close: real domains rebuild their metric tiles from realStatusCounts instead of forcing them into the fixture's fixed named slots", () => {
+    assert.match(app, /function renderRealStatusTiles/);
+    // Both the generic per-domain renderer and the Pipeline's own renderer
+    // check for a real breakdown before falling back to the fixture path.
+    assert.match(app, /Array\.isArray\(extras\.realStatusCounts\)/);
+    assert.match(app, /Array\.isArray\(pipeline\.realStatusCounts\)/);
+  });
+
+  it("G-116 close: a real record's missing fixture-only fields render blank, never the literal word undefined", () => {
+    assert.match(app, /text == null \? "" : text/);
+    assert.match(app, /record\.dueLabel \|\| ""/);
+    assert.match(app, /label \|\| ""/);
+    // The SLA cell is built from two numbers before it ever reaches a cell
+    // helper, so it needs its own guard rather than a shared one.
+    assert.match(app, /slaElapsedHours != null && record\.slaTargetHours != null/);
+  });
+
+  it("G-116 close: the Pipeline route dispatches to a real source exactly like /api/domains/:id and /api/city-domains do", () => {
+    assert.match(
+      serverSrc,
+      /url\.pathname === "\/api\/lenses\/development-services\/pipeline"[\s\S]{0,1500}REAL_LIVE_DOMAINS\["permits-pipeline"\][\s\S]{0,300}composePipeline\(pack, real\)/,
+    );
+  });
+
   it("composes existing kit classes and declares no new one", () => {
     /**
      * THE CLASS GATE. Hardened at G-88 item 3, before any design pass shipped a
