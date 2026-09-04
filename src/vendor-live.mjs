@@ -195,9 +195,32 @@ export function mapRealPatrolVehicleRecord(row, cityKey) {
     odometer: row.odometer ?? null,
     engineHours: row.engineHours ?? null,
     lastUpdate: row.lastUpdate || null,
+    /**
+     * Three fields the real staff fleet page (PoliceDashboard.tsx) shows
+     * that this product's mapping previously dropped on the floor --
+     * confirmed real, not invented, against the platform route's own
+     * additive enrichment (server/routes/spireon.ts, G-116 close):
+     *   - activeInNspire: the source's own `active` flag, honest tri-state
+     *     (true/false/null if the field is ever absent). Only observable
+     *     as false because the platform route is now called with
+     *     include_inactive=true below -- the Spireon API request itself
+     *     filters to active-only otherwise, so no vehicle could ever come
+     *     back inactive before this. This is what "Inactive in NSpire"
+     *     is built from on the real page.
+     *   - maintenanceAlertCount / recentAlertCount: real per-vehicle
+     *     counts the platform route merges on by id server-side (reusing
+     *     deriveMaintenanceAlerts/fetchAlerts, not re-derived here) --
+     *     the same NSpire maintenance records and Spireon 7-day asset
+     *     alert log the real page's Maintenance/Alerts tabs render.
+     *     `?? null`, not `|| 0`, so a real 0 (genuinely no alerts) is
+     *     never confused with the field being absent altogether.
+     */
+    activeInNspire: row.active ?? null,
+    maintenanceAlertCount: row.maintenanceAlertCount ?? null,
+    recentAlertCount: row.recentAlertCount ?? null,
     provenance: {
-      source: "smartcity-os /api/platform/spireon/vehicles",
-      basis: "getCredentials/fetchLiveVehicles, active vehicles only",
+      source: "smartcity-os /api/platform/spireon/vehicles?include_inactive=true",
+      basis: "getCredentials/fetchLiveVehicles(includeInactive=true) + deriveMaintenanceAlerts/fetchAlerts merged per vehicle by id, 7-day alert window",
       readAt: new Date().toISOString(),
       readAtBasis: "read live for this request; not generated",
     },
@@ -206,7 +229,7 @@ export function mapRealPatrolVehicleRecord(row, cityKey) {
 
 export async function composeRealPatrolVehicles(pack, domain, opts = {}) {
   const base = envelope(pack, domain);
-  const fetched = await fetchLiveJson("https://smartcity-api-7dyaiy7wha-uc.a.run.app/api/platform/spireon/vehicles", opts);
+  const fetched = await fetchLiveJson("https://smartcity-api-7dyaiy7wha-uc.a.run.app/api/platform/spireon/vehicles?include_inactive=true", opts);
   if (fetched.status !== "ok") return unavailableResult(base, fetched.basis);
   const rows = Array.isArray(fetched.body?.vehicles) ? fetched.body.vehicles : [];
   const records = rows.map((row) => mapRealPatrolVehicleRecord(row, pack.cityKey));

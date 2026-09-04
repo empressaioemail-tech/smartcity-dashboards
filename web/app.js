@@ -2372,6 +2372,23 @@ function renderPoliceCameras(payload) {
 }
 
 /**
+ * The "Inactive in NSpire" badge from the real staff fleet page, ported
+ * additively. record.activeInNspire is a tri-state (true/false/null) real
+ * field -- a fixture record or a real one read without include_inactive
+ * carries null here, and the cell renders blank rather than a false badge.
+ */
+function nspireStatusCell(record) {
+  const cell = document.createElement("td");
+  if (record.activeInNspire === false) {
+    const pill = document.createElement("span");
+    pill.className = `pill ${SEVERITY_PILL.quiet}`;
+    pill.textContent = "Inactive in NSpire";
+    cell.append(pill);
+  }
+  return cell;
+}
+
+/**
  * The patrol roster, and it is the region this row exists to make visible. On
  * the shipped demo pack it renders ungranted: BUILT, instrumented, and with no
  * source, which is a different sentence from a region that does not exist and a
@@ -2386,7 +2403,14 @@ function renderPatrolRoster(payload) {
     document.getElementById("patrol-vehicles-rows"),
     records.map((record) => {
       const row = document.createElement("tr");
-      row.append(td(record.unitLabel, "subj"), statusCell(record, labels), td(record.operatorRef, "id"));
+      row.append(
+        td(record.unitLabel, "subj"),
+        statusCell(record, labels),
+        td(record.operatorRef, "id"),
+        nspireStatusCell(record),
+        td(record.maintenanceAlertCount),
+        td(record.recentAlertCount),
+      );
       return row;
     }),
   );

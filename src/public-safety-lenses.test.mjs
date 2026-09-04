@@ -385,3 +385,69 @@ describe("G-97 R2 connects no feed and names no city", () => {
     }
   });
 });
+
+/**
+ * ---------------------------------------------------------------------------
+ * G-116 close. Patrol-vehicles gap-close against the real staff fleet page
+ * (smartcity-os's own PoliceDashboard.tsx, which despite the name covers all
+ * Spireon-tracked fleet). Three real fields the mapping previously dropped:
+ * NSpire maintenance records, the Spireon 7-day asset alert log, and the
+ * "Inactive in NSpire" status badge. All additive -- Unit/Status/Operator are
+ * untouched, three columns appended after them, and every new cell degrades
+ * to blank on a record that lacks the field (fixture records included).
+ * "NSpire" here is the real page's own status-source vocabulary (its own
+ * badge literally reads "Inactive in NSpire"), not the vendor's company
+ * name -- the "no vendor named in static markup" check above scans for
+ * literal "spireon", which this does not contain.
+ * ---------------------------------------------------------------------------
+ */
+describe("G-116 close: patrol-vehicles NSpire enrichment (maintenance, 7-day alerts, active state)", () => {
+  it("adds three columns to the patrol table without touching the three that already ship", () => {
+    const patrolTable = SECTIONS.police.match(/id="patrol-vehicles-records"[\s\S]*?<\/table>/)?.[0] || "";
+    assert.match(patrolTable, /<th scope="col">Unit<\/th>/);
+    assert.match(patrolTable, /<th scope="col">Status<\/th>/);
+    assert.match(patrolTable, /<th scope="col">Operator<\/th>/);
+    assert.match(patrolTable, /<th scope="col">NSpire<\/th>/);
+    assert.match(patrolTable, /<th scope="col">Maintenance<\/th>/);
+    assert.match(patrolTable, /<th scope="col">Recent Alerts<\/th>/);
+  });
+
+  it("renderPatrolRoster reads all three real fields and reuses td()/a dedicated cell helper, not a re-derived cell", () => {
+    const renderer = app.match(/function renderPatrolRoster[\s\S]*?\n\}/)?.[0] || "";
+    assert.match(renderer, /nspireStatusCell\(record\)/);
+    assert.match(renderer, /td\(record\.maintenanceAlertCount\)/);
+    assert.match(renderer, /td\(record\.recentAlertCount\)/);
+    // The three pre-existing cells are still exactly there too.
+    assert.match(renderer, /td\(record\.unitLabel, "subj"\)/);
+    assert.match(renderer, /statusCell\(record, labels\)/);
+    assert.match(renderer, /td\(record\.operatorRef, "id"\)/);
+  });
+
+  it("nspireStatusCell is declared once, renders only on a genuine false (not a fixture's undefined), and reuses the existing pill vocabulary", () => {
+    const declarations = (app.match(/\bfunction nspireStatusCell\b/g) || []).length;
+    assert.equal(declarations, 1, `nspireStatusCell is declared ${declarations} times in the served script`);
+    const fn = app.match(/function nspireStatusCell[\s\S]*?\n\}/)?.[0] || "";
+    assert.match(fn, /record\.activeInNspire === false/);
+    // Reuses SEVERITY_PILL's declared vocabulary (className built from
+    // `pill ${SEVERITY_PILL...}`, same as statusCell) rather than inventing
+    // a new class string.
+    assert.match(fn, /`pill \$\{SEVERITY_PILL\.quiet\}`/);
+    assert.match(fn, /Inactive in NSpire/);
+  });
+
+  it("a fixture patrol record carries none of the three real-only fields, so they render blank rather than a fabricated NSpire state", () => {
+    // PATROL itself is ungranted on TEMPLATE_CITY (see G-97 R2 above) and
+    // carries zero records -- a granted throwaway pack is needed to get an
+    // actual generated fixture record to inspect.
+    const granted = composeDomain(
+      { ...TEMPLATE_CITY, cityKey: "throwaway-pack", fixtureGrants: ["spireon"] },
+      PATROL_VEHICLES_DOMAIN,
+    );
+    assert.ok(granted.records.length > 0, "expected the granted fixture to produce at least one record");
+    for (const record of granted.records) {
+      assert.equal("activeInNspire" in record, false);
+      assert.equal("maintenanceAlertCount" in record, false);
+      assert.equal("recentAlertCount" in record, false);
+    }
+  });
+});

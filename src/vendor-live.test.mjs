@@ -94,6 +94,48 @@ describe("vendor-live (G-116 Phase 2 third batch)", () => {
     assert.equal(record.place.label, "132 Grady Tuck Ln, Bastrop, TX");
   });
 
+  it("patrol-vehicles: maps the platform route's enrichment fields (NSpire active state, maintenance/alert counts)", () => {
+    const record = mapRealPatrolVehicleRecord(
+      {
+        spireonId: "sp-9",
+        name: "Retired Unit 9",
+        nspireStatus: "Stopped",
+        active: false,
+        maintenanceAlertCount: 2,
+        recentAlertCount: 5,
+      },
+      "bastrop_tx",
+    );
+    assert.equal(record.activeInNspire, false);
+    assert.equal(record.maintenanceAlertCount, 2);
+    assert.equal(record.recentAlertCount, 5);
+  });
+
+  it("patrol-vehicles: a genuine zero alert count is not confused with the field being absent", () => {
+    const zero = mapRealPatrolVehicleRecord(
+      { spireonId: "sp-2", name: "Unit 2", active: true, maintenanceAlertCount: 0, recentAlertCount: 0 },
+      "bastrop_tx",
+    );
+    assert.equal(zero.maintenanceAlertCount, 0);
+    assert.equal(zero.recentAlertCount, 0);
+
+    const absent = mapRealPatrolVehicleRecord({ spireonId: "sp-3", name: "Unit 3" }, "bastrop_tx");
+    assert.equal(absent.activeInNspire, null);
+    assert.equal(absent.maintenanceAlertCount, null);
+    assert.equal(absent.recentAlertCount, null);
+  });
+
+  it("patrol-vehicles compose: requests include_inactive=true so 'Inactive in NSpire' is observable at all", async () => {
+    let requestedUrl = null;
+    const fetchImpl = async (url) => {
+      requestedUrl = url;
+      return { ok: true, json: async () => ({ vehicles: [], contract: "live" }) };
+    };
+    const domain = getDomain("patrol-vehicles");
+    await composeRealPatrolVehicles(BASTROP_TX, domain, { env: { PLATFORM_INTERNAL_API_KEY: "test-key" }, fetchImpl });
+    assert.match(requestedUrl, /\/api\/platform\/spireon\/vehicles\?include_inactive=true$/);
+  });
+
   it("fire-apparatus: maps a real FirstDue row, origin feed", () => {
     const record = mapRealFireApparatusRecord({ id: "E1", name: "Engine 1", status: "in-service" }, "bastrop_tx");
     assert.equal(record.kind, "firstdue");
