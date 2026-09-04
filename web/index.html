@@ -839,6 +839,7 @@
                             <th scope="col">Place</th>
                             <th scope="col">Schedule</th>
                             <th scope="col">Status</th>
+                            <th scope="col">Completion</th>
                           </tr>
                         </thead>
                         <tbody id="pw-cip-rows"></tbody>
@@ -859,6 +860,23 @@
                       </table>
                       <div class="panel-body">
                         <span class="basis" id="pw-cip-recordsbasis">Basis: generated fixture records</span>
+                      </div>
+                      <div class="panel-head"><span class="t">Project phases</span><span class="grow"></span><span class="t-caption" id="pw-cip-gantt-rule">Per-task schedule for each capital project, where a live feed carries it</span></div>
+                      <table class="dt">
+                        <thead>
+                          <tr>
+                            <th scope="col">Project</th>
+                            <th scope="col">Task</th>
+                            <th scope="col">Start</th>
+                            <th scope="col">End</th>
+                            <th scope="col">Completion</th>
+                            <th scope="col">Duration (days)</th>
+                          </tr>
+                        </thead>
+                        <tbody id="pw-cip-gantt-rows"></tbody>
+                      </table>
+                      <div class="panel-body">
+                        <span class="basis" id="pw-cip-gantt-basis">Per-task phase data has not been read for this pack</span>
                       </div>
                     </div>
                   </div>

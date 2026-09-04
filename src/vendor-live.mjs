@@ -241,6 +241,21 @@ export function mapRealCipProjectRecord(row, cityKey) {
     startDate: row.startDate || null,
     endDate: row.endDate || null,
     phaseCount: Array.isArray(row.phases) ? row.phases.length : 0,
+    // Real lifecycle phase and status, same stance as every other vendor in
+    // this module (see module header): kept as-is, never force-mapped onto
+    // the fixture's invented phase/status vocabulary (STATUS_PHASES in
+    // src/domains/cip-projects.mjs). "status" matches the exact convention
+    // mapRealFleetVehicleRecord/mapRealPatrolVehicleRecord/
+    // mapRealFireApparatusRecord already use.
+    currentPhase: row.currentPhase || null,
+    status: String(row.status || "unknown"),
+    // The real per-task Gantt rows getCIPProjectData() already computes
+    // (task/phaseStart/phaseEnd/completion/taskDuration) -- passed through
+    // unchanged, not relabeled onto any other taxonomy. Distinct from
+    // extras.phases on this same domain's FIXTURE path (src/domains/
+    // cip-projects.mjs's phaseSummary()), which is an aggregate phase-count
+    // table over generated records and answers a different question.
+    phases: Array.isArray(row.phases) ? row.phases : [],
     provenance: {
       source: "smartcity-os /api/platform/powerbi/cip-projects",
       basis: "getCIPProjectData()",

@@ -818,3 +818,46 @@ describe("G-77 fixture pack on Development services", () => {
     );
   });
 });
+
+describe("G-116 CIP enrichment: real phase/Gantt fields on Capital projects", () => {
+  it("shows the real currentPhase for a live record without disturbing the fixture's own phase id", () => {
+    // record.phase is the fixture's invented phase id (STATUS_PHASES in
+    // src/domains/cip-projects.mjs); record.currentPhase is the real value
+    // getCIPProjectData() returns. The cell prefers whichever one the record
+    // actually carries -- never both, never one relabeled as the other.
+    assert.match(app, /td\(record\.phase \|\| record\.currentPhase\)/);
+  });
+
+  it("adds a Completion column and formats it as a real percent, blank (not 0%/undefined) when absent", () => {
+    assert.match(html, /<th scope="col">Completion<\/th>/);
+    assert.match(app, /function pctText\(value\)/);
+    assert.match(app, /typeof value !== "number" \|\| !Number\.isFinite\(value\)\) return null/);
+    assert.match(app, /td\(pctText\(record\.completion\), "t-data"\)/);
+  });
+
+  it("renders the real per-task Gantt rows in a table distinct from the fixture's phase-count summary", () => {
+    // The fixture's own aggregate table (extras.phases: phase + count, see
+    // phaseSummary() in src/domains/cip-projects.mjs) is untouched --
+    // pw-cip-phase-rows still exists and is built from extras.phases alone.
+    assert.match(app, /Array\.isArray\(extras\.phases\) \? extras\.phases : \[\]/);
+    // The new per-task table reads each record's OWN phases array (the real
+    // Gantt rows), never extras.phases -- a different question, a different
+    // source, a different table.
+    assert.match(app, /const ganttRows = records\.flatMap\(/);
+    assert.match(app, /Array\.isArray\(record\.phases\) \? record\.phases : \[\]/);
+    assert.match(html, /id="pw-cip-gantt-rows"/);
+    assert.match(html, /<th scope="col">Task<\/th>/);
+    assert.match(html, /<th scope="col">Duration \(days\)<\/th>/);
+    // Fixture packs never populate a record's `phases` array, so this table
+    // stays honestly empty for them -- not hidden, no fabricated row.
+    assert.match(html, /Per-task phase data has not been read for this pack/);
+  });
+
+  it("prints no money figure and no new kit class in the new Completion/Gantt markup", () => {
+    const works = html.match(/id="lens-public-works"[\s\S]*?<\/section>/)?.[0] || "";
+    assert.equal(/\$\s?\d/.test(works), false, "a money figure reached the Capital projects register");
+    for (const column of ["Budget", "Spend", "Cost"]) {
+      assert.equal(works.includes(`<th scope="col">${column}</th>`), false, `${column} column`);
+    }
+  });
+});
