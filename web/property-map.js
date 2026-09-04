@@ -50,6 +50,20 @@ function td(value) {
   return String(value);
 }
 
+/**
+ * A real dollar figure from the county CAD record, formatted for reading.
+ * null (no lat/lng to value against, or the county simply has none on file)
+ * renders the same em-dash as every other absent value here -- never a
+ * guessed $0, which this product has never rendered anywhere for a real
+ * reason: a $0 on screen is a claim, and this one would be false.
+ */
+function money(value) {
+  if (value === null || value === undefined || value === "") return "—";
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "—";
+  return n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+}
+
 function setText(id, value) {
   const el = document.getElementById(id);
   if (el) el.textContent = value;
@@ -105,6 +119,7 @@ function renderList(id, items, renderItem) {
 function clearResult() {
   renderParcel(null);
   show("pm-summary-section", false);
+  show("pm-valuation-section", false);
   show("pm-risks-section", false);
   show("pm-permits-section", false);
   show("pm-violations-section", false);
@@ -122,9 +137,23 @@ function renderFound(result) {
   setText("pm-subdivision", td(result.snapshot.subdivision));
   const lotBlock = [result.snapshot.lot, result.snapshot.block].filter(Boolean).join(" / ");
   setText("pm-lot-block", td(lotBlock));
+  setText("pm-legal-desc", td(result.snapshot.legalDesc));
+  setText("pm-future-land-use", td(result.snapshot.futureLandUse));
   show("pm-parcel-note", !result.parcel.found);
 
   renderParcel(result.parcel.found ? result.parcel.geometry : null);
+
+  const valuation = result.snapshot.valuation;
+  const hasValuation = valuation && Object.values(valuation).some((v) => v !== null && v !== undefined);
+  show("pm-valuation-section", hasValuation);
+  if (hasValuation) {
+    setText("pm-appraised-value", money(valuation.appraisedValue));
+    setText("pm-market-value", money(valuation.marketValue));
+    setText("pm-land-value", money(valuation.landValue));
+    setText("pm-improvement-value", money(valuation.improvementValue));
+    setText("pm-year-built", td(valuation.yearBuilt));
+    setText("pm-living-area", valuation.livingArea != null ? `${valuation.livingArea} sq ft` : "—");
+  }
 
   show("pm-risks-section", true);
   renderList("pm-risks-list", result.risks, (risk) => `${td(risk.label)} — ${td(risk.detail)}`);

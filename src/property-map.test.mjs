@@ -30,6 +30,15 @@ const SAMPLE_BODY = {
       block: "12",
       floodZone: "X",
       futureLandUse: null,
+      valuation: {
+        appraisedValue: 245000,
+        marketValue: 250000,
+        yearBuilt: "1998",
+        livingArea: 1820,
+        landValue: 60000,
+        improvementValue: 185000,
+      },
+      compliance: { score: 85, grade: "B", color: "#22c55e" },
     },
     permits: [{ id: "PMT-1", permitNumber: "2026-001", status: "issued", type: "Building" }],
     violations: [{ id: "CE-1", caseNumber: "CE-2026-01", status: "open", type: "Overgrown Lot" }],
@@ -89,6 +98,19 @@ describe("property-map (G-117 native map live feed)", () => {
     assert.equal(result.parcel.found, true);
     assert.equal(result.parcel.geometry.type, "Polygon");
     assert.equal(result.risks[0].origin, "feed");
+    // G-117 close: getPropertySummary() already computes real CAD valuation
+    // and a compliance score; this mapper used to silently drop both.
+    assert.deepEqual(result.snapshot.valuation, SAMPLE_BODY.summary.snapshot.valuation);
+    assert.deepEqual(result.snapshot.compliance, SAMPLE_BODY.summary.snapshot.compliance);
+  });
+
+  it("mapRealPropertyResult keeps valuation/compliance honestly null, never a fabricated $0, when the source has neither", () => {
+    const result = mapRealPropertyResult(
+      { found: true, match: null, parcel: { found: false, geometry: null }, summary: { snapshot: {} } },
+      "bastrop_tx",
+    );
+    assert.equal(result.snapshot.valuation, null);
+    assert.equal(result.snapshot.compliance, null);
   });
 
   it("mapRealPropertyResult states an honest absence (empty array/false/null), never a fabricated value", () => {
