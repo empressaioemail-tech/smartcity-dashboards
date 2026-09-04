@@ -30,6 +30,58 @@ describe("vendor-live (G-116 Phase 2 third batch)", () => {
     assert.equal(record.department, "Fleet & Facilities");
   });
 
+  // G-116 fleet-enrich: DVIR summary, 7-day safety event count, high-mileage
+  // and low-fuel threshold flags -- all sourced from the same platform
+  // route (server/routes/samsara.ts), reusing fetchDvirs()/
+  // fetchSafetyEvents() rather than a second live call this product makes
+  // itself.
+  it("fleet-vehicles: maps real DVIR/safety/threshold fields when the platform route reports them", () => {
+    const record = mapRealFleetVehicleRecord(
+      {
+        id: "v1",
+        name: "FF-003",
+        stats: { odometerMiles: 145000, fuelPercent: 12, highMileage: true, lowFuel: true },
+        dvir: { unresolvedDefectCount: 2, lastInspection: "2026-08-30T00:00:00Z" },
+        safetyEvents7d: 3,
+      },
+      "bastrop_tx",
+    );
+    assert.equal(record.dvirUnresolvedDefects, 2);
+    assert.equal(record.dvirLastInspection, "2026-08-30T00:00:00Z");
+    assert.equal(record.safetyEvents7d, 3);
+    assert.equal(record.highMileage, true);
+    assert.equal(record.lowFuel, true);
+  });
+
+  it("fleet-vehicles: real fields absent (never fabricated) when the platform route has no DVIR/safety/threshold data for a vehicle", () => {
+    const record = mapRealFleetVehicleRecord(
+      { id: "v2", name: "FF-004", stats: { odometerMiles: 5000 } },
+      "bastrop_tx",
+    );
+    assert.equal(record.dvirUnresolvedDefects, null);
+    assert.equal(record.dvirLastInspection, null);
+    assert.equal(record.safetyEvents7d, null);
+    assert.equal(record.highMileage, null);
+    assert.equal(record.lowFuel, null);
+  });
+
+  it("fleet-vehicles: a real zero unresolved-defect count and a real zero safety-event count are kept, not treated as missing", () => {
+    const record = mapRealFleetVehicleRecord(
+      {
+        id: "v3",
+        name: "FF-005",
+        stats: { odometerMiles: 5000, highMileage: false, lowFuel: false },
+        dvir: { unresolvedDefectCount: 0, lastInspection: "2026-08-01T00:00:00Z" },
+        safetyEvents7d: 0,
+      },
+      "bastrop_tx",
+    );
+    assert.equal(record.dvirUnresolvedDefects, 0);
+    assert.equal(record.safetyEvents7d, 0);
+    assert.equal(record.highMileage, false);
+    assert.equal(record.lowFuel, false);
+  });
+
   it("patrol-vehicles: maps a real Spireon row, origin feed", () => {
     const record = mapRealPatrolVehicleRecord(
       { spireonId: "sp-1", name: "Unit 90", nspireStatus: "Stopped", address: "132 Grady Tuck Ln, Bastrop, TX", speed: 0 },
@@ -42,11 +94,86 @@ describe("vendor-live (G-116 Phase 2 third batch)", () => {
     assert.equal(record.place.label, "132 Grady Tuck Ln, Bastrop, TX");
   });
 
+  it("patrol-vehicles: maps the platform route's enrichment fields (NSpire active state, maintenance/alert counts)", () => {
+    const record = mapRealPatrolVehicleRecord(
+      {
+        spireonId: "sp-9",
+        name: "Retired Unit 9",
+        nspireStatus: "Stopped",
+        active: false,
+        maintenanceAlertCount: 2,
+        recentAlertCount: 5,
+      },
+      "bastrop_tx",
+    );
+    assert.equal(record.activeInNspire, false);
+    assert.equal(record.maintenanceAlertCount, 2);
+    assert.equal(record.recentAlertCount, 5);
+  });
+
+  it("patrol-vehicles: a genuine zero alert count is not confused with the field being absent", () => {
+    const zero = mapRealPatrolVehicleRecord(
+      { spireonId: "sp-2", name: "Unit 2", active: true, maintenanceAlertCount: 0, recentAlertCount: 0 },
+      "bastrop_tx",
+    );
+    assert.equal(zero.maintenanceAlertCount, 0);
+    assert.equal(zero.recentAlertCount, 0);
+
+    const absent = mapRealPatrolVehicleRecord({ spireonId: "sp-3", name: "Unit 3" }, "bastrop_tx");
+    assert.equal(absent.activeInNspire, null);
+    assert.equal(absent.maintenanceAlertCount, null);
+    assert.equal(absent.recentAlertCount, null);
+  });
+
+  it("patrol-vehicles compose: requests include_inactive=true so 'Inactive in NSpire' is observable at all", async () => {
+    let requestedUrl = null;
+    const fetchImpl = async (url) => {
+      requestedUrl = url;
+      return { ok: true, json: async () => ({ vehicles: [], contract: "live" }) };
+    };
+    const domain = getDomain("patrol-vehicles");
+    await composeRealPatrolVehicles(BASTROP_TX, domain, { env: { PLATFORM_INTERNAL_API_KEY: "test-key" }, fetchImpl });
+    assert.match(requestedUrl, /\/api\/platform\/spireon\/vehicles\?include_inactive=true$/);
+  });
+
   it("fire-apparatus: maps a real FirstDue row, origin feed", () => {
     const record = mapRealFireApparatusRecord({ id: "E1", name: "Engine 1", status: "in-service" }, "bastrop_tx");
     assert.equal(record.kind, "firstdue");
     assert.equal(record.recordType, "fire-apparatus");
     assert.equal(record.origin, "feed");
+  });
+
+  it("fire-apparatus: maps apparatusType/stationLabel when the row carries them", () => {
+    // Constructed sample payload -- the live apparatus endpoint is still
+    // 403'd (see the module header), so this shape is not live-verified. It
+    // mirrors the field names smartcity-os's own EmergencyResponse.tsx
+    // already reads for this same unverified resource (item.type, item.station).
+    const record = mapRealFireApparatusRecord(
+      { id: "E1", name: "Engine 1", status: "in-service", type: "Engine", station: "Station 2" },
+      "bastrop_tx",
+    );
+    assert.equal(record.apparatusType, "Engine");
+    assert.equal(record.stationLabel, "Station 2");
+  });
+
+  it("fire-apparatus: apparatusType/stationLabel/unitLabel try snake_case vendor fallbacks", () => {
+    const record = mapRealFireApparatusRecord(
+      { id: "E2", unit_name: "Ladder 12", status: "in-service", apparatus_type: "Ladder", station_name: "Station 1" },
+      "bastrop_tx",
+    );
+    assert.equal(record.unitLabel, "Ladder 12");
+    assert.equal(record.apparatusType, "Ladder");
+    assert.equal(record.stationLabel, "Station 1");
+  });
+
+  it("fire-apparatus: apparatusType/stationLabel are null (never invented) when the row lacks them", () => {
+    const record = mapRealFireApparatusRecord({ id: "E3", name: "Rescue 1", status: "in-service" }, "bastrop_tx");
+    assert.equal(record.apparatusType, null);
+    assert.equal(record.stationLabel, null);
+    // No occupancy/pre-plan fields fabricated onto an apparatus record.
+    assert.equal("businessName" in record, false);
+    assert.equal("isTargetHazard" in record, false);
+    assert.equal("constructionClass" in record, false);
   });
 
   it("cip-projects: maps a real PowerBI row, origin feed", () => {

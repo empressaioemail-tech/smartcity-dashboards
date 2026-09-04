@@ -137,6 +137,14 @@ export function mapRealWorkOrderRecord(row, cityKey) {
     },
     department: row.department || null,
     assignedTo: row.assignedTo || null,
+    // smartcity-os's platform route now maps work-order rows through
+    // parseWOEnriched (the same function the real staff dashboard's own
+    // session-gated route already used) instead of returning the bare DB
+    // row -- contractor is a real column, and fees is the real itemized
+    // {type, amount}[] array that only lived inside the row's enrichmentData
+    // blob, not a top-level column, until that fix.
+    contractor: row.contractor || null,
+    fees: row.fees ?? null,
     dueDate: row.dueDate || null,
     provenance: {
       source: "smartcity-os /api/platform/mygov/work-orders",
@@ -178,6 +186,11 @@ export function mapRealInspectionRecord(row, cityKey) {
     inspector: row.inspector || null,
     scheduledDate: row.scheduledDate || null,
     completedDate: row.completedDate || null,
+    // Not in the original field list, but a real field: smartcity-os's
+    // dbInspectionToApi already returns it (no OS-side change needed), and
+    // the real staff dashboard shows it under each inspection
+    // (DevelopmentServicesDashboard.tsx's insp.comments block).
+    comments: row.comments || null,
     provenance: {
       source: "smartcity-os /api/platform/mygov/inspections",
       basis: "tenant-scoped, no active-list flag exists for this resource",
@@ -215,6 +228,9 @@ export function mapRealCodeViolationRecord(row, cityKey) {
     },
     assignedOfficer: row.assignedOfficer || null,
     reportedDate: row.reportedDate || null,
+    // dbViolationToApi (smartcity-os) already returns this real column;
+    // not previously read here.
+    resolvedDate: row.resolvedDate || null,
     isRepeatOffender: row.isRepeatOffender ?? null,
     provenance: {
       source: "smartcity-os /api/platform/mygov/code-violations",
@@ -254,6 +270,11 @@ export function mapRealBusinessLicenseRecord(row, cityKey) {
     owner: row.owner || null,
     issuedDate: row.issuedDate || null,
     expirationDate: row.expirationDate || null,
+    // The platform route's business-licenses mapping already returns this
+    // real column (row.type); named licenseType here rather than the bare
+    // "type" to stay unambiguous next to this record's own fixed
+    // recordType ("business-license").
+    licenseType: row.type || null,
     provenance: {
       source: "smartcity-os /api/platform/mygov/business-licenses",
       basis: "tenant-scoped, no active-list flag exists for this resource",

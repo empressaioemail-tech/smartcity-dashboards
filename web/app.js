@@ -672,6 +672,24 @@ function pctText(value) {
   return `${Math.round(value * 100)}%`;
 }
 
+/**
+ * A real fees array ({type, amount}[]) rendered as one itemized line rather
+ * than collapsed to a bare total -- the real source (and the production
+ * staff dashboard) carries fees itemized, not just a total, so the cell
+ * keeps that instead of summing it away. Absent or empty renders blank,
+ * same discipline as td().
+ */
+function feesLabel(fees) {
+  if (!Array.isArray(fees) || fees.length === 0) return "";
+  return fees
+    .map((f) => {
+      const amount = Number(f && f.amount) || 0;
+      const label = f && f.type ? String(f.type) : "Fee";
+      return `${label}: $${amount.toFixed(2)}`;
+    })
+    .join(", ");
+}
+
 function statusCell(record, statusLabels) {
   const cell = document.createElement("td");
   const pill = document.createElement("span");
@@ -816,6 +834,16 @@ function renderPipeline(pipeline) {
         td(record.place && record.place.label ? record.place.label : ""),
         dueCell(record),
         statusCell(record, statusLabels),
+        /**
+         * Real-feed-only columns (applicant/contractor/owner/fees) --
+         * mapRealPermitRecord is the only source that populates these; a
+         * generated fixture case simply has none, so td()/feesLabel()
+         * render blank rather than "undefined".
+         */
+        td(record.applicant, "t-data"),
+        td(record.contractor, "t-data"),
+        td(record.ownerName, "t-data"),
+        td(feesLabel(record.fees), "t-data"),
       );
       return row;
     }),
@@ -1007,6 +1035,8 @@ function inspectionRow(record, payload) {
      */
     record.dayLabel ? dataCell(record.dayLabel) : basisCell(record.scheduleBasis || ""),
     statusCell(record, statusLabelsFor(payload)),
+    /** Real-feed-only column -- see mapRealInspectionRecord. */
+    td(record.comments, "t-data"),
   );
   return row;
 }
@@ -1072,6 +1102,10 @@ function workOrderRow(record, payload) {
         : "",
     ),
     statusCell(record, statusLabelsFor(payload)),
+    /** Real-feed-only columns -- see mapRealWorkOrderRecord. */
+    td(record.assignedTo, "t-data"),
+    td(record.contractor, "t-data"),
+    td(feesLabel(record.fees), "t-data"),
   );
   return row;
 }
@@ -1129,6 +1163,8 @@ function codeViolationRow(record, payload) {
     placeCell(record),
     dueCell(record),
     statusCell(record, statusLabelsFor(payload)),
+    /** Real-feed-only column -- see mapRealCodeViolationRecord. */
+    td(record.resolvedDate, "t-data"),
   );
   return row;
 }
@@ -1182,6 +1218,8 @@ function licenceRow(record, payload) {
     placeCell(record),
     dataCell(record.expiryLabel),
     statusCell(record, statusLabelsFor(payload)),
+    /** Real-feed-only column -- see mapRealBusinessLicenseRecord. */
+    td(record.licenseType, "t-data"),
   );
   return row;
 }
@@ -1953,6 +1991,27 @@ function fill(tbody, rows) {
 
 /* ----------------------------------------------------------------- fleet */
 
+/**
+ * G-116 fleet-enrich. "Clear"/"N unresolved" is itself the DVIR summary --
+ * a vehicle absent from Samsara's DVIR data (no inspection on record)
+ * renders blank, never "Clear" (that would claim a pass that never
+ * happened). dvirLastInspection is carried on the record for callers that
+ * want it but is not forced into its own column here -- see rule against
+ * redesigning this table.
+ */
+function fleetDvirLabel(record) {
+  if (record.dvirUnresolvedDefects == null) return null;
+  return record.dvirUnresolvedDefects > 0 ? `${record.dvirUnresolvedDefects} unresolved` : "Clear";
+}
+
+/** Real, independent threshold flags -- never fabricated when the reading behind either is unknown (both stay out of the label, not defaulted to absent). */
+function fleetFlagsLabel(record) {
+  const flags = [];
+  if (record.highMileage === true) flags.push("High mileage");
+  if (record.lowFuel === true) flags.push("Low fuel");
+  return flags.join(", ");
+}
+
 function renderFleet(payload) {
   const ok = renderRegion("fleet-roster", payload);
   renderRegionMetrics(document.getElementById("fleet-metrics"), payload);
@@ -1969,6 +2028,9 @@ function renderFleet(payload) {
         statusCell(record, labels),
         td(record.operatorRef, "id"),
         td(record.odometerBand),
+        td(fleetDvirLabel(record)),
+        td(record.safetyEvents7d == null ? null : String(record.safetyEvents7d)),
+        td(fleetFlagsLabel(record)),
       );
       return row;
     }),
@@ -2365,6 +2427,23 @@ function renderPoliceCameras(payload) {
 }
 
 /**
+ * The "Inactive in NSpire" badge from the real staff fleet page, ported
+ * additively. record.activeInNspire is a tri-state (true/false/null) real
+ * field -- a fixture record or a real one read without include_inactive
+ * carries null here, and the cell renders blank rather than a false badge.
+ */
+function nspireStatusCell(record) {
+  const cell = document.createElement("td");
+  if (record.activeInNspire === false) {
+    const pill = document.createElement("span");
+    pill.className = `pill ${SEVERITY_PILL.quiet}`;
+    pill.textContent = "Inactive in NSpire";
+    cell.append(pill);
+  }
+  return cell;
+}
+
+/**
  * The patrol roster, and it is the region this row exists to make visible. On
  * the shipped demo pack it renders ungranted: BUILT, instrumented, and with no
  * source, which is a different sentence from a region that does not exist and a
@@ -2379,7 +2458,14 @@ function renderPatrolRoster(payload) {
     document.getElementById("patrol-vehicles-rows"),
     records.map((record) => {
       const row = document.createElement("tr");
-      row.append(td(record.unitLabel, "subj"), statusCell(record, labels), td(record.operatorRef, "id"));
+      row.append(
+        td(record.unitLabel, "subj"),
+        statusCell(record, labels),
+        td(record.operatorRef, "id"),
+        nspireStatusCell(record),
+        td(record.maintenanceAlertCount),
+        td(record.recentAlertCount),
+      );
       return row;
     }),
   );

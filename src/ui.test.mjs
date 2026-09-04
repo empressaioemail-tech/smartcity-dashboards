@@ -521,6 +521,49 @@ describe("G-77 fixture pack on Development services", () => {
     );
   });
 
+  it("G-116 field enrichment: the five MyGov tables carry the new real-feed-only columns, additively", () => {
+    /**
+     * A comparison of the real staff dashboard (smartcity-os's own
+     * DevelopmentServicesDashboard.tsx) against what this product mapped
+     * for the same five live MyGov domains found genuine field gaps: real
+     * columns/fields smartcity-os's platform routes already return (or, for
+     * work orders, now return after a narrow smartcity-os fix) that this
+     * product was not reading or displaying. Each new column is additive --
+     * the six/seven/etc. columns each table already had are untouched.
+     */
+    assert.match(ds, /<th scope="col">Applicant<\/th>/);
+    assert.match(ds, /<th scope="col">Contractor<\/th>/);
+    assert.match(ds, /<th scope="col">Owner<\/th>/);
+    assert.match(ds, /<th scope="col">Fees<\/th>/);
+    assert.match(ds, /<th scope="col">Assigned to<\/th>/);
+    assert.match(ds, /<th scope="col">Comments<\/th>/);
+    assert.match(ds, /<th scope="col">Resolved<\/th>/);
+    assert.match(ds, /<th scope="col">Type<\/th>/);
+
+    // Permits (the pipeline table): applicant, contractor, owner, fees.
+    assert.match(app, /td\(record\.applicant, "t-data"\)/);
+    assert.match(app, /td\(record\.contractor, "t-data"\)/);
+    assert.match(app, /td\(record\.ownerName, "t-data"\)/);
+    // Work orders: assignedTo, contractor, fees (contractor/fees share the
+    // permit row's own pattern above, so only the work-order-only one is
+    // pinned again here).
+    assert.match(app, /td\(record\.assignedTo, "t-data"\)/);
+    // Inspections: comments.
+    assert.match(app, /td\(record\.comments, "t-data"\)/);
+    // Code violations: resolvedDate.
+    assert.match(app, /td\(record\.resolvedDate, "t-data"\)/);
+    // Business licenses: licenseType.
+    assert.match(app, /td\(record\.licenseType, "t-data"\)/);
+
+    // Itemized fees ({type, amount}[]) render as a joined line, not a bare
+    // total -- production shows a real fees array, not just a total.
+    assert.match(app, /function feesLabel\(fees\)/);
+    assert.match(app, /td\(feesLabel\(record\.fees\), "t-data"\)/);
+    // feesLabel itself uses td()'s same null/absence discipline: an absent
+    // or empty array renders blank, never "undefined" or "$0.00".
+    assert.match(app, /if \(!Array\.isArray\(fees\) \|\| fees\.length === 0\) return "";/);
+  });
+
   it("composes existing kit classes and declares no new one", () => {
     /**
      * THE CLASS GATE. Hardened at G-88 item 3, before any design pass shipped a
@@ -866,5 +909,52 @@ describe("G-116 CIP enrichment: real phase/Gantt fields on Capital projects", ()
     for (const column of ["Budget", "Spend", "Cost"]) {
       assert.equal(works.includes(`<th scope="col">${column}</th>`), false, `${column} column`);
     }
+  });
+});
+
+describe("G-116 fleet-enrich: DVIR, 7-day safety events, mileage/fuel flags", () => {
+  it("adds the three new columns to the vehicle roster table header, additive to the existing five", () => {
+    const table = html.match(/id="fleet-roster-records"[\s\S]*?<tbody id="fleet-roster-rows">/)?.[0] || "";
+    assert.match(table, /<th scope="col">Vehicle<\/th>/);
+    assert.match(table, /<th scope="col">Unit<\/th>/);
+    assert.match(table, /<th scope="col">Status<\/th>/);
+    assert.match(table, /<th scope="col">Operator<\/th>/);
+    assert.match(table, /<th scope="col">Odometer<\/th>/);
+    assert.match(table, /<th scope="col">DVIR<\/th>/);
+    assert.match(table, /<th scope="col">Safety \(7d\)<\/th>/);
+    assert.match(table, /<th scope="col">Flags<\/th>/);
+    // Additive, not a redesign: still exactly eight columns, none removed.
+    const headCount = (table.match(/<th scope="col">/g) || []).length;
+    assert.equal(headCount, 8);
+  });
+
+  it("renderFleet reads the new record fields, none fabricated from something else", () => {
+    const renderFleet = app.match(/function renderFleet\(payload\)[\s\S]*?\n\}/)?.[0] || "";
+    assert.ok(renderFleet, "renderFleet must exist");
+    assert.match(renderFleet, /fleetDvirLabel\(record\)/);
+    assert.match(renderFleet, /record\.safetyEvents7d/);
+    assert.match(renderFleet, /fleetFlagsLabel\(record\)/);
+  });
+
+  it("fleetDvirLabel renders blank (not 'Clear') when there is no DVIR data, and 'Clear' only for a real zero", () => {
+    const fn = app.match(/function fleetDvirLabel\(record\)[\s\S]*?\n\}/)?.[0] || "";
+    assert.ok(fn, "fleetDvirLabel must exist");
+    assert.match(fn, /dvirUnresolvedDefects == null/);
+    assert.match(fn, /return null/);
+    assert.match(fn, /"Clear"/);
+  });
+
+  it("fleetFlagsLabel only ever asserts a flag on a real === true, never on a merely-truthy or unknown value", () => {
+    const fn = app.match(/function fleetFlagsLabel\(record\)[\s\S]*?\n\}/)?.[0] || "";
+    assert.ok(fn, "fleetFlagsLabel must exist");
+    assert.match(fn, /record\.highMileage === true/);
+    assert.match(fn, /record\.lowFuel === true/);
+  });
+
+  it("uses the shared td() helper for the new cells, so a missing value renders blank rather than the literal word undefined", () => {
+    const renderFleet = app.match(/function renderFleet\(payload\)[\s\S]*?\n\}/)?.[0] || "";
+    assert.match(renderFleet, /td\(fleetDvirLabel\(record\)\)/);
+    assert.match(renderFleet, /td\(record\.safetyEvents7d == null \? null : String\(record\.safetyEvents7d\)\)/);
+    assert.match(renderFleet, /td\(fleetFlagsLabel\(record\)\)/);
   });
 });

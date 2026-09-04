@@ -137,9 +137,27 @@ export function mapRealFleetVehicleRecord(row, cityKey) {
     vin: row.vin || null,
     odometerMiles: row.stats?.odometerMiles ?? row.stats?.obdOdometerMiles ?? null,
     fuelPercent: row.stats?.fuelPercent ?? null,
+    /**
+     * G-116 fleet-enrich. Real DVIR/safety-event/threshold fields, added to
+     * the platform route the same week -- see server/routes/samsara.ts.
+     * dvirUnresolvedDefects/dvirLastInspection are null when Samsara has no
+     * inspection on record for this vehicle (not the same as zero defects,
+     * which the route reports as unresolvedDefectCount: 0). safetyEvents7d
+     * is a real trailing-7-day count already scoped by the route; null only
+     * if that call itself failed upstream. highMileage/lowFuel are the same
+     * >100k mi / <20% fuel threshold flags the real Fleet Management page
+     * (smartcity-os client/src/pages/FleetManagement.tsx) already computes
+     * from this same stats data -- null when the underlying reading is
+     * unknown, never guessed.
+     */
+    dvirUnresolvedDefects: row.dvir?.unresolvedDefectCount ?? null,
+    dvirLastInspection: row.dvir?.lastInspection ?? null,
+    safetyEvents7d: row.safetyEvents7d ?? null,
+    highMileage: row.stats?.highMileage ?? null,
+    lowFuel: row.stats?.lowFuel ?? null,
     provenance: {
       source: "smartcity-os /api/platform/samsara/vehicles",
-      basis: "cachedFetch('vehicles', '/fleet/vehicles'), 60s TTL",
+      basis: "cachedFetch('vehicles', '/fleet/vehicles') + stats batch, 60s TTL, + fetchDvirs()/fetchSafetyEvents() (30-day/7-day windows), 5-min TTL",
       readAt: new Date().toISOString(),
       readAtBasis: "read live for this request; not generated",
     },
@@ -177,9 +195,32 @@ export function mapRealPatrolVehicleRecord(row, cityKey) {
     odometer: row.odometer ?? null,
     engineHours: row.engineHours ?? null,
     lastUpdate: row.lastUpdate || null,
+    /**
+     * Three fields the real staff fleet page (PoliceDashboard.tsx) shows
+     * that this product's mapping previously dropped on the floor --
+     * confirmed real, not invented, against the platform route's own
+     * additive enrichment (server/routes/spireon.ts, G-116 close):
+     *   - activeInNspire: the source's own `active` flag, honest tri-state
+     *     (true/false/null if the field is ever absent). Only observable
+     *     as false because the platform route is now called with
+     *     include_inactive=true below -- the Spireon API request itself
+     *     filters to active-only otherwise, so no vehicle could ever come
+     *     back inactive before this. This is what "Inactive in NSpire"
+     *     is built from on the real page.
+     *   - maintenanceAlertCount / recentAlertCount: real per-vehicle
+     *     counts the platform route merges on by id server-side (reusing
+     *     deriveMaintenanceAlerts/fetchAlerts, not re-derived here) --
+     *     the same NSpire maintenance records and Spireon 7-day asset
+     *     alert log the real page's Maintenance/Alerts tabs render.
+     *     `?? null`, not `|| 0`, so a real 0 (genuinely no alerts) is
+     *     never confused with the field being absent altogether.
+     */
+    activeInNspire: row.active ?? null,
+    maintenanceAlertCount: row.maintenanceAlertCount ?? null,
+    recentAlertCount: row.recentAlertCount ?? null,
     provenance: {
-      source: "smartcity-os /api/platform/spireon/vehicles",
-      basis: "getCredentials/fetchLiveVehicles, active vehicles only",
+      source: "smartcity-os /api/platform/spireon/vehicles?include_inactive=true",
+      basis: "getCredentials/fetchLiveVehicles(includeInactive=true) + deriveMaintenanceAlerts/fetchAlerts merged per vehicle by id, 7-day alert window",
       readAt: new Date().toISOString(),
       readAtBasis: "read live for this request; not generated",
     },
@@ -188,7 +229,7 @@ export function mapRealPatrolVehicleRecord(row, cityKey) {
 
 export async function composeRealPatrolVehicles(pack, domain, opts = {}) {
   const base = envelope(pack, domain);
-  const fetched = await fetchLiveJson("https://smartcity-api-7dyaiy7wha-uc.a.run.app/api/platform/spireon/vehicles", opts);
+  const fetched = await fetchLiveJson("https://smartcity-api-7dyaiy7wha-uc.a.run.app/api/platform/spireon/vehicles?include_inactive=true", opts);
   if (fetched.status !== "ok") return unavailableResult(base, fetched.basis);
   const rows = Array.isArray(fetched.body?.vehicles) ? fetched.body.vehicles : [];
   const records = rows.map((row) => mapRealPatrolVehicleRecord(row, pack.cityKey));
@@ -197,6 +238,35 @@ export async function composeRealPatrolVehicles(pack, domain, opts = {}) {
 
 /* ------------------------------------------------------------- firstdue */
 
+/**
+ * apparatusType/stationLabel below fill two columns ("Type", "Station") the
+ * Apparatus and stations table (web/index.html) has carried since the
+ * fixture domain shipped them (src/domains/fire-apparatus.mjs,
+ * generateApparatusRecords) and web/app.js's renderFireApparatus has always
+ * read (td(record.apparatusType), td(record.stationLabel)) -- this live
+ * mapper simply never populated either, so a granted feed rendered both
+ * columns blank via td()'s existing null-is-blank handling. NOT independently
+ * verified against a live 200: the apparatus scope is still 403'd (see
+ * composeRealFireApparatus and the module header above), so these field
+ * names are unconfirmed. They are not guessed fresh here -- they are the
+ * exact fallback chain smartcity-os's OWN EmergencyResponse.tsx already
+ * gambles on for this same unverified resource (item.name/unit_name/
+ * apparatus_name, item.type, item.station -- client/src/pages/
+ * EmergencyResponse.tsx, the apparatus-card and dispatch-apparatus renders),
+ * kept in sync rather than re-guessed independently. Left null, never
+ * defaulted to an invented string, when absent.
+ *
+ * OCCUPANCY / PRE-PLAN FIELDS (businessName, constructionClass,
+ * requiredFireFlow, isTargetHazard, isHighHazard, buildingUse, numberFloors,
+ * etc.) ARE DELIBERATELY NOT HERE. Those belong to FirstDue's /occupancy
+ * resource (server/routes/firstdue.ts mapOccupancy(), consumed by
+ * VFDPortal.tsx's PrePlan interface), a different endpoint entirely from
+ * /apparatus -- not merely a different field set. src/domains/fire-apparatus.mjs
+ * already states this boundary ("WHAT IS NOT HERE"): occupancy is a real
+ * building with a real address and is out of scope for this domain, not a
+ * gap in it. Force-mapping occupancy fields onto apparatus records here would
+ * fabricate a shape the FirstDue apparatus API does not have.
+ */
 export function mapRealFireApparatusRecord(row, cityKey) {
   return {
     recordId: String(row.id || row.unitId || "").trim() || `unknown-apparatus`,
@@ -205,9 +275,11 @@ export function mapRealFireApparatusRecord(row, cityKey) {
     cityKey,
     origin: "feed",
     accessPolicy: "tenant-private",
-    unitLabel: row.name || row.unitName || "Unnamed apparatus",
+    unitLabel: row.name || row.unitName || row.unit_name || row.apparatus_name || "Unnamed apparatus",
     status: String(row.status || "unknown"),
     station: row.station || row.stationName || null,
+    apparatusType: row.type || row.apparatusType || row.apparatus_type || null,
+    stationLabel: row.station || row.stationName || row.station_name || null,
     provenance: {
       source: "smartcity-os /api/platform/firstdue/apparatus",
       basis: "live",
