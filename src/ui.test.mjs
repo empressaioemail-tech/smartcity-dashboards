@@ -496,6 +496,24 @@ describe("G-77 fixture pack on Development services", () => {
     assert.match(app, /url\.searchParams\.set\("cityKey", staffMap\.cityKey\)/);
   });
 
+  it("G-116 close: a real 'ok' region is never labelled Demo records, on the panel, the nav badge, the chip or the register row", () => {
+    /**
+     * Found live on the operator's own QA pass: 75 real Samsara vehicles
+     * under a "Demo records" pill and a sidebar badge that also said
+     * Demo records, because renderRegion/renderPipeline showed the
+     * fixture-only mark on any ok payload with no real/fixture check, and
+     * sourcedLabel (driving the nav badge, the page chip and the register
+     * row) had the same gap.
+     */
+    assert.match(app, /const isReal = payload\.source === "live";\s*\n\s*show\(mark, ok && !isReal\);\s*\n\s*show\(prov, ok && !isReal\);/);
+    assert.match(app, /const isReal = Array\.isArray\(pipeline\.realStatusCounts\);\s*\n\s*show\(empty, false\);\s*\n\s*show\(wrap, true\);\s*\n\s*show\(mark, !isReal\);\s*\n\s*show\(prov, !isReal\);/);
+    assert.match(app, /if \(status === "ok" && regions\.some\(\(r\) => r && r\.source === "live"\)\) return "Live records";/);
+    // The guarded five-word vocabulary itself is untouched -- src/lens-claims.test.mjs
+    // holds LENS_BADGE/LENS_BADGE_ORDER equal to the fixture seam's own states,
+    // and this fix does not add a sixth word to either.
+    assert.match(app, /const LENS_BADGE = \{\s*\n\s*ok: "Demo records",\s*\n\s*"granted-empty": "No records",\s*\n\s*ungranted: "No source",\s*\n\s*"no-fixture-source": "Empty",\s*\n\s*"did-not-read": "Not read",\s*\n\s*\};/);
+  });
+
   it("G-116 close: the Pipeline route dispatches to a real source exactly like /api/domains/:id and /api/city-domains do", () => {
     assert.match(
       serverSrc,
@@ -753,8 +771,10 @@ describe("G-77 fixture pack on Development services", () => {
     assert.match(applyState, /getElementById\(chipId\)/);
     assert.match(applyState, /navitem\[data-lens="\$\{lensId\}"\] \.badge/);
     assert.match(applyState, /\[data-lens-row="\$\{lensId\}"\] \.pill/);
-    // And the pipeline is one of its callers, with the seam's own status.
-    assert.match(app, /applyLensState\("ds-state-chip", "development-services", sourcedLabel\(\[\{ status \}\]\)\)/);
+    // And the pipeline is one of its callers, with the seam's own status
+    // (source travels alongside it now, G-116, so a real pipeline is not
+    // mislabelled through the same call).
+    assert.match(app, /applyLensState\(\s*"ds-state-chip",\s*"development-services",\s*sourcedLabel\(\[\{ status, source: [\s\S]{0,120}\}\]\),?\s*\);/);
     // The static value is the unread fallback on every lens this rule drives.
     assert.match(ds, /id="ds-state-chip">Empty</);
     for (const id of ["pw-state-chip", "police-state-chip", "fire-ems-state-chip", "fleet-state-chip"]) {

@@ -748,7 +748,11 @@ function renderPipeline(pipeline) {
    */
   const status = String(pipeline.sourceStatus || "did-not-read");
   /** G-100. The badge, the chip and the register row, from the same status. */
-  applyLensState("ds-state-chip", "development-services", sourcedLabel([{ status }]));
+  applyLensState(
+    "ds-state-chip",
+    "development-services",
+    sourcedLabel([{ status, source: Array.isArray(pipeline.realStatusCounts) ? "live" : undefined }]),
+  );
   if (emptyKicker) {
     emptyKicker.textContent = REGION_KICKER[status] || REGION_KICKER["did-not-read"];
   }
@@ -782,10 +786,12 @@ function renderPipeline(pipeline) {
     return;
   }
 
+  /** Same fix as renderRegion: "Demo records" is a false claim on a real pipeline. */
+  const isReal = Array.isArray(pipeline.realStatusCounts);
   show(empty, false);
   show(wrap, true);
-  show(mark, true);
-  show(prov, true);
+  show(mark, !isReal);
+  show(prov, !isReal);
   if (caption) caption.textContent = `${records.length} cases in flight`;
   if (basis) basis.textContent = `Basis: ${pipeline.basis}`;
   if (!rows) return;
@@ -1773,8 +1779,20 @@ function renderRegion(prefix, payload) {
 
   const status = String(payload.status || "did-not-read");
   const ok = status === "ok";
-  show(mark, ok);
-  show(prov, ok);
+  /**
+   * The mark/prov pair's shipped markup literally reads "Demo records" /
+   * "Generated fixture" -- correct on every ok payload back when ok only
+   * ever meant fixture, and a false claim now that a real composer can
+   * also return ok. Real composers are the only ones that set
+   * payload.source ("live"); fixture's composeDomain never does. Shown
+   * only on the fixture path -- never claiming "Demo records" over a real
+   * one, and not (yet) claiming anything in its place for a real one
+   * either, since inventing a new real-provenance label is a design
+   * decision this fix does not make unilaterally.
+   */
+  const isReal = payload.source === "live";
+  show(mark, ok && !isReal);
+  show(prov, ok && !isReal);
   show(records, ok);
   show(state, !ok);
 
@@ -2147,9 +2165,23 @@ function lensStatus(regions) {
   return LENS_BADGE_ORDER.find((status) => present.has(status)) || "did-not-read";
 }
 
-/** The lens label. Same vocabulary the pipeline already uses on the shell. */
+/**
+ * The lens label. Same vocabulary the pipeline already uses on the shell.
+ *
+ * LENS_BADGE/LENS_BADGE_ORDER stay exactly the fixture seam's own five
+ * words (src/lens-claims.test.mjs holds them equal to DOMAIN_STATUSES) --
+ * a real domain is not a seam status and does not get a sixth word spliced
+ * into that guarded vocabulary. "Demo records" is still the true word for
+ * an "ok" fixture region; it is a false one for a real "ok" region (any
+ * composer that sets source: "live"), so that one case is answered before
+ * the guarded lookup rather than inside it. Every fixture-composed region
+ * in the existing coverage carries no source field at all, so this is a
+ * pure addition: nothing already asserted about the five-word map changes.
+ */
 function sourcedLabel(regions) {
-  return LENS_BADGE[lensStatus(regions)] || LENS_BADGE["did-not-read"];
+  const status = lensStatus(regions);
+  if (status === "ok" && regions.some((r) => r && r.source === "live")) return "Live records";
+  return LENS_BADGE[status] || LENS_BADGE["did-not-read"];
 }
 
 /** The figure, with its denominator and its counting rule at the point of use. */
