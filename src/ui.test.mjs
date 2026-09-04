@@ -848,9 +848,16 @@ describe("G-116 CIP enrichment: real phase/Gantt fields on Capital projects", ()
     assert.match(html, /id="pw-cip-gantt-rows"/);
     assert.match(html, /<th scope="col">Task<\/th>/);
     assert.match(html, /<th scope="col">Duration \(days\)<\/th>/);
-    // Fixture packs never populate a record's `phases` array, so this table
-    // stays honestly empty for them -- not hidden, no fabricated row.
+    // Fixture packs never populate a record's `phases` array; the table
+    // itself is hidden for them (a th-has-data-cells violation otherwise --
+    // header cells with no data row anywhere is a real defect, not honesty),
+    // and only the caption states the absence.
     assert.match(html, /Per-task phase data has not been read for this pack/);
+  });
+
+  it("G-116 CIP a11y fix: the Gantt table is hidden (not left visible with an empty body) when no real phase rows exist", () => {
+    assert.match(html, /<table class="dt" id="pw-cip-gantt-table" hidden style="display:none">/);
+    assert.match(app, /show\(document\.getElementById\("pw-cip-gantt-table"\), ganttRows\.length > 0\);/);
   });
 
   it("prints no money figure and no new kit class in the new Completion/Gantt markup", () => {

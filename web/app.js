@@ -2059,8 +2059,12 @@ function renderCapitalProjects(payload) {
   /**
    * Per-task Gantt rows. Real records carry their own `phases` array
    * (getCIPProjectData()'s msdyn_projecttask summary tasks); the fixture
-   * never does, so this stays empty -- not hidden, not backfilled -- for a
-   * generated pack, same honest-empty stance as the rest of this domain.
+   * never does, so this is empty on a generated pack -- same honest-empty
+   * stance as the rest of this domain. The TABLE itself is hidden in that
+   * case, not left visible with an empty body: a table with header cells
+   * and zero data rows is a real, separate defect (th-has-data-cells) from
+   * "no fixture source" honesty, and the fix for one is not a fix for the
+   * other. Hidden, the static caption below already states the absence.
    */
   const ganttRows = records.flatMap((record) =>
     (Array.isArray(record.phases) ? record.phases : []).map((phase) => ({
@@ -2083,6 +2087,7 @@ function renderCapitalProjects(payload) {
       return row;
     }),
   );
+  show(document.getElementById("pw-cip-gantt-table"), ganttRows.length > 0);
   if (ganttRows.length > 0) {
     setText(
       "pw-cip-gantt-basis",
