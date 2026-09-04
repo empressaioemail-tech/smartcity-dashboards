@@ -19,7 +19,42 @@
     </form>
     <p id="pm-status" class="pm-status" role="status" aria-live="polite">Enter an address above and press Search.</p>
     <div class="pm-layout">
-      <div id="pm-map" class="pm-map"></div>
+      <div id="pm-map" class="pm-map">
+        <div class="pm-layers" id="pm-layers">
+          <p class="pm-layers-title">Map layers</p>
+          <ul class="pm-layers-list">
+            <li class="pm-layers-item">
+              <label class="pm-layers-label" for="pm-layer-zoning">
+                <input type="checkbox" id="pm-layer-zoning" checked />
+                <span class="pm-layers-swatch" style="background: #7c3aed"></span>
+                Zoning Districts
+              </label>
+            </li>
+            <li class="pm-layers-item">
+              <label class="pm-layers-label" for="pm-layer-future-land-use">
+                <input type="checkbox" id="pm-layer-future-land-use" checked />
+                <span class="pm-layers-swatch" style="background: #8b5cf6"></span>
+                Future Land Use
+              </label>
+            </li>
+            <li class="pm-layers-item">
+              <label class="pm-layers-label" for="pm-layer-subdivisions">
+                <input type="checkbox" id="pm-layer-subdivisions" checked />
+                <span class="pm-layers-swatch" style="background: #1e40af"></span>
+                Subdivisions / Final Plats
+              </label>
+            </li>
+            <li class="pm-layers-item">
+              <label class="pm-layers-label" for="pm-layer-parcels-one-click">
+                <input type="checkbox" id="pm-layer-parcels-one-click" checked />
+                <span class="pm-layers-swatch" style="background: #3b82f6"></span>
+                Parcels One Click
+              </label>
+            </li>
+          </ul>
+          <p class="pm-layers-status" id="pm-layers-status" role="status" aria-live="polite"></p>
+        </div>
+      </div>
       <aside id="pm-panel" class="pm-panel">
         <section class="pm-section" id="pm-summary-section" hidden>
           <h2 class="pm-h2">Parcel</h2>

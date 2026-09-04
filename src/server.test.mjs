@@ -839,6 +839,71 @@ describe("HTTP surface", () => {
       delete process.env.HAUSKA_TENANT_KEYS;
     }
   });
+
+  /**
+   * G-117 follow-up. The property map's four always-on GIS overlay-layer
+   * route -- same gate, same envelope shape, same bastrop-only refusal as
+   * /api/property-map/summary just above, proved the same way and for the
+   * same reason: reachable without a live PLATFORM_INTERNAL_API_KEY, since
+   * what this proves is the route's own gating and honesty, not the live
+   * smartcity-os fetch (which never fires in this test process).
+   */
+  it("gates and honestly envelopes /api/property-map/layers", async () => {
+    process.env.DASHBOARDS_API_KEY = "scaffold-test-key";
+    process.env.HAUSKA_TENANT_KEYS = JSON.stringify({ "hauska-bastrop": "bastrop_tx" });
+    delete process.env.PLATFORM_INTERNAL_API_KEY;
+    try {
+      const base = `http://127.0.0.1:${port}`;
+      const bbox = "xmin=-97.35&ymin=30.08&xmax=-97.28&ymax=30.14";
+
+      const anon = await fetch(`${base}/api/property-map/layers?cityKey=bastrop_tx&key=zoning&${bbox}`);
+      assert.equal(anon.status, 401);
+      assert.deepEqual(await anon.json(), { error: "unauthorized" });
+
+      const subject = await fetch(
+        `${base}/api/property-map/layers?cityKey=bastrop_tx&key=zoning&${bbox}`,
+        { headers: { "x-hauska-key": "hauska-bastrop" } },
+      );
+      assert.equal(subject.status, 200);
+      const subjectBody = await subject.json();
+      assert.equal(subjectBody.found, false);
+      assert.equal(subjectBody.status, "unavailable");
+      assert.match(subjectBody.basis, /PLATFORM_INTERNAL_API_KEY unset/);
+      assert.equal(subjectBody.source, "live");
+      assert.equal(subjectBody.key, "zoning");
+      assert.equal(subjectBody.result, null);
+
+      // Same Bastrop-only refusal as the summary route, proved here too --
+      // a real source is Bastrop-only, stated honestly, never silently
+      // returned mislabeled as belonging to another pack.
+      const wrongCity = await fetch(
+        `${base}/api/property-map/layers?cityKey=template-city&key=zoning&${bbox}`,
+      );
+      assert.equal(wrongCity.status, 200);
+      const wrongCityBody = await wrongCity.json();
+      assert.equal(wrongCityBody.found, false);
+      assert.match(wrongCityBody.basis, /bastrop_tx only/);
+
+      // Past the tenancy gate, on bastrop_tx: a key outside the four-key
+      // allowlist is honestly refused (400 upstream, surfaced as an
+      // unavailable envelope here), not silently answered with someone
+      // else's registry entry.
+      const badKey = await fetch(
+        `${base}/api/property-map/layers?cityKey=bastrop_tx&key=fire-stations&${bbox}`,
+        { headers: { "x-hauska-key": "hauska-bastrop" } },
+      );
+      assert.equal(badKey.status, 200);
+      const badKeyBody = await badKey.json();
+      assert.equal(badKeyBody.found, false);
+      assert.match(badKeyBody.basis, /fire-stations/);
+
+      const unknown = await fetch(`${base}/api/property-map/layers?cityKey=no-such-city&key=zoning&${bbox}`);
+      assert.equal(unknown.status, 404);
+    } finally {
+      delete process.env.DASHBOARDS_API_KEY;
+      delete process.env.HAUSKA_TENANT_KEYS;
+    }
+  });
 });
 
 

@@ -4,6 +4,9 @@ import {
   fetchPropertyIntelSummary,
   mapRealPropertyResult,
   composePropertyIntelSummary,
+  fetchPropertyIntelLayer,
+  composePropertyIntelLayer,
+  PROPERTY_INTEL_LAYER_KEYS,
   NATIVE_PROPERTY_MAP_CITY_KEY,
 } from "./property-map.mjs";
 
@@ -188,6 +191,170 @@ describe("property-map (G-117 native map live feed)", () => {
     const out = await composePropertyIntelSummary({
       address: "123 Chestnut St",
       cityKey: "bastrop_tx",
+      env: { PLATFORM_INTERNAL_API_KEY: "test-key" },
+      fetchImpl: async () => {
+        throw new Error("network unreachable");
+      },
+    });
+    assert.equal(out.status, "unavailable");
+    assert.match(out.basis, /network unreachable/);
+    assert.equal(out.found, false);
+  });
+});
+
+const SAMPLE_LAYER_BODY = {
+  found: true,
+  source: "live",
+  key: "zoning",
+  layer: {
+    type: "FeatureCollection",
+    totalReturned: 1,
+    features: [
+      {
+        type: "Feature",
+        properties: { placeType: "Core", placeTypeDesc: "Downtown Core" },
+        geometry: { type: "Polygon", coordinates: [[[-97.316, 30.109], [-97.314, 30.109], [-97.314, 30.111], [-97.316, 30.109]]] },
+      },
+    ],
+  },
+};
+
+const SAMPLE_BBOX = { xmin: -97.35, ymin: 30.08, xmax: -97.28, ymax: 30.14 };
+
+describe("property-map (G-117 follow-up: the four always-on GIS overlay layers)", () => {
+  it("PROPERTY_INTEL_LAYER_KEYS is exactly the four keys smartcity-os's own platform route allowlists", () => {
+    assert.deepEqual(PROPERTY_INTEL_LAYER_KEYS, ["zoning", "future-land-use", "subdivisions", "parcels-one-click"]);
+  });
+
+  it("fetchPropertyIntelLayer fails closed when PLATFORM_INTERNAL_API_KEY is unset", async () => {
+    const result = await fetchPropertyIntelLayer("zoning", SAMPLE_BBOX, { env: {} });
+    assert.equal(result.status, "unavailable");
+    assert.match(result.basis, /PLATFORM_INTERNAL_API_KEY unset/);
+    assert.equal(result.body, null);
+  });
+
+  it("fetchPropertyIntelLayer sends the bearer key, the layer key, and the bbox, and returns the body", async () => {
+    let capturedUrl = null;
+    let capturedHeaders = null;
+    const fetchImpl = async (url, opts) => {
+      capturedUrl = url;
+      capturedHeaders = opts.headers;
+      return { ok: true, json: async () => SAMPLE_LAYER_BODY };
+    };
+    const result = await fetchPropertyIntelLayer("zoning", SAMPLE_BBOX, {
+      env: { PLATFORM_INTERNAL_API_KEY: "test-key" },
+      fetchImpl,
+    });
+    assert.equal(result.status, "ok");
+    assert.equal(capturedHeaders.authorization, "Bearer test-key");
+    assert.match(capturedUrl, /key=zoning/);
+    assert.match(capturedUrl, /xmin=-97\.35/);
+    assert.match(capturedUrl, /ymax=30\.14/);
+    assert.equal(result.body.found, true);
+  });
+
+  it("fetchPropertyIntelLayer stays honest-unavailable on a non-ok HTTP response, not a thrown crash", async () => {
+    const fetchImpl = async () => ({ ok: false, status: 400, json: async () => ({ error: "Unknown or disallowed layer key: bogus" }) });
+    const result = await fetchPropertyIntelLayer("zoning", SAMPLE_BBOX, {
+      env: { PLATFORM_INTERNAL_API_KEY: "test-key" },
+      fetchImpl,
+    });
+    assert.equal(result.status, "unavailable");
+    assert.equal(result.basis, "Unknown or disallowed layer key: bogus");
+  });
+
+  it("composePropertyIntelLayer is honestly unavailable for any cityKey other than bastrop_tx -- no cross-tenant leak", async () => {
+    const out = await composePropertyIntelLayer({
+      key: "zoning",
+      cityKey: "template-city",
+      ...SAMPLE_BBOX,
+      env: { PLATFORM_INTERNAL_API_KEY: "test-key" },
+      fetchImpl: async () => ({ ok: true, json: async () => SAMPLE_LAYER_BODY }),
+    });
+    assert.equal(out.status, "unavailable");
+    assert.match(out.basis, new RegExp(NATIVE_PROPERTY_MAP_CITY_KEY));
+    assert.equal(out.found, false);
+    assert.equal(out.result, null);
+    assert.equal(out.source, "live");
+  });
+
+  it("composePropertyIntelLayer is honestly unavailable for a key outside the four-key allowlist, without ever reaching the network", async () => {
+    let fetchCalled = false;
+    const out = await composePropertyIntelLayer({
+      key: "fire-stations",
+      cityKey: "bastrop_tx",
+      ...SAMPLE_BBOX,
+      env: { PLATFORM_INTERNAL_API_KEY: "test-key" },
+      fetchImpl: async () => {
+        fetchCalled = true;
+        return { ok: true, json: async () => SAMPLE_LAYER_BODY };
+      },
+    });
+    assert.equal(out.status, "unavailable");
+    assert.match(out.basis, /fire-stations/);
+    assert.equal(out.found, false);
+    assert.equal(fetchCalled, false, "an unallowed key must be refused before any network call, same discipline as the cityKey check");
+  });
+
+  it("composePropertyIntelLayer is honestly unavailable when bounds are missing or non-finite", async () => {
+    const out = await composePropertyIntelLayer({
+      key: "zoning",
+      cityKey: "bastrop_tx",
+      xmin: "not-a-number",
+      ymin: 30.08,
+      xmax: -97.28,
+      ymax: 30.14,
+      env: { PLATFORM_INTERNAL_API_KEY: "test-key" },
+      fetchImpl: async () => ({ ok: true, json: async () => SAMPLE_LAYER_BODY }),
+    });
+    assert.equal(out.status, "unavailable");
+    assert.match(out.basis, /bounds are all required/);
+  });
+
+  it("composePropertyIntelLayer produces the full real shape end to end, source live, origin feed on every feature", async () => {
+    const out = await composePropertyIntelLayer({
+      key: "zoning",
+      cityKey: "bastrop_tx",
+      ...SAMPLE_BBOX,
+      env: { PLATFORM_INTERNAL_API_KEY: "test-key" },
+      fetchImpl: async () => ({ ok: true, json: async () => SAMPLE_LAYER_BODY }),
+    });
+    assert.equal(out.status, "ok");
+    assert.equal(out.found, true);
+    assert.equal(out.source, "live");
+    assert.equal(out.cityKey, "bastrop_tx");
+    assert.equal(out.key, "zoning");
+    assert.equal(out.result.type, "FeatureCollection");
+    assert.equal(out.result.totalReturned, 1);
+    assert.equal(out.result.features[0].properties.placeTypeDesc, "Downtown Core");
+    // Tagged inside properties, not as a sibling of type/geometry/properties,
+    // so the object stays a plain, standard GeoJSON Feature.
+    assert.equal(out.result.features[0].properties.origin, "feed");
+    assert.equal(out.result.features[0].geometry.type, "Polygon");
+  });
+
+  it("composePropertyIntelLayer states an honest empty FeatureCollection (not an error) when the upstream query genuinely found nothing", async () => {
+    const out = await composePropertyIntelLayer({
+      key: "subdivisions",
+      cityKey: "bastrop_tx",
+      ...SAMPLE_BBOX,
+      env: { PLATFORM_INTERNAL_API_KEY: "test-key" },
+      fetchImpl: async () => ({
+        ok: true,
+        json: async () => ({ found: true, source: "live", key: "subdivisions", layer: { type: "FeatureCollection", features: [], totalReturned: 0 } }),
+      }),
+    });
+    assert.equal(out.status, "ok");
+    assert.equal(out.found, true);
+    assert.deepEqual(out.result.features, []);
+    assert.equal(out.result.totalReturned, 0);
+  });
+
+  it("composePropertyIntelLayer stays honestly unavailable, not silently empty, when the platform fetch itself fails", async () => {
+    const out = await composePropertyIntelLayer({
+      key: "parcels-one-click",
+      cityKey: "bastrop_tx",
+      ...SAMPLE_BBOX,
       env: { PLATFORM_INTERNAL_API_KEY: "test-key" },
       fetchImpl: async () => {
         throw new Error("network unreachable");

@@ -1010,3 +1010,86 @@ describe("G-117 close: the property map surfaces real CAD valuation and legal-de
     assert.equal(propertyMapJs.includes("tile.openstreetmap.org"), false);
   });
 });
+
+describe("G-117 follow-up: the property map's four always-on GIS overlay layers (zoning, future land use, subdivisions, parcels-one-click)", () => {
+  it("OVERLAY_LAYERS carries the exact four keys, colors, fillColor/fillOpacity/weight, and minZoom production's own layerCatalog.ts defines -- confirmed against the real source, not approximated", () => {
+    const block = propertyMapJs.match(/const OVERLAY_LAYERS = \[[\s\S]*?\n\];/)?.[0] || "";
+    assert.ok(block, "OVERLAY_LAYERS must exist");
+
+    assert.match(block, /key: "zoning".*minZoom: 14.*style: \{ color: "#7c3aed", fillOpacity: 0\.35 \}/);
+    assert.match(
+      block,
+      /key: "future-land-use"[\s\S]*?minZoom: 13[\s\S]*?style: \{ color: "#8b5cf6", fillColor: "#c4b5fd", fillOpacity: 0\.2, weight: 2 \}/,
+    );
+    assert.match(
+      block,
+      /key: "subdivisions"[\s\S]*?minZoom: 12[\s\S]*?style: \{ color: "#1e40af", fillColor: "#3b82f6", fillOpacity: 0\.4, weight: 3 \}/,
+    );
+    assert.match(
+      block,
+      /key: "parcels-one-click"[\s\S]*?minZoom: 14[\s\S]*?style: \{ color: "#3b82f6", fillColor: "#3b82f6", fillOpacity: 0\.15, weight: 1\.5 \}/,
+    );
+
+    // Exactly four -- no fifth key ever added client-side beyond what
+    // smartcity-os's own platform route allowlists.
+    assert.equal((block.match(/key: "/g) || []).length, 4);
+  });
+
+  it("the HTML ships a real checkbox (default checked) and a real swatch, per layer, matching each real color", () => {
+    for (const [id, color] of [
+      ["pm-layer-zoning", "#7c3aed"],
+      ["pm-layer-future-land-use", "#8b5cf6"],
+      ["pm-layer-subdivisions", "#1e40af"],
+      ["pm-layer-parcels-one-click", "#3b82f6"],
+    ]) {
+      assert.match(propertyMapHtml, new RegExp(`<input type="checkbox" id="${id}" checked />`), id);
+    }
+    assert.equal((propertyMapHtml.match(/background: #(7c3aed|8b5cf6|1e40af|3b82f6)/g) || []).length, 4);
+  });
+
+  it("fetches by the CURRENT viewport bounding box (map.getBounds()), not by the searched address", () => {
+    assert.match(propertyMapJs, /const bounds = map\.getBounds\(\);/);
+    assert.match(propertyMapJs, /xmin: String\(bounds\.getWest\(\)\)/);
+    assert.match(propertyMapJs, /ymin: String\(bounds\.getSouth\(\)\)/);
+    assert.match(propertyMapJs, /xmax: String\(bounds\.getEast\(\)\)/);
+    assert.match(propertyMapJs, /ymax: String\(bounds\.getNorth\(\)\)/);
+    assert.match(propertyMapJs, /fetch\(`\/api\/property-map\/layers\?\$\{params\}`\)/);
+  });
+
+  it("respects each layer's own minZoom by skipping the fetch entirely below it, never rendering a stale or oversized result", () => {
+    const fn = propertyMapJs.match(/async function refreshOverlayLayer\(layerDef\)[\s\S]*?\n\}/)?.[0] || "";
+    assert.ok(fn, "refreshOverlayLayer must exist");
+    assert.match(fn, /if \(map\.getZoom\(\) < minZoom\) \{/);
+    assert.match(fn, /removeOverlayLayer\(key\);\s*\n\s*return \{ key, state: "below-min-zoom" \};/);
+    // The early return happens before any fetch() call in this function.
+    const zoomGuardIndex = fn.indexOf("map.getZoom() < minZoom");
+    const fetchIndex = fn.indexOf("fetch(");
+    assert.ok(zoomGuardIndex > -1 && fetchIndex > -1 && zoomGuardIndex < fetchIndex, "the minZoom guard must run before the fetch");
+  });
+
+  it("debounces moveend/zoomend rather than firing a request on every intermediate pan/zoom frame", () => {
+    assert.match(propertyMapJs, /map\.on\("moveend zoomend", scheduleOverlayRefresh\)/);
+    const fn = propertyMapJs.match(/function scheduleOverlayRefresh\(\)[\s\S]*?\n\}/)?.[0] || "";
+    assert.ok(fn, "scheduleOverlayRefresh must exist");
+    assert.match(fn, /clearTimeout\(overlayRefreshTimer\)/);
+    assert.match(fn, /setTimeout\(\(\) => \{/);
+  });
+
+  it("renders each layer as its own L.geoJSON using that layer's real style object, unmodified", () => {
+    assert.match(propertyMapJs, /overlayGroups\[key\] = L\.geoJSON\(data\.result, \{ style \}\)\.addTo\(map\)/);
+  });
+
+  it("each checkbox independently toggles just its own layer, defaulting all four visible (no fetch is skipped for a checked layer)", () => {
+    assert.match(propertyMapJs, /function overlayVisible\(key\) \{\s*\n\s*const box = overlayCheckboxes\[key\];\s*\n\s*return !box \|\| box\.checked;/);
+    assert.match(propertyMapJs, /box\.addEventListener\("change", \(\) => refreshOverlayLayer\(layerDef\)\)/);
+    // Default-checked is asserted against the real markup above, not here --
+    // this test only proves the toggle wiring itself.
+  });
+
+  it("the four overlay layers coexist with the existing address-search flow -- the search route, renderParcel, and search() are untouched", () => {
+    assert.match(propertyMapJs, /async function search\(address\) \{/);
+    assert.match(propertyMapJs, /fetch\(`\/api\/property-map\/summary\?\$\{params\}`\)/);
+    assert.match(propertyMapJs, /function renderParcel\(geometry\) \{/);
+    assert.match(propertyMapJs, /style: \{ color: "#4f9dff", weight: 2, fillOpacity: 0\.15 \}/);
+  });
+});
