@@ -67,6 +67,16 @@ export function mapRealPermitRecord(row, cityKey, accessPolicy) {
     },
     department: row.department || null,
     manager: row.manager || null,
+    // dbPermitToApi (smartcity-os) already reads these straight off the
+    // mygov_permits row -- applicant/contractor/ownerName are real columns
+    // and fees is a real jsonb {type, amount}[] column populated from the
+    // MyGov fee reports (see that file's own DATA ACCURACY CONTRACT header:
+    // "FEES: mygov_fees table"). Not previously read here even though the
+    // platform route already returned them.
+    applicant: row.applicant || null,
+    contractor: row.contractor || null,
+    ownerName: row.ownerName || null,
+    fees: Array.isArray(row.fees) ? row.fees : [],
     submittedDate: row.submittedDate || null,
     issuedDate: row.issuedDate || null,
     expirationDate: row.expirationDate || null,

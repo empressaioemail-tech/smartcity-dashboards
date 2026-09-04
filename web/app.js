@@ -661,6 +661,24 @@ function td(text, className) {
   return cell;
 }
 
+/**
+ * A real fees array ({type, amount}[]) rendered as one itemized line rather
+ * than collapsed to a bare total -- the real source (and the production
+ * staff dashboard) carries fees itemized, not just a total, so the cell
+ * keeps that instead of summing it away. Absent or empty renders blank,
+ * same discipline as td().
+ */
+function feesLabel(fees) {
+  if (!Array.isArray(fees) || fees.length === 0) return "";
+  return fees
+    .map((f) => {
+      const amount = Number(f && f.amount) || 0;
+      const label = f && f.type ? String(f.type) : "Fee";
+      return `${label}: $${amount.toFixed(2)}`;
+    })
+    .join(", ");
+}
+
 function statusCell(record, statusLabels) {
   const cell = document.createElement("td");
   const pill = document.createElement("span");
@@ -805,6 +823,16 @@ function renderPipeline(pipeline) {
         td(record.place && record.place.label ? record.place.label : ""),
         dueCell(record),
         statusCell(record, statusLabels),
+        /**
+         * Real-feed-only columns (applicant/contractor/owner/fees) --
+         * mapRealPermitRecord is the only source that populates these; a
+         * generated fixture case simply has none, so td()/feesLabel()
+         * render blank rather than "undefined".
+         */
+        td(record.applicant, "t-data"),
+        td(record.contractor, "t-data"),
+        td(record.ownerName, "t-data"),
+        td(feesLabel(record.fees), "t-data"),
       );
       return row;
     }),
@@ -996,6 +1024,8 @@ function inspectionRow(record, payload) {
      */
     record.dayLabel ? dataCell(record.dayLabel) : basisCell(record.scheduleBasis || ""),
     statusCell(record, statusLabelsFor(payload)),
+    /** Real-feed-only column -- see mapRealInspectionRecord. */
+    td(record.comments, "t-data"),
   );
   return row;
 }
@@ -1061,6 +1091,10 @@ function workOrderRow(record, payload) {
         : "",
     ),
     statusCell(record, statusLabelsFor(payload)),
+    /** Real-feed-only columns -- see mapRealWorkOrderRecord. */
+    td(record.assignedTo, "t-data"),
+    td(record.contractor, "t-data"),
+    td(feesLabel(record.fees), "t-data"),
   );
   return row;
 }
@@ -1118,6 +1152,8 @@ function codeViolationRow(record, payload) {
     placeCell(record),
     dueCell(record),
     statusCell(record, statusLabelsFor(payload)),
+    /** Real-feed-only column -- see mapRealCodeViolationRecord. */
+    td(record.resolvedDate, "t-data"),
   );
   return row;
 }
@@ -1171,6 +1207,8 @@ function licenceRow(record, payload) {
     placeCell(record),
     dataCell(record.expiryLabel),
     statusCell(record, statusLabelsFor(payload)),
+    /** Real-feed-only column -- see mapRealBusinessLicenseRecord. */
+    td(record.licenseType, "t-data"),
   );
   return row;
 }
