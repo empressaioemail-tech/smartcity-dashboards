@@ -7,7 +7,7 @@ import { listLenses, getLens } from "./lenses.mjs";
 import { listCityPacks, getCityPack, getPacksStore, ensureCityPacksTable } from "./city-pack.mjs";
 import { readMounts, smartsiteEmbedUrl, planReviewEmbedUrl, smartFilesEmbedUrl, assertNoSupplierDsn, assertNoSupplierMounts } from "./mounts.mjs";
 import { composeCityManager, DEFAULT_CITY_KEY } from "./compose.mjs";
-import { composePropertyIntelSummary, NATIVE_PROPERTY_MAP_CITY_KEY } from "./property-map.mjs";
+import { composePropertyIntelSummary, composePropertyIntelLayer, NATIVE_PROPERTY_MAP_CITY_KEY } from "./property-map.mjs";
 import { listAdapterKinds, platformGrantForKind } from "./adapters.mjs";
 import { composeRealPermits } from "./mygov-permits.mjs";
 import {
@@ -328,6 +328,41 @@ async function handle(req, res) {
     const composed = await composePropertyIntelSummary({
       address: url.searchParams.get("address") || "",
       cityKey: pack.cityKey,
+    });
+    json(res, 200, composed);
+    return;
+  }
+
+  /**
+   * G-117 follow-up. The property map's four always-on GIS overlay layers
+   * (zoning, future land use, subdivisions, parcels-one-click) -- fetched
+   * by the CURRENT viewport bounding box on moveend/zoomend, not by a typed
+   * address, so this is its own route rather than a param on
+   * /api/property-map/summary just above. Same gate, same pack-resolution
+   * order, same 401/403/404 shape as that route (see its own comment for
+   * why) -- purely additive alongside it: the address-search route and
+   * everything it does is untouched.
+   */
+  if (req.method === "GET" && url.pathname === "/api/property-map/layers") {
+    const caller = await resolveCaller(req);
+    const cityKey = url.searchParams.get("cityKey") || "";
+    const pack = await getCityPack(cityKey);
+    const status = packContentReadStatus(pack, caller);
+    if (status === 404) {
+      json(res, 404, { error: "unknown city pack" });
+      return;
+    }
+    if (status !== 200) {
+      json(res, status, { error: status === 401 ? "unauthorized" : "forbidden" });
+      return;
+    }
+    const composed = await composePropertyIntelLayer({
+      key: url.searchParams.get("key") || "",
+      cityKey: pack.cityKey,
+      xmin: url.searchParams.get("xmin"),
+      ymin: url.searchParams.get("ymin"),
+      xmax: url.searchParams.get("xmax"),
+      ymax: url.searchParams.get("ymax"),
     });
     json(res, 200, composed);
     return;

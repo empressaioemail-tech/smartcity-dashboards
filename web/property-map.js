@@ -90,6 +90,189 @@ L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_D
   attribution: "Tiles &copy; Esri",
 }).addTo(map);
 
+/**
+ * G-117 follow-up. The four always-on GIS overlay layers this page renders
+ * over the CURRENT viewport, independent of the address-search parcel
+ * result below -- production's own "GIS & Property Intelligence" map shows
+ * these same four (among others out of scope for a property-records page)
+ * as always-visible, individually toggleable polygon layers, not a
+ * per-parcel color scheme. Real key/color/fillColor/fillOpacity/weight/
+ * minZoom values below are copied exactly from smartcity-os's
+ * client/src/components/maps/layerCatalog.ts, not approximated -- fillColor
+ * and weight are simply absent from that source for "zoning", so they are
+ * absent here too rather than guessed (Leaflet's own defaults then apply,
+ * same as production's rendering of that entry).
+ */
+const OVERLAY_LAYERS = [
+  { key: "zoning", label: "Zoning Districts", minZoom: 14, style: { color: "#7c3aed", fillOpacity: 0.35 } },
+  {
+    key: "future-land-use",
+    label: "Future Land Use",
+    minZoom: 13,
+    style: { color: "#8b5cf6", fillColor: "#c4b5fd", fillOpacity: 0.2, weight: 2 },
+  },
+  {
+    key: "subdivisions",
+    label: "Subdivisions / Final Plats",
+    minZoom: 12,
+    style: { color: "#1e40af", fillColor: "#3b82f6", fillOpacity: 0.4, weight: 3 },
+  },
+  {
+    key: "parcels-one-click",
+    label: "Parcels One Click",
+    minZoom: 14,
+    style: { color: "#3b82f6", fillColor: "#3b82f6", fillOpacity: 0.15, weight: 1.5 },
+  },
+];
+
+/** Literal getElementById calls, one per real checkbox in property-map.html. */
+const overlayCheckboxes = {
+  "zoning": document.getElementById("pm-layer-zoning"),
+  "future-land-use": document.getElementById("pm-layer-future-land-use"),
+  "subdivisions": document.getElementById("pm-layer-subdivisions"),
+  "parcels-one-click": document.getElementById("pm-layer-parcels-one-click"),
+};
+
+const overlayGroups = {}; // key -> the L.geoJSON instance currently on the map, or null
+const overlayGeneration = {}; // key -> a counter guarding against a slow, now-superseded fetch clobbering a newer one for the same key
+
+const layersControlEl = document.getElementById("pm-layers");
+if (layersControlEl) {
+  // Without these, dragging or scrolling to interact with the checkbox list
+  // pans/zooms the map underneath it -- the control sits inside #pm-map on
+  // purpose (top-right overlay, see property-map.css), so it has to opt out
+  // of the map's own drag/scroll handling explicitly.
+  L.DomEvent.disableClickPropagation(layersControlEl);
+  L.DomEvent.disableScrollPropagation(layersControlEl);
+}
+
+function overlayVisible(key) {
+  const box = overlayCheckboxes[key];
+  return !box || box.checked;
+}
+
+function removeOverlayLayer(key) {
+  if (overlayGroups[key]) {
+    map.removeLayer(overlayGroups[key]);
+    overlayGroups[key] = null;
+  }
+}
+
+function setLayersStatus(text) {
+  const el = document.getElementById("pm-layers-status");
+  if (el) el.textContent = text;
+}
+
+/**
+ * One layer's fetch+render, guarded by the SAME minZoom restraint
+ * production's own map uses (layerCatalog.ts): below minZoom the layer is
+ * removed from the map and NOTHING is fetched -- not silently left stale,
+ * not requested at a payload size nobody asked for. Returns a small status
+ * descriptor so callers can compose an honest aggregate message rather than
+ * each guessing at the others' state.
+ */
+async function refreshOverlayLayer(layerDef) {
+  const { key, minZoom, style } = layerDef;
+  if (!overlayVisible(key)) {
+    removeOverlayLayer(key);
+    return { key, state: "hidden" };
+  }
+  if (map.getZoom() < minZoom) {
+    removeOverlayLayer(key);
+    return { key, state: "below-min-zoom" };
+  }
+
+  const bounds = map.getBounds();
+  const params = new URLSearchParams({
+    cityKey,
+    key,
+    xmin: String(bounds.getWest()),
+    ymin: String(bounds.getSouth()),
+    xmax: String(bounds.getEast()),
+    ymax: String(bounds.getNorth()),
+  });
+
+  const generation = (overlayGeneration[key] || 0) + 1;
+  overlayGeneration[key] = generation;
+
+  let data;
+  try {
+    const res = await fetch(`/api/property-map/layers?${params}`);
+    data = await res.json();
+  } catch (err) {
+    data = { status: "unavailable", basis: `request failed: ${err.message}` };
+  }
+
+  // A slower, now-superseded response for this same key must never clobber
+  // a later one -- only the most recently issued fetch for a given key is
+  // allowed to touch the map.
+  if (overlayGeneration[key] !== generation) return { key, state: "stale" };
+
+  if (!data || data.status !== "ok" || !data.found || !data.result) {
+    removeOverlayLayer(key);
+    return { key, state: "unavailable", basis: (data && data.basis) || "layer not read" };
+  }
+
+  removeOverlayLayer(key);
+  overlayGroups[key] = L.geoJSON(data.result, { style }).addTo(map);
+  return { key, state: "ok" };
+}
+
+/**
+ * Refreshes all four layers for the current viewport and composes one
+ * honest status line out of the real per-layer outcomes -- a real error
+ * basis takes priority; otherwise, if every visible layer is below its own
+ * minZoom, a real "zoom in" hint; otherwise blank (nothing wrong to say).
+ */
+async function refreshOverlayLayers() {
+  const results = await Promise.all(OVERLAY_LAYERS.map((layerDef) => refreshOverlayLayer(layerDef)));
+  const failed = results.find((r) => r.state === "unavailable");
+  if (failed) {
+    setLayersStatus(`Not read: ${failed.basis}`);
+    return;
+  }
+  const active = results.filter((r) => r.state !== "hidden" && r.state !== "stale");
+  if (active.length > 0 && active.every((r) => r.state === "below-min-zoom")) {
+    setLayersStatus("Zoom in to see layer boundaries.");
+    return;
+  }
+  setLayersStatus("");
+}
+
+/**
+ * Debounced -- panning/zooming fires moveend/zoomend many times in a row
+ * (a fast pan, a scroll-wheel zoom), and only the settled viewport is worth
+ * a request. map.fitBounds() (renderParcel, below) also fires these events,
+ * so a successful address search refreshes the overlay layers for the new
+ * view automatically, with no separate wiring.
+ */
+let overlayRefreshTimer = null;
+function scheduleOverlayRefresh() {
+  if (overlayRefreshTimer) clearTimeout(overlayRefreshTimer);
+  overlayRefreshTimer = setTimeout(() => {
+    overlayRefreshTimer = null;
+    refreshOverlayLayers();
+  }, 400);
+}
+
+map.on("moveend zoomend", scheduleOverlayRefresh);
+
+for (const layerDef of OVERLAY_LAYERS) {
+  const box = overlayCheckboxes[layerDef.key];
+  if (box) {
+    // A checkbox toggle is one deliberate action, not a spam of intermediate
+    // frames -- refreshes just the one layer it controls, not a debounced
+    // refetch of all four.
+    box.addEventListener("change", () => refreshOverlayLayer(layerDef));
+  }
+}
+
+// Initial draw for the default view -- honest either way: at the default
+// city-wide zoom (9), every layer is below its own minZoom (12-14), so this
+// resolves to the same "Zoom in to see layer boundaries." message a real
+// user would see, with no wasted fetch.
+refreshOverlayLayers();
+
 let parcelLayer = null;
 
 function renderParcel(geometry) {

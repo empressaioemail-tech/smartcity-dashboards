@@ -366,8 +366,14 @@ describe("G-90 class discipline for the new chrome", () => {
      * than loosening this assertion) keeps this test proving what it always
      * proved -- the vocabulary moved by exactly the four named below, not by
      * some other, unreviewed amount -- against the new baseline.
+     *
+     * G-117 follow-up added 7 more to that same file (pm-layers,
+     * pm-layers-title, pm-layers-list, pm-layers-item, pm-layers-label,
+     * pm-layers-swatch, pm-layers-status) for the property map's four GIS
+     * overlay-layer toggles, hence 168 rather than 161 -- again unrelated to
+     * this dropdown card, named here for the same reason as above.
      */
-    assert.equal(defined.size, 161, "the defined class vocabulary moved by something other than the four");
+    assert.equal(defined.size, 168, "the defined class vocabulary moved by something other than the four");
     for (const cls of ["topmenu", "pop", "pop-group", "pop-item"]) {
       assert.ok(defined.has(cls), `${cls} is used but no served stylesheet defines it`);
       assert.ok(html.includes(cls), `${cls} is defined but nothing uses it`);

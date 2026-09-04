@@ -44,10 +44,33 @@ directory for the reasoning and reversal criteria).
 const DEFAULT_PROPERTY_INTEL_PLATFORM_URL =
   "https://smartcity-api-7dyaiy7wha-uc.a.run.app/api/platform/property-intel/summary";
 
+/**
+ * G-117 follow-up. smartcity-os's sibling platform route for the property
+ * map's four always-on GIS overlay layers (zoning, future land use,
+ * subdivisions, parcels-one-click) -- same host as the summary route above,
+ * a different path (server/routes/property-intelligence.ts's
+ * registerPlatformInternalPropertyIntelRoutes registers both).
+ */
+const DEFAULT_PROPERTY_INTEL_LAYERS_PLATFORM_URL =
+  "https://smartcity-api-7dyaiy7wha-uc.a.run.app/api/platform/property-intel/layers";
+
+/**
+ * The exact four keys smartcity-os's own route allowlists (server/routes/
+ * property-intelligence.ts), matching production's own "GIS & Property
+ * Intelligence" map layers (client/src/components/maps/layerCatalog.ts).
+ * Checked here too -- defense in depth, not trust-the-caller -- so a typo'd
+ * key fails with a stated basis instead of silently reaching the network.
+ */
+export const PROPERTY_INTEL_LAYER_KEYS = ["zoning", "future-land-use", "subdivisions", "parcels-one-click"];
+
 export const NATIVE_PROPERTY_MAP_CITY_KEY = "bastrop_tx";
 
 function platformUrl(env = process.env) {
   return String(env.PROPERTY_INTEL_PLATFORM_URL || DEFAULT_PROPERTY_INTEL_PLATFORM_URL).trim();
+}
+
+function platformLayersUrl(env = process.env) {
+  return String(env.PROPERTY_INTEL_LAYERS_PLATFORM_URL || DEFAULT_PROPERTY_INTEL_LAYERS_PLATFORM_URL).trim();
 }
 
 function platformKey(env = process.env) {
@@ -81,6 +104,48 @@ export async function fetchPropertyIntelSummary(
   const body = await res.json().catch(() => null);
   if (!res.ok) {
     const basis = body?.message || body?.error || `property-intel platform HTTP ${res.status}`;
+    return { status: "unavailable", basis, body };
+  }
+  return { status: "ok", basis: "live", body };
+}
+
+/**
+ * The second live HTTP call, G-117 follow-up. Same shape as
+ * fetchPropertyIntelSummary above (bearer key, 15s timeout, honest
+ * "unavailable" on any non-ok outcome rather than a thrown crash) but reads
+ * a viewport bounding box + a layer key instead of an address -- these four
+ * layers are always-on overlays over the current map view, not a per-
+ * address search result.
+ */
+export async function fetchPropertyIntelLayer(
+  key,
+  bbox,
+  { env = process.env, fetchImpl = globalThis.fetch } = {},
+) {
+  const platformApiKey = platformKey(env);
+  if (!platformApiKey) {
+    return { status: "unavailable", basis: "PLATFORM_INTERNAL_API_KEY unset", body: null };
+  }
+  const params = new URLSearchParams({
+    key: String(key || ""),
+    xmin: String(bbox?.xmin ?? ""),
+    ymin: String(bbox?.ymin ?? ""),
+    xmax: String(bbox?.xmax ?? ""),
+    ymax: String(bbox?.ymax ?? ""),
+  });
+  const url = `${platformLayersUrl(env)}?${params}`;
+  let res;
+  try {
+    res = await fetchImpl(url, {
+      headers: { authorization: `Bearer ${platformApiKey}`, accept: "application/json" },
+      signal: AbortSignal.timeout(15000),
+    });
+  } catch (err) {
+    return { status: "unavailable", basis: `property-intel layers platform fetch failed: ${err.message}`, body: null };
+  }
+  const body = await res.json().catch(() => null);
+  if (!res.ok) {
+    const basis = body?.message || body?.error || `property-intel layers platform HTTP ${res.status}`;
     return { status: "unavailable", basis, body };
   }
   return { status: "ok", basis: "live", body };
@@ -196,5 +261,102 @@ export async function composePropertyIntelSummary({ address, cityKey, env = proc
     basis: body.match?.address ? `matched: ${body.match.address}` : "live",
     found: true,
     result: mapRealPropertyResult(body, city),
+  };
+}
+
+/**
+ * Tags one GeoJSON Feature's properties bag with this product's own
+ * origin:"feed" marker -- the same convention tagFeedRecord above applies
+ * to permit/violation/inspection records and mapRealPropertyResult applies
+ * to risk entries. Tagged inside `properties` (not as a sibling of
+ * type/geometry/properties on the Feature itself) so the object handed to
+ * Leaflet's L.geoJSON stays a plain, standard GeoJSON Feature.
+ */
+function tagFeedFeature(feature) {
+  return { ...feature, properties: { ...(feature?.properties || {}), origin: "feed" } };
+}
+
+/**
+ * The second entry point the property-map API route (src/server.mjs)
+ * calls, G-117 follow-up. Same envelope-shape family as
+ * composePropertyIntelSummary above (cityKey/source/status/basis/found/
+ * result) but for one of the four always-on GIS overlay layers, queried by
+ * the CURRENT viewport bounding box rather than a typed address -- the map
+ * page calls this once per allowlisted layer key on moveend/zoomend (see
+ * web/property-map.js), debounced and gated by each layer's own minZoom,
+ * never on every intermediate pan/zoom frame.
+ *
+ * Same Bastrop-only, stated-not-assumed refusal as composePropertyIntelSummary,
+ * plus a second honest refusal this function alone needs: an unrecognized
+ * or disallowed layer key. smartcity-os's own route already 400s that case,
+ * but a caller-side check here means a typo'd key in web/property-map.js
+ * fails with a stated basis in this product's own tests, not just a bare
+ * upstream HTTP error string.
+ */
+export async function composePropertyIntelLayer({
+  key,
+  cityKey,
+  xmin,
+  ymin,
+  xmax,
+  ymax,
+  env = process.env,
+  fetchImpl,
+} = {}) {
+  const trimmedKey = String(key || "").trim();
+  const city = String(cityKey || "").trim();
+  const base = { cityKey: city, source: "live", key: trimmedKey };
+
+  if (city !== NATIVE_PROPERTY_MAP_CITY_KEY) {
+    return {
+      ...base,
+      status: "unavailable",
+      basis: `native property map has a real source for ${NATIVE_PROPERTY_MAP_CITY_KEY} only`,
+      found: false,
+      result: null,
+    };
+  }
+  if (!PROPERTY_INTEL_LAYER_KEYS.includes(trimmedKey)) {
+    return {
+      ...base,
+      status: "unavailable",
+      basis: `unknown or disallowed layer key: ${trimmedKey || "(none)"}`,
+      found: false,
+      result: null,
+    };
+  }
+
+  const bbox = { xmin: Number(xmin), ymin: Number(ymin), xmax: Number(xmax), ymax: Number(ymax) };
+  if (![bbox.xmin, bbox.ymin, bbox.xmax, bbox.ymax].every(Number.isFinite)) {
+    return {
+      ...base,
+      status: "unavailable",
+      basis: "xmin, ymin, xmax, and ymax bounds are all required",
+      found: false,
+      result: null,
+    };
+  }
+
+  const fetched = await fetchPropertyIntelLayer(trimmedKey, bbox, { env, fetchImpl });
+  if (fetched.status !== "ok") {
+    return { ...base, status: "unavailable", basis: fetched.basis, found: false, result: null };
+  }
+  const body = fetched.body || {};
+  if (!body.found || !body.layer) {
+    return {
+      ...base,
+      status: "unavailable",
+      basis: body.error || "layer query did not return a result",
+      found: false,
+      result: null,
+    };
+  }
+  const features = Array.isArray(body.layer.features) ? body.layer.features.map(tagFeedFeature) : [];
+  return {
+    ...base,
+    status: "ok",
+    basis: "live",
+    found: true,
+    result: { type: "FeatureCollection", features, totalReturned: features.length },
   };
 }
