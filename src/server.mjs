@@ -308,7 +308,22 @@ async function handle(req, res) {
       json(res, status, { error: status === 401 ? "unauthorized" : "forbidden" });
       return;
     }
-    json(res, 200, composePipeline(pack));
+    /**
+     * G-116 Phase 2 gap closed. Same real-source branch as /api/domains/:id
+     * and /api/city-domains, previously missing here: this lens route called
+     * composePipeline(pack) unconditionally, which is fixture-only
+     * (composeDomain) with no real branch of its own, so a real pack's own
+     * Pipeline page kept showing fixture cases even after permits-pipeline's
+     * domain-level route (and the map) had a real source. Same pack, same
+     * domain, two disagreeing answers -- exactly what ruling 1 exists to
+     * prevent, just missed on this one route.
+     */
+    let real = null;
+    if (REAL_LIVE_DOMAINS["permits-pipeline"] && pack.generatesFixtures !== true) {
+      const grant = realLiveGrantFor(pack, "permits-pipeline");
+      if (grant) real = await composeRealMygovDomain("permits-pipeline", pack, grant);
+    }
+    json(res, 200, composePipeline(pack, real));
     return;
   }
 

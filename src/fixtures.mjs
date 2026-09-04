@@ -67,10 +67,23 @@ export {
  * two into the four here would have changed a shipped contract from a lane that
  * may not edit the consumer. So both travel, and which is which is stated here.
  */
-export function composePipeline(pack) {
+/**
+ * `precomposed` is G-116's real-source escape hatch: server.mjs passes the
+ * already-composed real result (composeRealPermits, mygov-permits.mjs) when
+ * the pack carries a real mygov grant, so this function only has to adapt
+ * field names onto the pipeline shape rather than know how to fetch
+ * anything real itself -- same division of labour as /api/domains/:id and
+ * /api/city-domains already use. Real records carry no fixture metrics
+ * (extras.metrics); realStatusCounts travels through instead, honestly, and
+ * "this pack generates none" -- which is only ever true of a FIXTURE pack
+ * -- is not asserted for a real pack that came back empty or unavailable
+ * for a real-world reason.
+ */
+export function composePipeline(pack, precomposed) {
   if (!pack) throw new Error("pipeline compose requires a pack");
-  const out = composeDomain(pack, PERMITS_PIPELINE_DOMAIN);
+  const out = precomposed || composeDomain(pack, PERMITS_PIPELINE_DOMAIN);
   const generated = out.status === "ok";
+  const extras = out.extras || {};
   return {
     lensId: PERMITS_PIPELINE_DOMAIN.lensId,
     tab: PERMITS_PIPELINE_DOMAIN.tab,
@@ -86,8 +99,13 @@ export function composePipeline(pack) {
     sourceStatus: out.status,
     basis: out.basis,
     recordCount: out.recordCount,
-    countingRule: generated ? out.countingRule : "no records: this pack generates none",
-    metrics: out.extras.metrics || pipelineMetrics([]),
+    countingRule: generated
+      ? out.countingRule
+      : precomposed
+        ? out.countingRule
+        : "no records: this pack generates none",
+    metrics: extras.metrics || (precomposed ? null : pipelineMetrics([])),
+    realStatusCounts: extras.realStatusCounts || null,
     records: out.records,
   };
 }
