@@ -27,6 +27,8 @@ const kit = readSource("web/sc-kit.css");
 const surface = html + "\n" + app;
 
 const serverSrc = readSource("src/server.mjs");
+const propertyMapHtml = readSource("web/property-map.html");
+const propertyMapJs = readSource("web/property-map.js");
 
 /**
  * ---------------------------------------------------------------------------
@@ -961,5 +963,50 @@ describe("G-116 fleet-enrich: DVIR, 7-day safety events, mileage/fuel flags", ()
     assert.match(renderFleet, /td\(fleetDvirLabel\(record\)\)/);
     assert.match(renderFleet, /td\(record\.safetyEvents7d == null \? null : String\(record\.safetyEvents7d\)\)/);
     assert.match(renderFleet, /td\(fleetFlagsLabel\(record\)\)/);
+  });
+});
+
+describe("G-117 close: the property map surfaces real CAD valuation and legal-description fields, previously dropped silently", () => {
+  it("the panel has DOM slots for legal description, future land use, and every valuation figure", () => {
+    assert.match(propertyMapHtml, /<dt>Legal description<\/dt>\s*<dd id="pm-legal-desc">/);
+    assert.match(propertyMapHtml, /<dt>Future land use<\/dt>\s*<dd id="pm-future-land-use">/);
+    assert.match(propertyMapHtml, /id="pm-valuation-section"/);
+    for (const id of [
+      "pm-appraised-value",
+      "pm-market-value",
+      "pm-land-value",
+      "pm-improvement-value",
+      "pm-year-built",
+      "pm-living-area",
+    ]) {
+      assert.match(propertyMapHtml, new RegExp(`id="${id}"`), id);
+    }
+  });
+
+  it("the valuation section is hidden by default and only shown when at least one real figure exists", () => {
+    assert.match(propertyMapHtml, /<section class="pm-section" id="pm-valuation-section" hidden>/);
+    assert.match(propertyMapJs, /const hasValuation = valuation && Object\.values\(valuation\)\.some/);
+    assert.match(propertyMapJs, /show\("pm-valuation-section", hasValuation\)/);
+  });
+
+  it("money() never renders a fabricated $0 -- a null/absent figure renders the same blank as everything else on this page", () => {
+    const fn = propertyMapJs.match(/function money\(value\)[\s\S]*?\n\}/)?.[0] || "";
+    assert.ok(fn, "money() must exist");
+    assert.match(fn, /if \(value === null \|\| value === undefined \|\| value === ""\) return "—";/);
+    assert.match(fn, /if \(!Number\.isFinite\(n\)\) return "—";/);
+  });
+
+  it("legal description and future land use are rendered from the real snapshot fields, not re-derived", () => {
+    assert.match(propertyMapJs, /setText\("pm-legal-desc", td\(result\.snapshot\.legalDesc\)\)/);
+    assert.match(propertyMapJs, /setText\("pm-future-land-use", td\(result\.snapshot\.futureLandUse\)\)/);
+  });
+
+  it("uses the same Esri dark basemap production's own GIS map uses, not a generic OSM tile server", () => {
+    assert.match(
+      propertyMapJs,
+      /https:\/\/server\.arcgisonline\.com\/ArcGIS\/rest\/services\/Canvas\/World_Dark_Gray_Base\/MapServer\/tile\/\{z\}\/\{y\}\/\{x\}/,
+    );
+    assert.match(propertyMapJs, /maxNativeZoom: 16/);
+    assert.equal(propertyMapJs.includes("tile.openstreetmap.org"), false);
   });
 });

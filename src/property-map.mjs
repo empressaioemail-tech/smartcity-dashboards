@@ -138,6 +138,16 @@ export function mapRealPropertyResult(body, cityKey) {
       block: snapshot.block || "",
       floodZone: snapshot.floodZone || null,
       futureLandUse: snapshot.futureLandUse || null,
+      /**
+       * getPropertySummary() already computes these -- CAD valuation and a
+       * compliance score -- and this mapper was silently dropping both.
+       * Passed through exactly as the source gives them: valuation fields
+       * are null (not a guessed 0) whenever the source itself has no lat/lng
+       * to value against, and compliance is whatever object shape
+       * calculateComplianceScore() returns, not re-derived here.
+       */
+      valuation: snapshot.valuation || null,
+      compliance: snapshot.compliance ?? null,
     },
     permits: (summary.permits || []).map((r) => tagFeedRecord(r, "permit-case", cityKey)),
     violations: (summary.violations || []).map((r) => tagFeedRecord(r, "code-case", cityKey)),
