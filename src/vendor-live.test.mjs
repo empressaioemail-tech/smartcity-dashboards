@@ -30,6 +30,58 @@ describe("vendor-live (G-116 Phase 2 third batch)", () => {
     assert.equal(record.department, "Fleet & Facilities");
   });
 
+  // G-116 fleet-enrich: DVIR summary, 7-day safety event count, high-mileage
+  // and low-fuel threshold flags -- all sourced from the same platform
+  // route (server/routes/samsara.ts), reusing fetchDvirs()/
+  // fetchSafetyEvents() rather than a second live call this product makes
+  // itself.
+  it("fleet-vehicles: maps real DVIR/safety/threshold fields when the platform route reports them", () => {
+    const record = mapRealFleetVehicleRecord(
+      {
+        id: "v1",
+        name: "FF-003",
+        stats: { odometerMiles: 145000, fuelPercent: 12, highMileage: true, lowFuel: true },
+        dvir: { unresolvedDefectCount: 2, lastInspection: "2026-08-30T00:00:00Z" },
+        safetyEvents7d: 3,
+      },
+      "bastrop_tx",
+    );
+    assert.equal(record.dvirUnresolvedDefects, 2);
+    assert.equal(record.dvirLastInspection, "2026-08-30T00:00:00Z");
+    assert.equal(record.safetyEvents7d, 3);
+    assert.equal(record.highMileage, true);
+    assert.equal(record.lowFuel, true);
+  });
+
+  it("fleet-vehicles: real fields absent (never fabricated) when the platform route has no DVIR/safety/threshold data for a vehicle", () => {
+    const record = mapRealFleetVehicleRecord(
+      { id: "v2", name: "FF-004", stats: { odometerMiles: 5000 } },
+      "bastrop_tx",
+    );
+    assert.equal(record.dvirUnresolvedDefects, null);
+    assert.equal(record.dvirLastInspection, null);
+    assert.equal(record.safetyEvents7d, null);
+    assert.equal(record.highMileage, null);
+    assert.equal(record.lowFuel, null);
+  });
+
+  it("fleet-vehicles: a real zero unresolved-defect count and a real zero safety-event count are kept, not treated as missing", () => {
+    const record = mapRealFleetVehicleRecord(
+      {
+        id: "v3",
+        name: "FF-005",
+        stats: { odometerMiles: 5000, highMileage: false, lowFuel: false },
+        dvir: { unresolvedDefectCount: 0, lastInspection: "2026-08-01T00:00:00Z" },
+        safetyEvents7d: 0,
+      },
+      "bastrop_tx",
+    );
+    assert.equal(record.dvirUnresolvedDefects, 0);
+    assert.equal(record.safetyEvents7d, 0);
+    assert.equal(record.highMileage, false);
+    assert.equal(record.lowFuel, false);
+  });
+
   it("patrol-vehicles: maps a real Spireon row, origin feed", () => {
     const record = mapRealPatrolVehicleRecord(
       { spireonId: "sp-1", name: "Unit 90", nspireStatus: "Stopped", address: "132 Grady Tuck Ln, Bastrop, TX", speed: 0 },

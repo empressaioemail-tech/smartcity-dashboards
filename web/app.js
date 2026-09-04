@@ -1942,6 +1942,27 @@ function fill(tbody, rows) {
 
 /* ----------------------------------------------------------------- fleet */
 
+/**
+ * G-116 fleet-enrich. "Clear"/"N unresolved" is itself the DVIR summary --
+ * a vehicle absent from Samsara's DVIR data (no inspection on record)
+ * renders blank, never "Clear" (that would claim a pass that never
+ * happened). dvirLastInspection is carried on the record for callers that
+ * want it but is not forced into its own column here -- see rule against
+ * redesigning this table.
+ */
+function fleetDvirLabel(record) {
+  if (record.dvirUnresolvedDefects == null) return null;
+  return record.dvirUnresolvedDefects > 0 ? `${record.dvirUnresolvedDefects} unresolved` : "Clear";
+}
+
+/** Real, independent threshold flags -- never fabricated when the reading behind either is unknown (both stay out of the label, not defaulted to absent). */
+function fleetFlagsLabel(record) {
+  const flags = [];
+  if (record.highMileage === true) flags.push("High mileage");
+  if (record.lowFuel === true) flags.push("Low fuel");
+  return flags.join(", ");
+}
+
 function renderFleet(payload) {
   const ok = renderRegion("fleet-roster", payload);
   renderRegionMetrics(document.getElementById("fleet-metrics"), payload);
@@ -1958,6 +1979,9 @@ function renderFleet(payload) {
         statusCell(record, labels),
         td(record.operatorRef, "id"),
         td(record.odometerBand),
+        td(fleetDvirLabel(record)),
+        td(record.safetyEvents7d == null ? null : String(record.safetyEvents7d)),
+        td(fleetFlagsLabel(record)),
       );
       return row;
     }),

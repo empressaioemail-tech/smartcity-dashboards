@@ -818,3 +818,50 @@ describe("G-77 fixture pack on Development services", () => {
     );
   });
 });
+
+describe("G-116 fleet-enrich: DVIR, 7-day safety events, mileage/fuel flags", () => {
+  it("adds the three new columns to the vehicle roster table header, additive to the existing five", () => {
+    const table = html.match(/id="fleet-roster-records"[\s\S]*?<tbody id="fleet-roster-rows">/)?.[0] || "";
+    assert.match(table, /<th scope="col">Vehicle<\/th>/);
+    assert.match(table, /<th scope="col">Unit<\/th>/);
+    assert.match(table, /<th scope="col">Status<\/th>/);
+    assert.match(table, /<th scope="col">Operator<\/th>/);
+    assert.match(table, /<th scope="col">Odometer<\/th>/);
+    assert.match(table, /<th scope="col">DVIR<\/th>/);
+    assert.match(table, /<th scope="col">Safety \(7d\)<\/th>/);
+    assert.match(table, /<th scope="col">Flags<\/th>/);
+    // Additive, not a redesign: still exactly eight columns, none removed.
+    const headCount = (table.match(/<th scope="col">/g) || []).length;
+    assert.equal(headCount, 8);
+  });
+
+  it("renderFleet reads the new record fields, none fabricated from something else", () => {
+    const renderFleet = app.match(/function renderFleet\(payload\)[\s\S]*?\n\}/)?.[0] || "";
+    assert.ok(renderFleet, "renderFleet must exist");
+    assert.match(renderFleet, /fleetDvirLabel\(record\)/);
+    assert.match(renderFleet, /record\.safetyEvents7d/);
+    assert.match(renderFleet, /fleetFlagsLabel\(record\)/);
+  });
+
+  it("fleetDvirLabel renders blank (not 'Clear') when there is no DVIR data, and 'Clear' only for a real zero", () => {
+    const fn = app.match(/function fleetDvirLabel\(record\)[\s\S]*?\n\}/)?.[0] || "";
+    assert.ok(fn, "fleetDvirLabel must exist");
+    assert.match(fn, /dvirUnresolvedDefects == null/);
+    assert.match(fn, /return null/);
+    assert.match(fn, /"Clear"/);
+  });
+
+  it("fleetFlagsLabel only ever asserts a flag on a real === true, never on a merely-truthy or unknown value", () => {
+    const fn = app.match(/function fleetFlagsLabel\(record\)[\s\S]*?\n\}/)?.[0] || "";
+    assert.ok(fn, "fleetFlagsLabel must exist");
+    assert.match(fn, /record\.highMileage === true/);
+    assert.match(fn, /record\.lowFuel === true/);
+  });
+
+  it("uses the shared td() helper for the new cells, so a missing value renders blank rather than the literal word undefined", () => {
+    const renderFleet = app.match(/function renderFleet\(payload\)[\s\S]*?\n\}/)?.[0] || "";
+    assert.match(renderFleet, /td\(fleetDvirLabel\(record\)\)/);
+    assert.match(renderFleet, /td\(record\.safetyEvents7d == null \? null : String\(record\.safetyEvents7d\)\)/);
+    assert.match(renderFleet, /td\(fleetFlagsLabel\(record\)\)/);
+  });
+});
