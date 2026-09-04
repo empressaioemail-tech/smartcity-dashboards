@@ -76,10 +76,18 @@ function show(id, visible) {
 
 const cityKey = cityKeyFromQuery();
 
+/**
+ * Same basemap production's own "GIS & Property Intelligence" map uses --
+ * Esri's free public World_Dark_Gray_Base tile service (smartcity-os's
+ * BASEMAP_OPTIONS, id "dark"), not a generic OSM tile server. maxNativeZoom
+ * 16 matches that config exactly; Leaflet upscales past it the same way
+ * production's own map does, so this is not a guessed value.
+ */
 const map = L.map("pm-map", { zoomControl: true }).setView([30.28, -97.5], 9);
-L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}", {
   maxZoom: 19,
-  attribution: "© OpenStreetMap contributors",
+  maxNativeZoom: 16,
+  attribution: "Tiles &copy; Esri",
 }).addTo(map);
 
 let parcelLayer = null;

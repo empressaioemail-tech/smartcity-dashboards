@@ -1000,4 +1000,13 @@ describe("G-117 close: the property map surfaces real CAD valuation and legal-de
     assert.match(propertyMapJs, /setText\("pm-legal-desc", td\(result\.snapshot\.legalDesc\)\)/);
     assert.match(propertyMapJs, /setText\("pm-future-land-use", td\(result\.snapshot\.futureLandUse\)\)/);
   });
+
+  it("uses the same Esri dark basemap production's own GIS map uses, not a generic OSM tile server", () => {
+    assert.match(
+      propertyMapJs,
+      /https:\/\/server\.arcgisonline\.com\/ArcGIS\/rest\/services\/Canvas\/World_Dark_Gray_Base\/MapServer\/tile\/\{z\}\/\{y\}\/\{x\}/,
+    );
+    assert.match(propertyMapJs, /maxNativeZoom: 16/);
+    assert.equal(propertyMapJs.includes("tile.openstreetmap.org"), false);
+  });
 });
