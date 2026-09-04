@@ -50,6 +50,18 @@ async function fetchLiveJson(url, { env = process.env, fetchImpl = globalThis.fe
   return { status: "ok", basis: "live", body };
 }
 
+/** Groups real records by their REAL status value. Not the fixture's tiles. */
+export function realStatusCounts(records) {
+  const counts = {};
+  for (const r of records) {
+    const key = r.status || "unknown";
+    counts[key] = (counts[key] || 0) + 1;
+  }
+  return Object.entries(counts)
+    .map(([status, count]) => ({ status, count }))
+    .sort((a, b) => b.count - a.count);
+}
+
 function envelope(pack, domain) {
   return {
     domainId: domain.id,
@@ -102,7 +114,7 @@ function okResult(base, records, basis, denominatorLabel) {
     recordCount: records.length,
     countingRule: `${records.length} real ${denominatorLabel} read live from smartcity-os for ${base.cityKey}`,
     records,
-    extras: {},
+    extras: { realStatusCounts: realStatusCounts(records) },
   };
 }
 

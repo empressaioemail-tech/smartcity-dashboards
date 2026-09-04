@@ -97,6 +97,11 @@ describe("vendor-live (G-116 Phase 2 third batch)", () => {
         assert.equal(out.status, "ok");
         assert.equal(out.recordCount, 1);
         assert.equal(out.records[0].origin, "feed");
+        // G-116 close: the tile strip reads this, not extras.metrics -- see
+        // web/app.js's renderRealStatusTiles. Missing it is what shipped the
+        // "Not read" tiles on a page full of real records.
+        assert.ok(Array.isArray(out.extras.realStatusCounts), "extras.realStatusCounts must be an array");
+        assert.deepEqual(out.extras.realStatusCounts, [{ status: out.records[0].status || "unknown", count: 1 }]);
       });
 
       it("honestly surfaces a real vendor-side unavailable state (e.g. permission/auth), not a crash", async () => {
