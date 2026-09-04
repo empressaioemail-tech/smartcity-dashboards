@@ -473,6 +473,29 @@ describe("G-77 fixture pack on Development services", () => {
     assert.match(app, /slaElapsedHours != null && record\.slaTargetHours != null/);
   });
 
+  it("G-116 close: every static nav href threads the active pack's cityKey forward, so navigation cannot drop a non-default pack", () => {
+    /**
+     * Every shipped nav href is a static /?lens=... or /?work=... link with
+     * no cityKey of its own -- correct by coincidence for template-city
+     * (the default staffMap.cityKey falls back to) and silently wrong for
+     * bastrop_tx or any other real pack: one click on any nav item lost the
+     * pack and landed the visitor back on the demo. Confirmed still true of
+     * the shipped markup (would be a stale test otherwise): every one of
+     * these hrefs carries no cityKey param.
+     */
+    const hrefs = [...html.matchAll(/href="(\/\?[^"]*)"/g)].map((m) => m[1]);
+    assert.ok(hrefs.length > 0, "expected at least one static nav href");
+    for (const href of hrefs) {
+      assert.equal(href.includes("cityKey="), false, href);
+    }
+    // The fix: rewritten once at boot from the same staffMap.cityKey every
+    // loader on this page already uses, gated so it is a no-op for the
+    // default pack (byte-identical behaviour for template-city).
+    assert.match(app, /staffMap\.cityKey !== DEFAULT_CITY_KEY/);
+    assert.match(app, /querySelectorAll\('a\[href\^="\/\?"\]'\)/);
+    assert.match(app, /url\.searchParams\.set\("cityKey", staffMap\.cityKey\)/);
+  });
+
   it("G-116 close: the Pipeline route dispatches to a real source exactly like /api/domains/:id and /api/city-domains do", () => {
     assert.match(
       serverSrc,

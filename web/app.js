@@ -1,4 +1,4 @@
-import { resolveStaffMapQuery } from "/staff-map.mjs";
+import { DEFAULT_CITY_KEY, resolveStaffMapQuery } from "/staff-map.mjs";
 import {
   LENS_LABELS,
   TAB_LABELS,
@@ -2378,6 +2378,32 @@ async function loadFireEmsLens(cityKey) {
 
 const staffLens = resolveStaffLensQuery(window.location.search);
 const staffMap = resolveStaffMapQuery(window.location.search);
+
+/**
+ * Every nav href shipped in index.html (all 24 of them: every lens, every
+ * work item, every tab) is a static /?lens=... or /?work=... link with no
+ * cityKey of its own. That was correct by coincidence for the one pack
+ * that used to exist -- DEFAULT_CITY_KEY is what staffMap.cityKey falls
+ * back to with no query at all -- and silently wrong for any other:
+ * clicking ANY nav item drops the visitor back onto the default pack,
+ * discarding whatever real pack they were actually looking at. The Hauska
+ * key survives navigation because it persists in localStorage (see the
+ * bootstrap above); cityKey deliberately does not persist anywhere and is
+ * re-read from the URL on every load, so navigation is the one thing that
+ * has to carry it forward instead. Threaded through once at boot from the
+ * same staffMap.cityKey every loader below already uses. A no-op for the
+ * default pack and every other default-pack visitor: nothing here fires
+ * unless the resolved cityKey is already non-default.
+ */
+if (staffMap.cityKey !== DEFAULT_CITY_KEY) {
+  for (const a of document.querySelectorAll('a[href^="/?"]')) {
+    const url = new URL(a.getAttribute("href"), window.location.origin);
+    if (!url.searchParams.has("cityKey")) {
+      url.searchParams.set("cityKey", staffMap.cityKey);
+      a.setAttribute("href", `${url.pathname}?${url.searchParams.toString()}`);
+    }
+  }
+}
 
 applyLens(staffLens);
 const resettle = bindStages();
