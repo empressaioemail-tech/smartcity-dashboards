@@ -521,6 +521,49 @@ describe("G-77 fixture pack on Development services", () => {
     );
   });
 
+  it("G-116 field enrichment: the five MyGov tables carry the new real-feed-only columns, additively", () => {
+    /**
+     * A comparison of the real staff dashboard (smartcity-os's own
+     * DevelopmentServicesDashboard.tsx) against what this product mapped
+     * for the same five live MyGov domains found genuine field gaps: real
+     * columns/fields smartcity-os's platform routes already return (or, for
+     * work orders, now return after a narrow smartcity-os fix) that this
+     * product was not reading or displaying. Each new column is additive --
+     * the six/seven/etc. columns each table already had are untouched.
+     */
+    assert.match(ds, /<th scope="col">Applicant<\/th>/);
+    assert.match(ds, /<th scope="col">Contractor<\/th>/);
+    assert.match(ds, /<th scope="col">Owner<\/th>/);
+    assert.match(ds, /<th scope="col">Fees<\/th>/);
+    assert.match(ds, /<th scope="col">Assigned to<\/th>/);
+    assert.match(ds, /<th scope="col">Comments<\/th>/);
+    assert.match(ds, /<th scope="col">Resolved<\/th>/);
+    assert.match(ds, /<th scope="col">Type<\/th>/);
+
+    // Permits (the pipeline table): applicant, contractor, owner, fees.
+    assert.match(app, /td\(record\.applicant, "t-data"\)/);
+    assert.match(app, /td\(record\.contractor, "t-data"\)/);
+    assert.match(app, /td\(record\.ownerName, "t-data"\)/);
+    // Work orders: assignedTo, contractor, fees (contractor/fees share the
+    // permit row's own pattern above, so only the work-order-only one is
+    // pinned again here).
+    assert.match(app, /td\(record\.assignedTo, "t-data"\)/);
+    // Inspections: comments.
+    assert.match(app, /td\(record\.comments, "t-data"\)/);
+    // Code violations: resolvedDate.
+    assert.match(app, /td\(record\.resolvedDate, "t-data"\)/);
+    // Business licenses: licenseType.
+    assert.match(app, /td\(record\.licenseType, "t-data"\)/);
+
+    // Itemized fees ({type, amount}[]) render as a joined line, not a bare
+    // total -- production shows a real fees array, not just a total.
+    assert.match(app, /function feesLabel\(fees\)/);
+    assert.match(app, /td\(feesLabel\(record\.fees\), "t-data"\)/);
+    // feesLabel itself uses td()'s same null/absence discipline: an absent
+    // or empty array renders blank, never "undefined" or "$0.00".
+    assert.match(app, /if \(!Array\.isArray\(fees\) \|\| fees\.length === 0\) return "";/);
+  });
+
   it("composes existing kit classes and declares no new one", () => {
     /**
      * THE CLASS GATE. Hardened at G-88 item 3, before any design pass shipped a

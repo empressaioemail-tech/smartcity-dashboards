@@ -21,6 +21,13 @@ const SAMPLE_ROW = {
   title: "The Chestnut Grove Site Development Plan",
   department: "Planning Department",
   manager: "Doug Haggerty",
+  applicant: "Redwood Development LLC",
+  contractor: "Acme Paving Co",
+  ownerName: "Bastrop County",
+  fees: [
+    { type: "Permit fee", amount: 125.5 },
+    { type: "Plan review fee", amount: 40 },
+  ],
   submittedDate: "2021-05-05",
   issuedDate: null,
   expirationDate: null,
@@ -42,6 +49,31 @@ describe("mygov-permits (G-116 Phase 2 live feed)", () => {
     assert.equal(record.place.parcelNodeId, "33383");
     assert.ok(record.provenance.source.includes("smartcity-os"));
     assert.ok(record.provenance.readAt);
+  });
+
+  it("maps applicant, contractor, owner and the itemized fees array off dbPermitToApi's own real fields", () => {
+    const record = mapRealPermitRecord(SAMPLE_ROW, "bastrop_tx", "tenant-private");
+    assert.equal(record.applicant, "Redwood Development LLC");
+    assert.equal(record.contractor, "Acme Paving Co");
+    assert.equal(record.ownerName, "Bastrop County");
+    // Itemized, not collapsed to a total -- production shows a real fees
+    // array, not just a total.
+    assert.deepEqual(record.fees, [
+      { type: "Permit fee", amount: 125.5 },
+      { type: "Plan review fee", amount: 40 },
+    ]);
+  });
+
+  it("states an honest absence (null/empty array), never a fabricated value, when a permit carries none of the new fields", () => {
+    const record = mapRealPermitRecord(
+      { ...SAMPLE_ROW, applicant: null, contractor: null, ownerName: null, fees: null },
+      "bastrop_tx",
+      "tenant-private",
+    );
+    assert.equal(record.applicant, null);
+    assert.equal(record.contractor, null);
+    assert.equal(record.ownerName, null);
+    assert.deepEqual(record.fees, []);
   });
 
   it("does not claim fixture true/fixtureBasis on a real record", () => {
