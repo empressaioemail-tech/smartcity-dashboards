@@ -1123,6 +1123,7 @@ describe("G-88 addressability: a screen that renders can also be driven", () => 
      * derivation rather than three hand-kept lists that happened to agree.
      */
     assert.deepEqual(SCRIPT_SOURCES, [
+      "src/property-map-catalog.mjs",
       "src/staff-map.mjs",
       "src/staff-review.mjs",
       "src/theme.mjs",
@@ -1130,6 +1131,7 @@ describe("G-88 addressability: a screen that renders can also be driven", () => 
       "web/property-map.js",
     ]);
     assert.deepEqual(MARKUP_SOURCES, [
+      "src/property-map-catalog.mjs",
       "src/shell-homes.mjs",
       "src/staff-map.mjs",
       "src/staff-review.mjs",
@@ -1150,6 +1152,7 @@ describe("G-88 addressability: a screen that renders can also be driven", () => 
      * the two questions is being answered with the other one's population.
      */
     assert.deepEqual(SERVED_DOCUMENTS, [
+      "src/property-map-catalog.mjs",
       "src/staff-map.mjs",
       "src/staff-review.mjs",
       "src/theme.mjs",

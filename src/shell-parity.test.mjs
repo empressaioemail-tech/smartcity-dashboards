@@ -372,8 +372,20 @@ describe("G-90 class discipline for the new chrome", () => {
      * pm-layers-swatch, pm-layers-status) for the property map's four GIS
      * overlay-layer toggles, hence 168 rather than 161 -- again unrelated to
      * this dropdown card, named here for the same reason as above.
+     *
+     * G-117 full-parity follow-up replaced those four flat checkboxes with a
+     * categorized, searchable 52-layer panel (src/property-map-catalog.mjs +
+     * web/property-map.js's buildLayersPanel/buildTemplatesPanel) and added
+     * 14 more classes to that same self-contained stylesheet (pm-layers-head,
+     * pm-layers-count, pm-layers-search, pm-layers-templates,
+     * pm-layers-template, pm-layers-categories, pm-layers-category,
+     * pm-layers-category-head, pm-layers-category-toggle,
+     * pm-layers-category-count, pm-layers-link, pm-layers-name,
+     * pm-layers-zoomwarn, pm-layers-row-dim), hence 182 rather than 168 --
+     * again unrelated to this dropdown card, named here for the same reason
+     * as above.
      */
-    assert.equal(defined.size, 168, "the defined class vocabulary moved by something other than the four");
+    assert.equal(defined.size, 182, "the defined class vocabulary moved by something other than the four");
     for (const cls of ["topmenu", "pop", "pop-group", "pop-item"]) {
       assert.ok(defined.has(cls), `${cls} is used but no served stylesheet defines it`);
       assert.ok(html.includes(cls), `${cls} is defined but nothing uses it`);

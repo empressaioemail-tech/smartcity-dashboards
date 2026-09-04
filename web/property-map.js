@@ -18,6 +18,21 @@ unavailable) is rendered as a real, stated sentence, never silently as an
 empty map.
 */
 
+/**
+ * G-117 full-parity follow-up. The shared 52-layer catalog (colors,
+ * categories, minZoom, the 6 styled-override functions, the 10 view
+ * templates), served plainly at /property-map-catalog.mjs -- see
+ * src/property-map-catalog.mjs's own header for why this is a real import
+ * rather than a second, hand-duplicated copy of 52 layer definitions here.
+ */
+import {
+  LAYER_CATALOG,
+  VIEW_TEMPLATES,
+  getAllLayerKeys,
+  getDefaultVisibility,
+  styleForLayer,
+} from "/property-map-catalog.mjs";
+
 const HAUSKA_KEY_STORAGE = "hauska_key";
 
 function hauskaKey() {
@@ -91,64 +106,55 @@ L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_D
 }).addTo(map);
 
 /**
- * G-117 follow-up. The four always-on GIS overlay layers this page renders
- * over the CURRENT viewport, independent of the address-search parcel
- * result below -- production's own "GIS & Property Intelligence" map shows
- * these same four (among others out of scope for a property-records page)
- * as always-visible, individually toggleable polygon layers, not a
- * per-parcel color scheme. Real key/color/fillColor/fillOpacity/weight/
- * minZoom values below are copied exactly from smartcity-os's
- * client/src/components/maps/layerCatalog.ts, not approximated -- fillColor
- * and weight are simply absent from that source for "zoning", so they are
- * absent here too rather than guessed (Leaflet's own defaults then apply,
- * same as production's rendering of that entry).
+ * G-117 full-parity follow-up. All 52 toggleable GIS overlay layers this
+ * page can render over the CURRENT viewport, independent of the
+ * address-search parcel result below -- production's own "GIS & Property
+ * Intelligence" map shows the same catalog (minus its MyGov-backed
+ * "overlays" category: permits/violations/heatmap, a different source/shape,
+ * out of scope for this GIS-layer effort) as individually toggleable
+ * layers grouped into 7 categories. Real key/name/category/color/fillColor/
+ * fillOpacity/weight/dashArray/minZoom values all come from the shared
+ * catalog module (src/property-map-catalog.mjs), copied exactly from
+ * smartcity-os's client/src/components/maps/layerCatalog.ts, not
+ * approximated here a second time.
  */
-const OVERLAY_LAYERS = [
-  { key: "zoning", label: "Zoning Districts", minZoom: 14, style: { color: "#7c3aed", fillOpacity: 0.35 } },
-  {
-    key: "future-land-use",
-    label: "Future Land Use",
-    minZoom: 13,
-    style: { color: "#8b5cf6", fillColor: "#c4b5fd", fillOpacity: 0.2, weight: 2 },
-  },
-  {
-    key: "subdivisions",
-    label: "Subdivisions / Final Plats",
-    minZoom: 12,
-    style: { color: "#1e40af", fillColor: "#3b82f6", fillOpacity: 0.4, weight: 3 },
-  },
-  {
-    key: "parcels-one-click",
-    label: "Parcels One Click",
-    minZoom: 14,
-    style: { color: "#3b82f6", fillColor: "#3b82f6", fillOpacity: 0.15, weight: 1.5 },
-  },
-];
+const ALL_LAYERS = LAYER_CATALOG.flatMap((cat) => cat.layers);
+const ALL_LAYER_KEYS = getAllLayerKeys();
 
-/** Literal getElementById calls, one per real checkbox in property-map.html. */
-const overlayCheckboxes = {
-  "zoning": document.getElementById("pm-layer-zoning"),
-  "future-land-use": document.getElementById("pm-layer-future-land-use"),
-  "subdivisions": document.getElementById("pm-layer-subdivisions"),
-  "parcels-one-click": document.getElementById("pm-layer-parcels-one-click"),
-};
+/**
+ * key -> boolean. Starts at production's own default template (parcels,
+ * zoning, city-limits, etj -- permits/violations dropped, out of scope; see
+ * DEFAULT_VISIBLE_LAYERS's own header in property-map-catalog.mjs) and is
+ * mutated in place by checkbox toggles, per-category show/hide-all, and
+ * view-template presets -- never re-derived from the DOM, so it stays the
+ * single source of truth refreshOverlayLayers() reads.
+ */
+const layerVisibility = getDefaultVisibility();
 
 const overlayGroups = {}; // key -> the L.geoJSON instance currently on the map, or null
 const overlayGeneration = {}; // key -> a counter guarding against a slow, now-superseded fetch clobbering a newer one for the same key
 
+/**
+ * Per-layer row bookkeeping, populated once by buildLayersPanel() below.
+ * Deliberately NOT addressed by id -- the checkbox element itself is held
+ * here directly, keyed by the layer's own catalog key, rather than assigned
+ * a DOM id and re-found later through getElementById. 52 dynamically
+ * created rows would otherwise be 52 ids no served script may create
+ * (src/addressability.test.mjs's CREATED-ids gate asserts that set stays
+ * empty today), so this keeps that gate meaningful rather than widening it.
+ */
+const layerRows = []; // { key, name, description, minZoom, checkbox, rowEl, zoomWarnEl }
+const categoryInfos = []; // { id, name, wrapperEl, headerEl, bodyEl, toggleBtn, countEl, collapsed, layers }
+let currentSearchQuery = "";
+
 const layersControlEl = document.getElementById("pm-layers");
 if (layersControlEl) {
-  // Without these, dragging or scrolling to interact with the checkbox list
+  // Without these, dragging or scrolling to interact with the layers panel
   // pans/zooms the map underneath it -- the control sits inside #pm-map on
   // purpose (top-right overlay, see property-map.css), so it has to opt out
   // of the map's own drag/scroll handling explicitly.
   L.DomEvent.disableClickPropagation(layersControlEl);
   L.DomEvent.disableScrollPropagation(layersControlEl);
-}
-
-function overlayVisible(key) {
-  const box = overlayCheckboxes[key];
-  return !box || box.checked;
 }
 
 function removeOverlayLayer(key) {
@@ -170,14 +176,24 @@ function setLayersStatus(text) {
  * not requested at a payload size nobody asked for. Returns a small status
  * descriptor so callers can compose an honest aggregate message rather than
  * each guessing at the others' state.
+ *
+ * Styled with styleForLayer(key, feature) -- a PER-FEATURE function, not a
+ * flat object, so the 6 layers production drives off a feature property
+ * (zoning, future-land-use, fema-flood-zones, subdivisions,
+ * parcels-one-click, pci) render with their real color buckets while every
+ * other layer gets its catalog entry's flat swatch, unchanged either way.
+ * pointToLayer routes that same per-feature color through a circle marker
+ * for point-geometry layers -- Leaflet's `style` option is a no-op on
+ * points, so a fire hydrant or fire station would otherwise render with
+ * Leaflet's default blue-pin icon regardless of its real catalog color.
  */
 async function refreshOverlayLayer(layerDef) {
-  const { key, minZoom, style } = layerDef;
-  if (!overlayVisible(key)) {
+  const { key, minZoom } = layerDef;
+  if (!layerVisibility[key]) {
     removeOverlayLayer(key);
     return { key, state: "hidden" };
   }
-  if (map.getZoom() < minZoom) {
+  if (minZoom != null && map.getZoom() < minZoom) {
     removeOverlayLayer(key);
     return { key, state: "below-min-zoom" };
   }
@@ -214,18 +230,35 @@ async function refreshOverlayLayer(layerDef) {
   }
 
   removeOverlayLayer(key);
-  overlayGroups[key] = L.geoJSON(data.result, { style }).addTo(map);
+  overlayGroups[key] = L.geoJSON(data.result, {
+    style: (feature) => styleForLayer(key, feature),
+    pointToLayer: (feature, latlng) => {
+      const s = styleForLayer(key, feature);
+      return L.circleMarker(latlng, {
+        radius: 6,
+        color: s.color || "#3b82f6",
+        fillColor: s.fillColor || s.color || "#3b82f6",
+        fillOpacity: s.fillOpacity != null ? s.fillOpacity : 0.8,
+        weight: s.weight != null ? s.weight : 2,
+      });
+    },
+  }).addTo(map);
   return { key, state: "ok" };
 }
 
 /**
- * Refreshes all four layers for the current viewport and composes one
- * honest status line out of the real per-layer outcomes -- a real error
- * basis takes priority; otherwise, if every visible layer is below its own
- * minZoom, a real "zoom in" hint; otherwise blank (nothing wrong to say).
+ * Refreshes every one of the 52 catalog layers for the current viewport
+ * (each still gated by its own visibility + minZoom inside
+ * refreshOverlayLayer, so only checked-on, in-zoom layers ever reach the
+ * network) and composes one honest status line out of the real per-layer
+ * outcomes -- a real error basis takes priority; otherwise, if every visible
+ * layer is below its own minZoom, a real "zoom in" hint; otherwise blank
+ * (nothing wrong to say). Same aggregation rule the original 4-layer
+ * mechanism used, just driven by the full catalog instead of a 4-entry
+ * array.
  */
 async function refreshOverlayLayers() {
-  const results = await Promise.all(OVERLAY_LAYERS.map((layerDef) => refreshOverlayLayer(layerDef)));
+  const results = await Promise.all(ALL_LAYERS.map((layerDef) => refreshOverlayLayer(layerDef)));
   const failed = results.find((r) => r.state === "unavailable");
   if (failed) {
     setLayersStatus(`Not read: ${failed.basis}`);
@@ -257,20 +290,222 @@ function scheduleOverlayRefresh() {
 
 map.on("moveend zoomend", scheduleOverlayRefresh);
 
-for (const layerDef of OVERLAY_LAYERS) {
-  const box = overlayCheckboxes[layerDef.key];
-  if (box) {
-    // A checkbox toggle is one deliberate action, not a spam of intermediate
-    // frames -- refreshes just the one layer it controls, not a debounced
-    // refetch of all four.
-    box.addEventListener("change", () => refreshOverlayLayer(layerDef));
+/**
+ * Updates the per-row "zoom in to see this layer" indicator, immediately on
+ * every zoomend (not debounced -- this is a cheap DOM-only update, unlike
+ * the network refresh above) -- matches production's LayerManager.tsx own
+ * UX signal (isLayerBelowMinZoom): dim + a real "Zoom in to z{n}+" line,
+ * shown only for a layer that is both checked on AND below its own minZoom.
+ */
+function updateZoomWarnings() {
+  const zoom = map.getZoom();
+  for (const row of layerRows) {
+    const below = row.minZoom != null && zoom < row.minZoom;
+    const show = below && layerVisibility[row.key];
+    row.zoomWarnEl.hidden = !show;
+    row.rowEl.classList.toggle("pm-layers-row-dim", show);
+  }
+}
+map.on("zoomend", updateZoomWarnings);
+
+/** The total-active and per-category-active counts shown in the panel. */
+function updateActiveCount() {
+  const countEl = document.getElementById("pm-layers-count");
+  if (countEl) {
+    const total = ALL_LAYER_KEYS.filter((k) => layerVisibility[k]).length;
+    countEl.textContent = `${total} active`;
+  }
+  for (const cat of categoryInfos) {
+    const active = cat.layers.filter((l) => layerVisibility[l.key]).length;
+    cat.countEl.textContent = `${active}/${cat.layers.length}`;
   }
 }
 
-// Initial draw for the default view -- honest either way: at the default
-// city-wide zoom (9), every layer is below its own minZoom (12-14), so this
-// resolves to the same "Zoom in to see layer boundaries." message a real
-// user would see, with no wasted fetch.
+/**
+ * Sets layerVisibility to EXACTLY the given key set (every other catalog
+ * key goes false), syncs every checkbox to match, and refreshes the map.
+ * The one function behind per-category show-all/hide-all and every
+ * view-template preset button -- each just computes a different target set.
+ */
+function applyVisibility(targetKeys) {
+  for (const key of ALL_LAYER_KEYS) layerVisibility[key] = targetKeys.has(key);
+  for (const row of layerRows) row.checkbox.checked = layerVisibility[row.key];
+  updateActiveCount();
+  updateZoomWarnings();
+  refreshOverlayLayers();
+}
+
+/** Shows/hides a category's rows against the current search query, and
+ *  collapses/expands its body -- search always wins over a manual collapse
+ *  while a query is active, so a match is never hidden by a stale toggle. */
+function renderCategoryVisibility(catInfo) {
+  const q = currentSearchQuery;
+  let anyMatch = false;
+  for (const row of catInfo.layers) {
+    const haystack = `${row.name} ${row.description}`.toLowerCase();
+    const match = !q || haystack.includes(q);
+    row.rowEl.hidden = !match;
+    if (match) anyMatch = true;
+  }
+  catInfo.wrapperEl.hidden = !anyMatch;
+  catInfo.bodyEl.hidden = q ? !anyMatch : catInfo.collapsed;
+}
+
+function setCategoryCollapsed(catInfo, collapsed) {
+  catInfo.collapsed = collapsed;
+  catInfo.toggleBtn.textContent = `${collapsed ? "▸" : "▾"} ${catInfo.name}`;
+  renderCategoryVisibility(catInfo);
+}
+
+/** Builds the 10 view-template preset buttons (production's own
+ *  VIEW_TEMPLATES, layerCatalog.ts) -- each just calls applyVisibility with
+ *  that preset's real layer list. */
+function buildTemplatesPanel() {
+  const container = document.getElementById("pm-layers-templates");
+  if (!container) return;
+  for (const template of VIEW_TEMPLATES) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "pm-layers-template";
+    btn.textContent = template.name;
+    btn.title = template.description;
+    btn.addEventListener("click", () => applyVisibility(new Set(template.layers)));
+    container.appendChild(btn);
+  }
+}
+
+/**
+ * Builds the categorized, searchable layer panel: 7 category sections
+ * (production's own LAYER_CATALOG order), each with a collapse toggle, a
+ * show-all/hide-all pair, and one row per layer -- a real checkbox, a color
+ * swatch in that layer's own catalog color, the layer's name, and a
+ * (normally hidden) minZoom warning line. No id is ever assigned to any of
+ * these elements; every reference is held directly in layerRows/
+ * categoryInfos instead.
+ */
+function buildLayersPanel() {
+  const container = document.getElementById("pm-layers-categories");
+  if (!container) return;
+  container.textContent = "";
+
+  for (const cat of LAYER_CATALOG) {
+    const wrapperEl = document.createElement("div");
+    wrapperEl.className = "pm-layers-category";
+
+    const headerEl = document.createElement("div");
+    headerEl.className = "pm-layers-category-head";
+
+    const toggleBtn = document.createElement("button");
+    toggleBtn.type = "button";
+    toggleBtn.className = "pm-layers-category-toggle";
+    toggleBtn.textContent = `▾ ${cat.name}`;
+
+    const countEl = document.createElement("span");
+    countEl.className = "pm-layers-category-count";
+
+    const showAllBtn = document.createElement("button");
+    showAllBtn.type = "button";
+    showAllBtn.className = "pm-layers-link";
+    showAllBtn.textContent = "Show all";
+
+    const hideAllBtn = document.createElement("button");
+    hideAllBtn.type = "button";
+    hideAllBtn.className = "pm-layers-link";
+    hideAllBtn.textContent = "Hide all";
+
+    headerEl.append(toggleBtn, countEl, showAllBtn, hideAllBtn);
+
+    const bodyEl = document.createElement("ul");
+    bodyEl.className = "pm-layers-list";
+
+    const catInfo = { id: cat.id, name: cat.name, wrapperEl, headerEl, bodyEl, toggleBtn, countEl, collapsed: false, layers: [] };
+
+    for (const layer of cat.layers) {
+      const li = document.createElement("li");
+      li.className = "pm-layers-item";
+
+      const label = document.createElement("label");
+      label.className = "pm-layers-label";
+
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.checked = !!layerVisibility[layer.key];
+
+      const swatch = document.createElement("span");
+      swatch.className = "pm-layers-swatch";
+      swatch.style.background = layer.color;
+
+      const nameEl = document.createElement("span");
+      nameEl.className = "pm-layers-name";
+      nameEl.textContent = layer.name;
+
+      const zoomWarnEl = document.createElement("span");
+      zoomWarnEl.className = "pm-layers-zoomwarn";
+      zoomWarnEl.textContent = layer.minZoom != null ? `Zoom in to z${layer.minZoom}+` : "";
+      zoomWarnEl.hidden = true;
+
+      label.append(checkbox, swatch, nameEl, zoomWarnEl);
+      li.appendChild(label);
+      bodyEl.appendChild(li);
+
+      const rowInfo = {
+        key: layer.key,
+        name: layer.name,
+        description: layer.description || "",
+        minZoom: layer.minZoom,
+        checkbox,
+        rowEl: li,
+        zoomWarnEl,
+      };
+      layerRows.push(rowInfo);
+      catInfo.layers.push(rowInfo);
+
+      // A checkbox toggle is one deliberate action, not a spam of
+      // intermediate frames -- refreshes just the one layer it controls,
+      // not a debounced refetch of all 52.
+      checkbox.addEventListener("change", () => {
+        layerVisibility[layer.key] = checkbox.checked;
+        updateActiveCount();
+        updateZoomWarnings();
+        refreshOverlayLayer(layer);
+      });
+    }
+
+    toggleBtn.addEventListener("click", () => setCategoryCollapsed(catInfo, !catInfo.collapsed));
+    showAllBtn.addEventListener("click", () => {
+      const target = new Set(ALL_LAYER_KEYS.filter((k) => layerVisibility[k]));
+      for (const l of cat.layers) target.add(l.key);
+      applyVisibility(target);
+    });
+    hideAllBtn.addEventListener("click", () => {
+      const drop = new Set(cat.layers.map((l) => l.key));
+      const target = new Set(ALL_LAYER_KEYS.filter((k) => layerVisibility[k] && !drop.has(k)));
+      applyVisibility(target);
+    });
+
+    wrapperEl.append(headerEl, bodyEl);
+    container.appendChild(wrapperEl);
+    categoryInfos.push(catInfo);
+  }
+}
+
+const layersSearchEl = document.getElementById("pm-layers-search");
+if (layersSearchEl) {
+  layersSearchEl.addEventListener("input", () => {
+    currentSearchQuery = layersSearchEl.value.trim().toLowerCase();
+    for (const cat of categoryInfos) renderCategoryVisibility(cat);
+  });
+}
+
+buildTemplatesPanel();
+buildLayersPanel();
+updateActiveCount();
+updateZoomWarnings();
+
+// Initial draw for the default view -- honest either way: refreshOverlayLayers
+// composes its status line from whatever the real per-layer outcomes are,
+// with no assumption baked in about which default-visible layer is above or
+// below its own minZoom at the starting city-wide zoom.
 refreshOverlayLayers();
 
 let parcelLayer = null;

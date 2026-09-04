@@ -884,18 +884,19 @@ describe("HTTP surface", () => {
       assert.equal(wrongCityBody.found, false);
       assert.match(wrongCityBody.basis, /bastrop_tx only/);
 
-      // Past the tenancy gate, on bastrop_tx: a key outside the four-key
-      // allowlist is honestly refused (400 upstream, surfaced as an
-      // unavailable envelope here), not silently answered with someone
-      // else's registry entry.
+      // Past the tenancy gate, on bastrop_tx: a key outside the 52-key
+      // allowlist (permits -- production's MyGov-backed "overlays" category,
+      // out of scope for this GIS-layer effort) is honestly refused (400
+      // upstream, surfaced as an unavailable envelope here), not silently
+      // answered with someone else's registry entry.
       const badKey = await fetch(
-        `${base}/api/property-map/layers?cityKey=bastrop_tx&key=fire-stations&${bbox}`,
+        `${base}/api/property-map/layers?cityKey=bastrop_tx&key=permits&${bbox}`,
         { headers: { "x-hauska-key": "hauska-bastrop" } },
       );
       assert.equal(badKey.status, 200);
       const badKeyBody = await badKey.json();
       assert.equal(badKeyBody.found, false);
-      assert.match(badKeyBody.basis, /fire-stations/);
+      assert.match(badKeyBody.basis, /permits/);
 
       const unknown = await fetch(`${base}/api/property-map/layers?cityKey=no-such-city&key=zoning&${bbox}`);
       assert.equal(unknown.status, 404);
