@@ -247,17 +247,42 @@ async function readFiles({ cityKey, env, fetchImpl, caller }) {
   }
 }
 
+/**
+ * G-117 / the 2026-09-04 operator decision (dated record in doc_repo's
+ * _decisions/ directory) overriding "No Leaflet island" for this one page.
+ *
+ * The one, narrow, named exception to "No Leaflet island" (README.md, G-61):
+ * for the real Bastrop pack only, the map stage mounts this product's OWN
+ * page (a Leaflet map reading real parcel/zoning/flood/permit data through
+ * smartcity-os's platform-internal property-intel route) instead of the
+ * SmartSite iframe. This is a deliberate, temporary stopgap, not a repeal --
+ * see the decision doc for the reversal criteria. Every other pack, and
+ * every other embed on this product (Plan Review, Smart Files), is
+ * completely unaffected.
+ *
+ * Root-relative, not built from mounts.mjs's env-configurable origin
+ * machinery: this is this product's OWN page, served from its own origin,
+ * not a supplier mount, so none of mounts.mjs's forbidden-marker/DSN safety
+ * checks (which exist specifically for THIRD-PARTY origins) apply to it.
+ */
+function nativePropertyMapUrl(cityKey) {
+  return `/property-map.html?cityKey=${encodeURIComponent(cityKey)}`;
+}
+
 export async function composeCityManager({
   parcelNodeId = "",
   cityKey = DEFAULT_CITY_KEY,
   env = process.env,
   fetchImpl = globalThis.fetch,
   caller = { kind: "anonymous" },
+  nativePropertyMap = false,
 } = {}) {
   const city = String(cityKey || DEFAULT_CITY_KEY).trim() || DEFAULT_CITY_KEY;
   const id = String(parcelNodeId || "").trim();
   const valid = PARCEL_NODE_ID_RE.test(id);
-  const smartsite = valid
+  const smartsite = nativePropertyMap
+    ? { contract: "embed", url: nativePropertyMapUrl(city), basis: "native property map (G-117)" }
+    : valid
     ? { contract: "embed", url: smartsiteEmbedUrl(id) }
     : {
         contract: "embed",

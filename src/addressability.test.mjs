@@ -1127,6 +1127,7 @@ describe("G-88 addressability: a screen that renders can also be driven", () => 
       "src/staff-review.mjs",
       "src/theme.mjs",
       "web/app.js",
+      "web/property-map.js",
     ]);
     assert.deepEqual(MARKUP_SOURCES, [
       "src/shell-homes.mjs",
@@ -1135,6 +1136,8 @@ describe("G-88 addressability: a screen that renders can also be driven", () => 
       "src/theme.mjs",
       "web/app.js",
       "web/index.html",
+      "web/property-map.html",
+      "web/property-map.js",
     ]);
     assert.deepEqual(BAKE_SOURCES, ["src/shell-homes.mjs"]);
 
@@ -1152,6 +1155,8 @@ describe("G-88 addressability: a screen that renders can also be driven", () => 
       "src/theme.mjs",
       "web/app.js",
       "web/index.html",
+      "web/property-map.html",
+      "web/property-map.js",
     ]);
     assert.deepEqual(
       MARKUP_SOURCES.filter((rel) => !SERVED_DOCUMENTS.includes(rel)),

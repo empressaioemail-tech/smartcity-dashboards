@@ -7,6 +7,7 @@ import { listLenses, getLens } from "./lenses.mjs";
 import { listCityPacks, getCityPack, getPacksStore, ensureCityPacksTable } from "./city-pack.mjs";
 import { readMounts, smartsiteEmbedUrl, planReviewEmbedUrl, smartFilesEmbedUrl, assertNoSupplierDsn, assertNoSupplierMounts } from "./mounts.mjs";
 import { composeCityManager, DEFAULT_CITY_KEY } from "./compose.mjs";
+import { composePropertyIntelSummary, NATIVE_PROPERTY_MAP_CITY_KEY } from "./property-map.mjs";
 import { listAdapterKinds, platformGrantForKind } from "./adapters.mjs";
 import { composeRealPermits } from "./mygov-permits.mjs";
 import {
@@ -284,6 +285,49 @@ async function handle(req, res) {
       parcelNodeId: url.searchParams.get("parcelNodeId") || "",
       cityKey: pack.cityKey,
       caller,
+      /**
+       * G-117: conditional on the pack being real, the exact same shape as
+       * every other real-branch dispatch in this file (REAL_LIVE_DOMAINS
+       * checks above/below) -- generatesFixtures !== true AND, since this
+       * is a single named-city exception rather than a grant any real pack
+       * can hold, the pack IS the real Bastrop city specifically. Every
+       * other pack (every fixture pack, and any future real pack that is
+       * not Bastrop) is unaffected and keeps composing the SmartSite embed
+       * exactly as before.
+       */
+      nativePropertyMap: pack.cityKey === NATIVE_PROPERTY_MAP_CITY_KEY && pack.generatesFixtures !== true,
+    });
+    json(res, 200, composed);
+    return;
+  }
+
+  /**
+   * G-117. The native Bastrop property map's own data call -- a live,
+   * user-typed address search, not a page-load compose, so it is its own
+   * route rather than a field folded into the compose response above (see
+   * src/property-map.mjs's module header for why). Gated the same way the
+   * compose route just above is: the pack is resolved first and
+   * packContentReadStatus decides readability before anything is composed,
+   * so a caller who cannot read this (real, tenant-private) pack's content
+   * gets the same 401/403 the rest of this pack's content already gives,
+   * not a silent real-data leak through a route that forgot to check.
+   */
+  if (req.method === "GET" && url.pathname === "/api/property-map/summary") {
+    const caller = await resolveCaller(req);
+    const cityKey = url.searchParams.get("cityKey") || "";
+    const pack = await getCityPack(cityKey);
+    const status = packContentReadStatus(pack, caller);
+    if (status === 404) {
+      json(res, 404, { error: "unknown city pack" });
+      return;
+    }
+    if (status !== 200) {
+      json(res, status, { error: status === 401 ? "unauthorized" : "forbidden" });
+      return;
+    }
+    const composed = await composePropertyIntelSummary({
+      address: url.searchParams.get("address") || "",
+      cityKey: pack.cityKey,
     });
     json(res, 200, composed);
     return;
@@ -610,6 +654,28 @@ async function handle(req, res) {
 
   if (req.method === "GET" && url.pathname === "/theme.mjs") {
     sendFile(req, res, path.join(__dirname, "theme.mjs"), "text/javascript; charset=utf-8");
+    return;
+  }
+
+  /**
+   * G-117. The native Bastrop property map's own served page -- three
+   * files, same sendFile/etag convention as index.html/app.js/the two
+   * stylesheets above, so they're picked up by src/served-surface.mjs's
+   * derivation (SERVED_ASSETS, scanned by every markup/class/forbidden-
+   * string gate) with no separate listing to keep in sync.
+   */
+  if (req.method === "GET" && url.pathname === "/property-map.html") {
+    sendFile(req, res, path.join(WEB, "property-map.html"), "text/html; charset=utf-8");
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/property-map.js") {
+    sendFile(req, res, path.join(WEB, "property-map.js"), "text/javascript; charset=utf-8");
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/property-map.css") {
+    sendFile(req, res, path.join(WEB, "property-map.css"), "text/css");
     return;
   }
 

@@ -736,6 +736,109 @@ describe("HTTP surface", () => {
       delete process.env.HAUSKA_TENANT_KEYS;
     }
   });
+
+  /**
+   * G-117. The one, narrow, named exception to "No Leaflet island" (README.md,
+   * G-61; see the dated 2026-09-04 operator decision record in doc_repo's
+   * _decisions/ directory): the real bastrop_tx pack's map stage composes this
+   * product's own native property map page instead of the SmartSite embed,
+   * conditional exactly the way every other real-branch dispatch in this file
+   * already is (generatesFixtures !== true), plus this being the one named
+   * city the exception covers -- template-city and every other pack must stay
+   * byte-identical to the SmartSite behavior proven throughout this file.
+   */
+  it("composes the native property map for the real bastrop_tx pack; template-city keeps the exact SmartSite embed, unaffected", async () => {
+    process.env.DASHBOARDS_API_KEY = "scaffold-test-key";
+    process.env.HAUSKA_TENANT_KEYS = JSON.stringify({ "hauska-bastrop": "bastrop_tx" });
+    try {
+      const base = `http://127.0.0.1:${port}`;
+
+      // The real, tenant-private pack: its own subject reads a native page,
+      // not the SmartSite iframe.
+      const bastrop = await fetch(
+        `${base}/api/lenses/city-manager/compose?cityKey=bastrop_tx`,
+        { headers: { "x-hauska-key": "hauska-bastrop" } },
+      );
+      assert.equal(bastrop.status, 200);
+      const bastropBody = await bastrop.json();
+      assert.equal(bastropBody.smartsite.contract, "embed");
+      assert.equal(bastropBody.smartsite.url, "/property-map.html?cityKey=bastrop_tx");
+      assert.equal(bastropBody.smartsite.url.includes("smartsite.cloud"), false);
+
+      // An anonymous caller does not get bastrop_tx's compose at all (tenant-
+      // private, same gate as every other tenant-private pack in this file) --
+      // so the native page is never exposed through a route that forgot to
+      // check, only through the pack's own authenticated compose.
+      const anon = await fetch(`${base}/api/lenses/city-manager/compose?cityKey=bastrop_tx`);
+      assert.equal(anon.status, 401);
+
+      // template-city, side by side against the exact same running server:
+      // still the external SmartSite embed, byte-identical to every other
+      // assertion of this URL shape elsewhere in this file.
+      const template = await fetch(
+        `${base}/api/lenses/city-manager/compose?parcelNodeId=48021:34137&cityKey=template-city`,
+      );
+      assert.equal(template.status, 200);
+      const templateBody = await template.json();
+      assert.match(templateBody.smartsite.url, /^https:\/\/smartsite\.cloud\/\?parcelNodeId=/);
+    } finally {
+      delete process.env.DASHBOARDS_API_KEY;
+      delete process.env.HAUSKA_TENANT_KEYS;
+    }
+  });
+
+  /**
+   * G-117. The native property map's own data route. Gated identically to
+   * the compose route just above (packContentReadStatus on the resolved
+   * pack) -- an anonymous caller cannot reach bastrop_tx's real property
+   * data through this route either. No PLATFORM_INTERNAL_API_KEY is
+   * configured in this test process, so the live smartcity-os fetch itself
+   * never fires; what this proves is the route's own gating, envelope shape,
+   * and the bastrop-only refusal for any other cityKey -- all reachable
+   * without a live platform credential.
+   */
+  it("gates and honestly envelopes /api/property-map/summary", async () => {
+    process.env.DASHBOARDS_API_KEY = "scaffold-test-key";
+    process.env.HAUSKA_TENANT_KEYS = JSON.stringify({ "hauska-bastrop": "bastrop_tx" });
+    delete process.env.PLATFORM_INTERNAL_API_KEY;
+    try {
+      const base = `http://127.0.0.1:${port}`;
+
+      const anon = await fetch(`${base}/api/property-map/summary?cityKey=bastrop_tx&address=123+Main+St`);
+      assert.equal(anon.status, 401);
+      assert.deepEqual(await anon.json(), { error: "unauthorized" });
+
+      const subject = await fetch(
+        `${base}/api/property-map/summary?cityKey=bastrop_tx&address=123+Main+St`,
+        { headers: { "x-hauska-key": "hauska-bastrop" } },
+      );
+      assert.equal(subject.status, 200);
+      const subjectBody = await subject.json();
+      assert.equal(subjectBody.found, false);
+      assert.equal(subjectBody.status, "unavailable");
+      assert.match(subjectBody.basis, /PLATFORM_INTERNAL_API_KEY unset/);
+      assert.equal(subjectBody.source, "live");
+      assert.equal(subjectBody.result, null);
+
+      // A public-free pack reaches the handler (no tenancy refusal), but the
+      // route itself refuses to answer for any pack other than bastrop_tx --
+      // the real source is Bastrop-only, stated honestly, not silently
+      // returning Bastrop's data mislabeled as template-city's own.
+      const wrongCity = await fetch(
+        `${base}/api/property-map/summary?cityKey=template-city&address=123+Main+St`,
+      );
+      assert.equal(wrongCity.status, 200);
+      const wrongCityBody = await wrongCity.json();
+      assert.equal(wrongCityBody.found, false);
+      assert.match(wrongCityBody.basis, /bastrop_tx only/);
+
+      const unknown = await fetch(`${base}/api/property-map/summary?cityKey=no-such-city&address=x`);
+      assert.equal(unknown.status, 404);
+    } finally {
+      delete process.env.DASHBOARDS_API_KEY;
+      delete process.env.HAUSKA_TENANT_KEYS;
+    }
+  });
 });
 
 

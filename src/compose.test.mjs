@@ -554,3 +554,65 @@ describe("city-manager compose", () => {
     assert.equal("fleet" in composed, false);
   });
 });
+
+describe("G-117 native property map, conditional map-stage composition", () => {
+  it("defaults to false: omitting nativePropertyMap composes the exact SmartSite embed as before -- byte-identical to every pre-G-117 test above", async () => {
+    const composed = await composeCityManager({
+      parcelNodeId: VALID,
+      cityKey: "template-city",
+      env: envWithMounts(),
+      fetchImpl: mockFetch((url) => {
+        if (url.includes("/atom-chain")) throw new Error("must not call retrieval");
+        return jsonResponse(200, { folders: [] });
+      }),
+    });
+    assert.equal(composed.smartsite.contract, "embed");
+    assert.equal(composed.smartsite.url, "https://smartsite.cloud/?parcelNodeId=48021%3A34137");
+    assert.equal("basis" in composed.smartsite, false);
+  });
+
+  it("nativePropertyMap: false (explicit) is identical to the default -- fixture packs are unaffected by the new param existing at all", async () => {
+    const withFalse = await composeCityManager({
+      parcelNodeId: VALID,
+      cityKey: "template-city",
+      env: envWithMounts(),
+      nativePropertyMap: false,
+      fetchImpl: mockFetch((url) => {
+        if (url.includes("/atom-chain")) throw new Error("must not call retrieval");
+        return jsonResponse(200, { folders: [] });
+      }),
+    });
+    assert.equal(withFalse.smartsite.url, "https://smartsite.cloud/?parcelNodeId=48021%3A34137");
+  });
+
+  it("nativePropertyMap: true composes this product's OWN page, not an external SmartSite embed, carrying cityKey", async () => {
+    const composed = await composeCityManager({
+      parcelNodeId: VALID,
+      cityKey: "bastrop_tx",
+      env: envWithMounts(),
+      nativePropertyMap: true,
+      fetchImpl: mockFetch((url) => {
+        if (url.includes("/atom-chain")) throw new Error("must not call retrieval");
+        return jsonResponse(200, { folders: [] });
+      }),
+    });
+    assert.equal(composed.smartsite.contract, "embed");
+    assert.equal(composed.smartsite.url, "/property-map.html?cityKey=bastrop_tx");
+    // Root-relative, same-origin: never the external smartsite.cloud host.
+    assert.equal(composed.smartsite.url.includes("smartsite.cloud"), false);
+    assert.equal(composed.smartsite.basis, "native property map (G-117)");
+  });
+
+  it("nativePropertyMap: true still composes it even with no parcelNodeId at all -- the native page has its own search box and does not depend on one", async () => {
+    const composed = await composeCityManager({
+      cityKey: "bastrop_tx",
+      env: envWithMounts(),
+      nativePropertyMap: true,
+      fetchImpl: mockFetch((url) => {
+        if (url.includes("/atom-chain")) throw new Error("must not call retrieval");
+        return jsonResponse(200, { folders: [] });
+      }),
+    });
+    assert.equal(composed.smartsite.url, "/property-map.html?cityKey=bastrop_tx");
+  });
+});
