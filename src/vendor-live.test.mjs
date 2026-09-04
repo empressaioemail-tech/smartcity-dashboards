@@ -178,7 +178,16 @@ describe("vendor-live (G-116 Phase 2 third batch)", () => {
 
   it("cip-projects: maps a real PowerBI row, origin feed", () => {
     const record = mapRealCipProjectRecord(
-      { name: "Wastewater Treatment Plant #4", overallCompletion: 0.46, phases: [{ task: "Planning" }, { task: "Execution" }] },
+      {
+        name: "Wastewater Treatment Plant #4",
+        overallCompletion: 0.46,
+        currentPhase: "Execution",
+        status: "in-progress",
+        phases: [
+          { task: "Planning", phaseStart: "2026-01-01T00:00:00Z", phaseEnd: "2026-02-28T00:00:00Z", completion: 1, taskDuration: 58 },
+          { task: "Execution", phaseStart: "2026-03-01T00:00:00Z", phaseEnd: "2026-09-01T00:00:00Z", completion: 0.46, taskDuration: 184 },
+        ],
+      },
       "bastrop_tx",
     );
     assert.equal(record.kind, "powerbi");
@@ -186,6 +195,23 @@ describe("vendor-live (G-116 Phase 2 third batch)", () => {
     assert.equal(record.origin, "feed");
     assert.equal(record.completion, 0.46);
     assert.equal(record.phaseCount, 2);
+    // G-116 CIP enrichment: real currentPhase/status, kept as-is (no forced
+    // taxonomy -- see the module header and mapRealCipProjectRecord).
+    assert.equal(record.currentPhase, "Execution");
+    assert.equal(record.status, "in-progress");
+    // The real per-task Gantt rows getCIPProjectData() computes, passed
+    // through unchanged.
+    assert.deepEqual(record.phases, [
+      { task: "Planning", phaseStart: "2026-01-01T00:00:00Z", phaseEnd: "2026-02-28T00:00:00Z", completion: 1, taskDuration: 58 },
+      { task: "Execution", phaseStart: "2026-03-01T00:00:00Z", phaseEnd: "2026-09-01T00:00:00Z", completion: 0.46, taskDuration: 184 },
+    ]);
+  });
+
+  it("cip-projects: a real row with no phases/status/currentPhase degrades gracefully, no fabrication", () => {
+    const record = mapRealCipProjectRecord({ name: "Sidewalk Connectivity" }, "bastrop_tx");
+    assert.equal(record.currentPhase, null);
+    assert.equal(record.status, "unknown");
+    assert.deepEqual(record.phases, []);
   });
 
   it("call-analytics: maps one aggregate record, no individual call detail", () => {

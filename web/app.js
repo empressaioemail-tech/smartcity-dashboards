@@ -662,6 +662,17 @@ function td(text, className) {
 }
 
 /**
+ * A real completion fraction (0..1) rendered as a whole-number percent.
+ * Anything not a finite number (missing, or a fixture record that never
+ * carries this field) is null so td() renders it blank, not "undefined"
+ * and not a fabricated 0%.
+ */
+function pctText(value) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return null;
+  return `${Math.round(value * 100)}%`;
+}
+
+/**
  * A real fees array ({type, amount}[]) rendered as one itemized line rather
  * than collapsed to a bare total -- the real source (and the production
  * staff dashboard) carries fees itemized, not just a total, so the cell
@@ -2068,10 +2079,16 @@ function renderCapitalProjects(payload) {
       row.append(
         td(record.recordId, "id"),
         td(record.subject, "subj"),
-        td(record.phase),
+        /**
+         * The fixture's own invented phase id (planning/design/bid/...) or,
+         * for a real record, the real currentPhase getCIPProjectData()
+         * computed -- never both, and never one relabeled as the other.
+         */
+        td(record.phase || record.currentPhase),
         td(place),
         td(record.scheduleLabel, "t-data"),
         statusCell(record, labels),
+        td(pctText(record.completion), "t-data"),
       );
       return row;
     }),
@@ -2101,6 +2118,44 @@ function renderCapitalProjects(payload) {
   }
   /** No money on this register, and the refusal is stated rather than implied. */
   if (extras.budgetBasis) setText("pw-cip-budget", `Basis: ${extras.budgetBasis}`);
+  /**
+   * Per-task Gantt rows. Real records carry their own `phases` array
+   * (getCIPProjectData()'s msdyn_projecttask summary tasks); the fixture
+   * never does, so this is empty on a generated pack -- same honest-empty
+   * stance as the rest of this domain. The TABLE itself is hidden in that
+   * case, not left visible with an empty body: a table with header cells
+   * and zero data rows is a real, separate defect (th-has-data-cells) from
+   * "no fixture source" honesty, and the fix for one is not a fix for the
+   * other. Hidden, the static caption below already states the absence.
+   */
+  const ganttRows = records.flatMap((record) =>
+    (Array.isArray(record.phases) ? record.phases : []).map((phase) => ({
+      ...phase,
+      projectLabel: record.projectName || record.subject || record.recordId,
+    })),
+  );
+  fill(
+    document.getElementById("pw-cip-gantt-rows"),
+    ganttRows.map((phase) => {
+      const row = document.createElement("tr");
+      row.append(
+        td(phase.projectLabel, "subj"),
+        td(phase.task),
+        td(phase.phaseStart, "t-data"),
+        td(phase.phaseEnd, "t-data"),
+        td(pctText(phase.completion), "t-data"),
+        td(phase.taskDuration, "t-data"),
+      );
+      return row;
+    }),
+  );
+  show(document.getElementById("pw-cip-gantt-table"), ganttRows.length > 0);
+  if (ganttRows.length > 0) {
+    setText(
+      "pw-cip-gantt-basis",
+      `Basis: ${ganttRows.length} per-task phase rows read live from smartcity-os's getCIPProjectData() (services/powerbi.ts), across ${records.length} capital projects.`,
+    );
+  }
 }
 
 /**
