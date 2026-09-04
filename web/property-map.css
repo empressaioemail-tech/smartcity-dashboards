@@ -98,14 +98,13 @@ body {
 }
 
 /*
- * G-117 follow-up. The four always-on GIS overlay-layer toggles, floating
- * over the top-right corner of the map -- a small checkbox list, not a
- * dropdown widget, matching the first-pass scope this control was built to.
- * Swatch colors are each layer's own real stroke color (see
- * web/property-map.js's OVERLAY_LAYERS, confirmed against smartcity-os's
- * client/src/components/maps/layerCatalog.ts) -- the same real value stated
- * here for display and again there for the actual map layer style, not two
- * different ones.
+ * G-117 full-parity follow-up. The full 52-layer, 7-category GIS overlay
+ * panel, floating over the top-right corner of the map -- a categorized,
+ * searchable side panel (LayerManager.tsx's own shape), not a flat checkbox
+ * dump. Swatch colors are set inline per layer from that layer's own real
+ * catalog color (web/property-map.js's buildLayersPanel(), confirmed
+ * against smartcity-os's client/src/components/maps/layerCatalog.ts), so
+ * nothing here hardcodes a color a second time.
  */
 .pm-layers {
   position: absolute;
@@ -117,7 +116,18 @@ body {
   border-radius: 8px;
   padding: 8px 10px;
   font-size: 12px;
-  max-width: 220px;
+  width: 280px;
+  max-width: calc(100% - 20px);
+  max-height: calc(100% - 20px);
+  display: flex;
+  flex-direction: column;
+}
+
+.pm-layers-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .pm-layers-title {
@@ -126,6 +136,99 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: #9aa1b2;
+}
+
+.pm-layers-count {
+  font-size: 10px;
+  color: #6398aa;
+  white-space: nowrap;
+}
+
+.pm-layers-search {
+  width: 100%;
+  padding: 5px 8px;
+  margin: 0 0 6px;
+  border-radius: 5px;
+  border: 1px solid #2c3040;
+  background: #1c1f29;
+  color: #e6e8ef;
+  font-size: 12px;
+}
+
+.pm-layers-templates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0 0 8px;
+  max-height: 90px;
+  overflow-y: auto;
+}
+
+.pm-layers-template {
+  padding: 3px 7px;
+  border-radius: 999px;
+  border: 1px solid #2c3040;
+  background: #1c1f29;
+  color: #9aa1b2;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.pm-layers-template:hover {
+  border-color: #3a6df0;
+  color: #e6e8ef;
+}
+
+.pm-layers-categories {
+  overflow-y: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.pm-layers-category {
+  border-top: 1px solid #23262f;
+  padding: 4px 0;
+}
+
+.pm-layers-category:first-child {
+  border-top: none;
+}
+
+.pm-layers-category-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pm-layers-category-toggle {
+  flex: 1 1 auto;
+  text-align: left;
+  background: none;
+  border: none;
+  color: #e6e8ef;
+  font-size: 11px;
+  font-weight: 650;
+  cursor: pointer;
+  padding: 2px 0;
+}
+
+.pm-layers-category-count {
+  font-size: 10px;
+  color: #6398aa;
+  white-space: nowrap;
+}
+
+.pm-layers-link {
+  background: none;
+  border: none;
+  color: #6398aa;
+  font-size: 10px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.pm-layers-link:hover {
+  text-decoration: underline;
 }
 
 .pm-layers-list {
@@ -146,6 +249,7 @@ body {
   align-items: center;
   gap: 6px;
   cursor: pointer;
+  width: 100%;
 }
 
 .pm-layers-swatch {
@@ -154,6 +258,22 @@ body {
   height: 10px;
   border-radius: 2px;
   flex: 0 0 auto;
+}
+
+.pm-layers-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.pm-layers-zoomwarn {
+  font-size: 10px;
+  color: #eab308;
+  white-space: nowrap;
+}
+
+.pm-layers-row-dim .pm-layers-name {
+  color: #9aa1b2;
 }
 
 .pm-layers-status {

@@ -704,6 +704,7 @@ describe("G-77 fixture pack on Development services", () => {
      * decision, so it is recorded here rather than discovered later.
      */
     assert.deepEqual(SERVED_ASSETS, [
+      "src/property-map-catalog.mjs",
       "src/staff-map.mjs",
       "src/staff-review.mjs",
       "src/theme.mjs",
@@ -749,6 +750,7 @@ describe("G-77 fixture pack on Development services", () => {
      */
     assert.deepEqual(BAKE_SOURCES, ["src/shell-homes.mjs"]);
     assert.deepEqual(MARKUP_SOURCES, [
+      "src/property-map-catalog.mjs",
       "src/shell-homes.mjs",
       "src/staff-map.mjs",
       "src/staff-review.mjs",
@@ -1011,40 +1013,26 @@ describe("G-117 close: the property map surfaces real CAD valuation and legal-de
   });
 });
 
-describe("G-117 follow-up: the property map's four always-on GIS overlay layers (zoning, future land use, subdivisions, parcels-one-click)", () => {
-  it("OVERLAY_LAYERS carries the exact four keys, colors, fillColor/fillOpacity/weight, and minZoom production's own layerCatalog.ts defines -- confirmed against the real source, not approximated", () => {
-    const block = propertyMapJs.match(/const OVERLAY_LAYERS = \[[\s\S]*?\n\];/)?.[0] || "";
-    assert.ok(block, "OVERLAY_LAYERS must exist");
-
-    assert.match(block, /key: "zoning".*minZoom: 14.*style: \{ color: "#7c3aed", fillOpacity: 0\.35 \}/);
+describe("G-117 full-parity follow-up: the property map's 52 toggleable GIS overlay layers, categorized panel, and view-template presets", () => {
+  it("imports the shared 52-layer catalog module rather than carrying a second, hand-duplicated copy", () => {
     assert.match(
-      block,
-      /key: "future-land-use"[\s\S]*?minZoom: 13[\s\S]*?style: \{ color: "#8b5cf6", fillColor: "#c4b5fd", fillOpacity: 0\.2, weight: 2 \}/,
+      propertyMapJs,
+      /import\s*\{[\s\S]*?LAYER_CATALOG[\s\S]*?VIEW_TEMPLATES[\s\S]*?\}\s*from\s*"\/property-map-catalog\.mjs"/,
     );
-    assert.match(
-      block,
-      /key: "subdivisions"[\s\S]*?minZoom: 12[\s\S]*?style: \{ color: "#1e40af", fillColor: "#3b82f6", fillOpacity: 0\.4, weight: 3 \}/,
-    );
-    assert.match(
-      block,
-      /key: "parcels-one-click"[\s\S]*?minZoom: 14[\s\S]*?style: \{ color: "#3b82f6", fillColor: "#3b82f6", fillOpacity: 0\.15, weight: 1\.5 \}/,
-    );
-
-    // Exactly four -- no fifth key ever added client-side beyond what
-    // smartcity-os's own platform route allowlists.
-    assert.equal((block.match(/key: "/g) || []).length, 4);
   });
 
-  it("the HTML ships a real checkbox (default checked) and a real swatch, per layer, matching each real color", () => {
-    for (const [id, color] of [
-      ["pm-layer-zoning", "#7c3aed"],
-      ["pm-layer-future-land-use", "#8b5cf6"],
-      ["pm-layer-subdivisions", "#1e40af"],
-      ["pm-layer-parcels-one-click", "#3b82f6"],
-    ]) {
-      assert.match(propertyMapHtml, new RegExp(`<input type="checkbox" id="${id}" checked />`), id);
-    }
-    assert.equal((propertyMapHtml.match(/background: #(7c3aed|8b5cf6|1e40af|3b82f6)/g) || []).length, 4);
+  it("ALL_LAYERS/ALL_LAYER_KEYS are derived from LAYER_CATALOG/getAllLayerKeys, not a hardcoded list", () => {
+    assert.match(propertyMapJs, /const ALL_LAYERS = LAYER_CATALOG\.flatMap\(\(cat\) => cat\.layers\);/);
+    assert.match(propertyMapJs, /const ALL_LAYER_KEYS = getAllLayerKeys\(\);/);
+  });
+
+  it("layerVisibility starts from getDefaultVisibility(), the single source for the default-on set", () => {
+    assert.match(propertyMapJs, /const layerVisibility = getDefaultVisibility\(\);/);
+  });
+
+  it("no served script ever assigns an element .id -- the addressability gate's CREATED-ids set must stay empty (src/addressability.test.mjs), so 52 dynamically built rows are never addressed by id", () => {
+    assert.equal(/[\w$\])"']\.id\s*=(?!=)/.test(propertyMapJs), false, "property-map.js must not assign .id");
+    assert.equal(/setAttribute\s*\(\s*["']id["']/.test(propertyMapJs), false, "property-map.js must not setAttribute(\"id\", ...)");
   });
 
   it("fetches by the CURRENT viewport bounding box (map.getBounds()), not by the searched address", () => {
@@ -1059,7 +1047,7 @@ describe("G-117 follow-up: the property map's four always-on GIS overlay layers 
   it("respects each layer's own minZoom by skipping the fetch entirely below it, never rendering a stale or oversized result", () => {
     const fn = propertyMapJs.match(/async function refreshOverlayLayer\(layerDef\)[\s\S]*?\n\}/)?.[0] || "";
     assert.ok(fn, "refreshOverlayLayer must exist");
-    assert.match(fn, /if \(map\.getZoom\(\) < minZoom\) \{/);
+    assert.match(fn, /if \(minZoom != null && map\.getZoom\(\) < minZoom\) \{/);
     assert.match(fn, /removeOverlayLayer\(key\);\s*\n\s*return \{ key, state: "below-min-zoom" \};/);
     // The early return happens before any fetch() call in this function.
     const zoomGuardIndex = fn.indexOf("map.getZoom() < minZoom");
@@ -1075,18 +1063,75 @@ describe("G-117 follow-up: the property map's four always-on GIS overlay layers 
     assert.match(fn, /setTimeout\(\(\) => \{/);
   });
 
-  it("renders each layer as its own L.geoJSON using that layer's real style object, unmodified", () => {
-    assert.match(propertyMapJs, /overlayGroups\[key\] = L\.geoJSON\(data\.result, \{ style \}\)\.addTo\(map\)/);
+  it("refreshOverlayLayers now iterates the full ALL_LAYERS catalog (52 layers), not a fixed small array -- the same aggregation mechanism, generalized", () => {
+    const fn = propertyMapJs.match(/async function refreshOverlayLayers\(\)[\s\S]*?\n\}/)?.[0] || "";
+    assert.ok(fn, "refreshOverlayLayers must exist");
+    assert.match(fn, /ALL_LAYERS\.map\(\(layerDef\) => refreshOverlayLayer\(layerDef\)\)/);
+    assert.match(fn, /"Zoom in to see layer boundaries\."/);
+    assert.match(fn, /Not read: \$\{failed\.basis\}/);
   });
 
-  it("each checkbox independently toggles just its own layer, defaulting all four visible (no fetch is skipped for a checked layer)", () => {
-    assert.match(propertyMapJs, /function overlayVisible\(key\) \{\s*\n\s*const box = overlayCheckboxes\[key\];\s*\n\s*return !box \|\| box\.checked;/);
-    assert.match(propertyMapJs, /box\.addEventListener\("change", \(\) => refreshOverlayLayer\(layerDef\)\)/);
-    // Default-checked is asserted against the real markup above, not here --
-    // this test only proves the toggle wiring itself.
+  it("renders each layer via styleForLayer(key, feature) as a per-feature style function, and colors point geometries through pointToLayer/circleMarker (Leaflet's style option is a no-op on points)", () => {
+    assert.match(propertyMapJs, /style: \(feature\) => styleForLayer\(key, feature\)/);
+    assert.match(propertyMapJs, /pointToLayer: \(feature, latlng\) => \{/);
+    assert.match(propertyMapJs, /L\.circleMarker\(latlng, \{/);
   });
 
-  it("the four overlay layers coexist with the existing address-search flow -- the search route, renderParcel, and search() are untouched", () => {
+  it("each checkbox independently toggles just its own layer's visibility and calls refreshOverlayLayer for that one layer, not a debounced refetch of all 52", () => {
+    assert.match(
+      propertyMapJs,
+      /checkbox\.addEventListener\("change", \(\) => \{\s*\n\s*layerVisibility\[layer\.key\] = checkbox\.checked;/,
+    );
+    assert.match(propertyMapJs, /refreshOverlayLayer\(layer\);/);
+  });
+
+  it("applyVisibility sets EXACTLY the given key set and is the one function behind show-all/hide-all and every template preset button", () => {
+    const fn = propertyMapJs.match(/function applyVisibility\(targetKeys\)[\s\S]*?\n\}/)?.[0] || "";
+    assert.ok(fn, "applyVisibility must exist");
+    assert.match(fn, /layerVisibility\[key\] = targetKeys\.has\(key\)/);
+    assert.match(fn, /row\.checkbox\.checked = layerVisibility\[row\.key\]/);
+    assert.match(fn, /refreshOverlayLayers\(\);/);
+    assert.match(propertyMapJs, /showAllBtn\.addEventListener\("click", \(\) => \{/);
+    assert.match(propertyMapJs, /hideAllBtn\.addEventListener\("click", \(\) => \{/);
+    assert.match(
+      propertyMapJs,
+      /btn\.addEventListener\("click", \(\) => applyVisibility\(new Set\(template\.layers\)\)\)/,
+    );
+  });
+
+  it("view-template preset buttons are built from the real VIEW_TEMPLATES import, one button per preset", () => {
+    assert.match(propertyMapJs, /for \(const template of VIEW_TEMPLATES\) \{/);
+    assert.match(propertyMapJs, /btn\.textContent = template\.name;/);
+    assert.match(propertyMapJs, /btn\.title = template\.description;/);
+  });
+
+  it("the minZoom warning indicator dims a row and shows a real 'Zoom in to z{n}+' line only when that layer is both checked-on and below its own minZoom, updated live on zoomend", () => {
+    const fn = propertyMapJs.match(/function updateZoomWarnings\(\)[\s\S]*?\n\}/)?.[0] || "";
+    assert.ok(fn, "updateZoomWarnings must exist");
+    assert.match(fn, /const below = row\.minZoom != null && zoom < row\.minZoom;/);
+    assert.match(fn, /const show = below && layerVisibility\[row\.key\];/);
+    assert.match(fn, /row\.zoomWarnEl\.hidden = !show;/);
+    assert.match(fn, /classList\.toggle\("pm-layers-row-dim", show\)/);
+    assert.match(propertyMapJs, /map\.on\("zoomend", updateZoomWarnings\);/);
+    assert.match(propertyMapJs, /Zoom in to z\$\{layer\.minZoom\}\+/);
+  });
+
+  it("search filters layer rows by name/description and always shows a matching row regardless of its category's collapsed state", () => {
+    const fn = propertyMapJs.match(/function renderCategoryVisibility\(catInfo\)[\s\S]*?\n\}/)?.[0] || "";
+    assert.ok(fn, "renderCategoryVisibility must exist");
+    assert.match(fn, /const match = !q \|\| haystack\.includes\(q\);/);
+    assert.match(fn, /catInfo\.bodyEl\.hidden = q \? !anyMatch : catInfo\.collapsed;/);
+    assert.match(propertyMapJs, /layersSearchEl\.addEventListener\("input", \(\) => \{/);
+  });
+
+  it("the HTML ships the panel's mount points (search input, template row, categories container) with real static ids, and no more hardcoded per-layer checkboxes", () => {
+    for (const id of ["pm-layers-search", "pm-layers-templates", "pm-layers-categories", "pm-layers-count", "pm-layers-status"]) {
+      assert.match(propertyMapHtml, new RegExp(`id="${id}"`), id);
+    }
+    assert.equal(/id="pm-layer-/.test(propertyMapHtml), false, "the old hardcoded per-layer checkbox ids must be gone");
+  });
+
+  it("the 52 toggleable overlay layers coexist with the existing address-search flow -- the search route, renderParcel, and search() are untouched", () => {
     assert.match(propertyMapJs, /async function search\(address\) \{/);
     assert.match(propertyMapJs, /fetch\(`\/api\/property-map\/summary\?\$\{params\}`\)/);
     assert.match(propertyMapJs, /function renderParcel\(geometry\) \{/);

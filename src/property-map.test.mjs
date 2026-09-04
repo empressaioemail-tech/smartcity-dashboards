@@ -9,6 +9,7 @@ import {
   PROPERTY_INTEL_LAYER_KEYS,
   NATIVE_PROPERTY_MAP_CITY_KEY,
 } from "./property-map.mjs";
+import { getAllLayerKeys } from "./property-map-catalog.mjs";
 
 const SAMPLE_BODY = {
   found: true,
@@ -221,9 +222,17 @@ const SAMPLE_LAYER_BODY = {
 
 const SAMPLE_BBOX = { xmin: -97.35, ymin: 30.08, xmax: -97.28, ymax: 30.14 };
 
-describe("property-map (G-117 follow-up: the four always-on GIS overlay layers)", () => {
-  it("PROPERTY_INTEL_LAYER_KEYS is exactly the four keys smartcity-os's own platform route allowlists", () => {
-    assert.deepEqual(PROPERTY_INTEL_LAYER_KEYS, ["zoning", "future-land-use", "subdivisions", "parcels-one-click"]);
+describe("property-map (G-117 full-parity follow-up: the property map's 52 toggleable GIS overlay layers)", () => {
+  it("PROPERTY_INTEL_LAYER_KEYS is exactly the 52 keys smartcity-os's own platform route allowlists, derived from the shared catalog", () => {
+    assert.deepEqual(PROPERTY_INTEL_LAYER_KEYS, getAllLayerKeys());
+    assert.equal(PROPERTY_INTEL_LAYER_KEYS.length, 52);
+    assert.equal(new Set(PROPERTY_INTEL_LAYER_KEYS).size, 52, "no duplicate keys across categories");
+  });
+
+  it("never allowlists permits, violations, or heatmap -- production's MyGov-backed 'overlays' category, out of scope for this GIS-layer effort", () => {
+    for (const excluded of ["permits", "violations", "heatmap"]) {
+      assert.equal(PROPERTY_INTEL_LAYER_KEYS.includes(excluded), false, excluded);
+    }
   });
 
   it("fetchPropertyIntelLayer fails closed when PLATFORM_INTERNAL_API_KEY is unset", async () => {
@@ -278,10 +287,10 @@ describe("property-map (G-117 follow-up: the four always-on GIS overlay layers)"
     assert.equal(out.source, "live");
   });
 
-  it("composePropertyIntelLayer is honestly unavailable for a key outside the four-key allowlist, without ever reaching the network", async () => {
+  it("composePropertyIntelLayer is honestly unavailable for a key outside the 52-key allowlist (permits, MyGov-backed, out of scope), without ever reaching the network", async () => {
     let fetchCalled = false;
     const out = await composePropertyIntelLayer({
-      key: "fire-stations",
+      key: "permits",
       cityKey: "bastrop_tx",
       ...SAMPLE_BBOX,
       env: { PLATFORM_INTERNAL_API_KEY: "test-key" },
@@ -291,7 +300,7 @@ describe("property-map (G-117 follow-up: the four always-on GIS overlay layers)"
       },
     });
     assert.equal(out.status, "unavailable");
-    assert.match(out.basis, /fire-stations/);
+    assert.match(out.basis, /permits/);
     assert.equal(out.found, false);
     assert.equal(fetchCalled, false, "an unallowed key must be refused before any network call, same discipline as the cityKey check");
   });

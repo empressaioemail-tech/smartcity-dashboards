@@ -714,6 +714,18 @@ async function handle(req, res) {
     return;
   }
 
+  /**
+   * G-117 full-parity follow-up. The shared 52-layer catalog module (colors,
+   * categories, minZoom, the 6 styled-override functions, the 10 view
+   * templates) -- served plainly, same convention as /theme.mjs, so
+   * web/property-map.js can `import` it directly rather than carrying a
+   * second copy of 52 layer definitions in the browser.
+   */
+  if (req.method === "GET" && url.pathname === "/property-map-catalog.mjs") {
+    sendFile(req, res, path.join(__dirname, "property-map-catalog.mjs"), "text/javascript; charset=utf-8");
+    return;
+  }
+
   json(res, 404, { error: "not found" });
 }
 

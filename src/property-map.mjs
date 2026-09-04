@@ -7,6 +7,15 @@ vendor-live.mjs already use for every other real domain -- address in,
 geocoded parcel + zoning + flood risk + real permits/inspections/code-cases
 out.
 
+G-117 FULL-PARITY FOLLOW-UP. PROPERTY_INTEL_LAYER_KEYS below is now the full
+52-key list production's own client/src/components/maps/layerCatalog.ts
+allowlists across its 7 non-overlay categories, derived from
+src/property-map-catalog.mjs (the same catalog web/property-map.js's client
+panel renders from) rather than hand-duplicated -- one list, not two that can
+drift. "permits", "violations" and "heatmap" (production's MyGov-backed
+"overlays" category) are deliberately absent; see property-map-catalog.mjs's
+own header for why.
+
 DELIBERATELY NOT A composeDomain-STYLE FEED. Every other real-live module in
 this product composes a bounded RECORD LIST at page-load time for a known
 pack (REAL_LIVE_DOMAINS, src/server.mjs). This is a live, user-typed SEARCH:
@@ -41,27 +50,32 @@ the dated 2026-09-04 operator decision record in doc_repo's _decisions/
 directory for the reasoning and reversal criteria).
 */
 
+import { getAllLayerKeys } from "./property-map-catalog.mjs";
+
 const DEFAULT_PROPERTY_INTEL_PLATFORM_URL =
   "https://smartcity-api-7dyaiy7wha-uc.a.run.app/api/platform/property-intel/summary";
 
 /**
  * G-117 follow-up. smartcity-os's sibling platform route for the property
- * map's four always-on GIS overlay layers (zoning, future land use,
- * subdivisions, parcels-one-click) -- same host as the summary route above,
- * a different path (server/routes/property-intelligence.ts's
+ * map's 52 toggleable GIS overlay layers (public safety, water supply,
+ * infrastructure, planning, parks/community, and administrative/boundary
+ * layers -- see src/property-map-catalog.mjs) -- same host as the summary
+ * route above, a different path (server/routes/property-intelligence.ts's
  * registerPlatformInternalPropertyIntelRoutes registers both).
  */
 const DEFAULT_PROPERTY_INTEL_LAYERS_PLATFORM_URL =
   "https://smartcity-api-7dyaiy7wha-uc.a.run.app/api/platform/property-intel/layers";
 
 /**
- * The exact four keys smartcity-os's own route allowlists (server/routes/
+ * The full 52-key list smartcity-os's own route allowlists (server/routes/
  * property-intelligence.ts), matching production's own "GIS & Property
- * Intelligence" map layers (client/src/components/maps/layerCatalog.ts).
+ * Intelligence" map layers (client/src/components/maps/layerCatalog.ts)
+ * across all 7 non-overlay categories. Derived from getAllLayerKeys() in
+ * src/property-map-catalog.mjs rather than hand-listed a second time here.
  * Checked here too -- defense in depth, not trust-the-caller -- so a typo'd
  * key fails with a stated basis instead of silently reaching the network.
  */
-export const PROPERTY_INTEL_LAYER_KEYS = ["zoning", "future-land-use", "subdivisions", "parcels-one-click"];
+export const PROPERTY_INTEL_LAYER_KEYS = getAllLayerKeys();
 
 export const NATIVE_PROPERTY_MAP_CITY_KEY = "bastrop_tx";
 
@@ -113,9 +127,9 @@ export async function fetchPropertyIntelSummary(
  * The second live HTTP call, G-117 follow-up. Same shape as
  * fetchPropertyIntelSummary above (bearer key, 15s timeout, honest
  * "unavailable" on any non-ok outcome rather than a thrown crash) but reads
- * a viewport bounding box + a layer key instead of an address -- these four
- * layers are always-on overlays over the current map view, not a per-
- * address search result.
+ * a viewport bounding box + a layer key instead of an address -- these are
+ * toggleable GIS overlays over the current map view, not a per-address
+ * search result.
  */
 export async function fetchPropertyIntelLayer(
   key,
@@ -280,11 +294,11 @@ function tagFeedFeature(feature) {
  * The second entry point the property-map API route (src/server.mjs)
  * calls, G-117 follow-up. Same envelope-shape family as
  * composePropertyIntelSummary above (cityKey/source/status/basis/found/
- * result) but for one of the four always-on GIS overlay layers, queried by
+ * result) but for one of the 52 toggleable GIS overlay layers, queried by
  * the CURRENT viewport bounding box rather than a typed address -- the map
- * page calls this once per allowlisted layer key on moveend/zoomend (see
- * web/property-map.js), debounced and gated by each layer's own minZoom,
- * never on every intermediate pan/zoom frame.
+ * page calls this once per checked-on, allowlisted layer key on moveend/
+ * zoomend (see web/property-map.js), debounced and gated by each layer's
+ * own minZoom, never on every intermediate pan/zoom frame.
  *
  * Same Bastrop-only, stated-not-assumed refusal as composePropertyIntelSummary,
  * plus a second honest refusal this function alone needs: an unrecognized
