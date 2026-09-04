@@ -57,6 +57,23 @@ function forbiddenHits(sources) {
   return hits.sort();
 }
 
+/**
+ * G-117 / the 2026-09-04 operator decision (dated record in doc_repo's
+ * _decisions/ directory, "No Leaflet island overridden for [the] Bastrop
+ * map"): "No Leaflet island" (README.md, G-61) is explicitly, narrowly
+ * overridden for the native property map's own served page ONLY -- a
+ * deliberate, temporary stopgap authorized in writing, not a repeal of the
+ * rule. "leaflet" is therefore permitted in exactly this one file and
+ * nowhere else; every other file, and every other forbidden string
+ * (including "leaflet" in every OTHER file), is still refused exactly as
+ * before by the assertions below.
+ *
+ * Named exactly, not by a pattern like a "property-map*" prefix: a prefix
+ * match would silently widen the exception to a future file nobody reviewed
+ * against the decision it is supposed to be scoped to.
+ */
+const LEAFLET_EXCEPTION_FILES = new Set(["web/property-map.html"]);
+
 describe("product shape", () => {
   it("names MCP tools for the existing Hauska server and does not start a second MCP", () => {
     assert.deepEqual(MCP_TOOL_NAMES, [
@@ -77,7 +94,27 @@ describe("product shape", () => {
      * SCANNED_EXTENSIONS, minus the exclusion set named beside that constant.
      */
     const sources = scannedSources();
-    assert.deepEqual(forbiddenHits(sources), []);
+    const allHits = forbiddenHits(sources);
+
+    // Every hit that is NOT the named, narrow "leaflet" exception must still
+    // be empty -- nothing else slipped through, and "leaflet" itself is still
+    // refused in every file other than the one named above.
+    const unexpectedHits = allHits.filter((hit) => {
+      const [name, s] = [hit.slice(0, hit.lastIndexOf(": ")), hit.slice(hit.lastIndexOf(": ") + 2)];
+      return !(s === "leaflet" && LEAFLET_EXCEPTION_FILES.has(name));
+    });
+    assert.deepEqual(unexpectedHits, []);
+
+    // The exception is real and exactly this narrow, not silently wider and
+    // not dead weight: the only "leaflet" hits that exist at all are exactly
+    // the named exception file(s), and each one genuinely uses "leaflet" (so
+    // removing Leaflet from that page without updating this set is itself a
+    // finding, not a silent pass).
+    const leafletHits = allHits.filter((hit) => hit.endsWith(": leaflet"));
+    assert.deepEqual(
+      leafletHits.sort(),
+      [...LEAFLET_EXCEPTION_FILES].sort().map((f) => `${f}: leaflet`),
+    );
 
     /**
      * ARM B, and this gate had NO firing arm at all before G-88 item 7, which
@@ -86,11 +123,17 @@ describe("product shape", () => {
      * name that file. Running it per extension rather than once is the point:
      * the .css leg is red the moment the walk narrows again, which is exactly
      * how this shipped broken.
+     *
+     * The representative picked per extension is never a LEAFLET_EXCEPTION_FILES
+     * member: injecting "leaflet" into an excepted file would not fire the
+     * gate (by design) and would falsely look like this arm itself broke.
+     * Every extension already has a non-excepted file to serve as the
+     * representative, so this exclusion never leaves an extension uncovered.
      */
     const byExtension = {};
     for (const name of Object.keys(sources)) {
       const ext = name.slice(name.lastIndexOf(".") + 1);
-      if (!byExtension[ext]) byExtension[ext] = name;
+      if (!byExtension[ext] && !LEAFLET_EXCEPTION_FILES.has(name)) byExtension[ext] = name;
     }
     assert.deepEqual(
       Object.keys(byExtension).sort(),
@@ -100,8 +143,17 @@ describe("product shape", () => {
     for (const [ext, name] of Object.entries(byExtension)) {
       for (const s of FORBIDDEN_PRODUCT_STRINGS) {
         const injected = { ...sources, [name]: `${sources[name]}\n/* ${s} */\n` };
+        // The named "leaflet" exception's own baseline hit is real, expected,
+        // and unrelated to this injection -- excluded here for the same
+        // reason it is excluded from ARM A above, so this loop keeps proving
+        // exactly what it always proved (the injected hit fires, naming the
+        // injected file) rather than failing on a hit this test itself
+        // already asserted is correct.
+        const hits = forbiddenHits(injected).filter(
+          (hit) => !leafletHits.includes(hit),
+        );
         assert.deepEqual(
-          forbiddenHits(injected),
+          hits,
           [`${name}: ${s}`],
           `injecting ${s} into the ${ext} source ${name} did not fire the gate naming that file`,
         );

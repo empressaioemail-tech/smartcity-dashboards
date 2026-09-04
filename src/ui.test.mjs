@@ -707,6 +707,9 @@ describe("G-77 fixture pack on Development services", () => {
       "src/theme.mjs",
       "web/app.js",
       "web/index.html",
+      "web/property-map.css",
+      "web/property-map.html",
+      "web/property-map.js",
       "web/sc-kit.css",
       "web/shell.css",
     ]);
@@ -728,7 +731,7 @@ describe("G-77 fixture pack on Development services", () => {
 
     // The stylesheets the counting rule reads ARE the stylesheets the product
     // serves. A newly served stylesheet fails here rather than going uncounted.
-    assert.deepEqual(STYLESHEET_SOURCES, ["web/sc-kit.css", "web/shell.css"]);
+    assert.deepEqual(STYLESHEET_SOURCES, ["web/property-map.css", "web/sc-kit.css", "web/shell.css"]);
     assert.deepEqual(
       SERVED_ASSETS.filter((rel) => rel.endsWith(".css")),
       STYLESHEET_SOURCES,
@@ -750,6 +753,8 @@ describe("G-77 fixture pack on Development services", () => {
       "src/theme.mjs",
       "web/app.js",
       "web/index.html",
+      "web/property-map.html",
+      "web/property-map.js",
     ]);
     for (const rel of [...SERVED_ASSETS, ...BAKE_SOURCES]) {
       assert.ok(fs.existsSync(path.join(root, rel)), `${rel} is scanned but does not exist`);

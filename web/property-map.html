@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Property Map</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="/property-map.css" />
+  </head>
+  <body>
+    <header class="pm-head">
+      <h1 class="pm-title">Property records</h1>
+      <p class="pm-sub">Look up a property record by street address: parcel boundary, zoning, flood risk, and permits/inspections/code cases on file for that address.</p>
+    </header>
+    <form id="pm-search-form" class="pm-search">
+      <label for="pm-address-input" class="pm-label">Address</label>
+      <input id="pm-address-input" name="address" type="text" autocomplete="off" placeholder="Street address" class="pm-input" />
+      <button type="submit" class="pm-btn" id="pm-search-btn">Search</button>
+    </form>
+    <p id="pm-status" class="pm-status" role="status" aria-live="polite">Enter an address above and press Search.</p>
+    <div class="pm-layout">
+      <div id="pm-map" class="pm-map"></div>
+      <aside id="pm-panel" class="pm-panel">
+        <section class="pm-section" id="pm-summary-section" hidden>
+          <h2 class="pm-h2">Parcel</h2>
+          <dl class="pm-dl">
+            <dt>Address</dt>
+            <dd id="pm-address">—</dd>
+            <dt>Owner</dt>
+            <dd id="pm-owner">—</dd>
+            <dt>Parcel ID</dt>
+            <dd id="pm-parcel-id">—</dd>
+            <dt>Zoning</dt>
+            <dd id="pm-zoning">—</dd>
+            <dt>Flood zone</dt>
+            <dd id="pm-flood">—</dd>
+            <dt>Acreage</dt>
+            <dd id="pm-acreage">—</dd>
+            <dt>Subdivision</dt>
+            <dd id="pm-subdivision">—</dd>
+            <dt>Lot / Block</dt>
+            <dd id="pm-lot-block">—</dd>
+          </dl>
+          <p class="pm-note" id="pm-parcel-note" hidden>No parcel boundary found at this address.</p>
+        </section>
+        <section class="pm-section" id="pm-risks-section" hidden>
+          <h2 class="pm-h2">Risks</h2>
+          <ul class="pm-list" id="pm-risks-list"></ul>
+        </section>
+        <section class="pm-section" id="pm-permits-section" hidden>
+          <h2 class="pm-h2">Permits</h2>
+          <ul class="pm-list" id="pm-permits-list"></ul>
+        </section>
+        <section class="pm-section" id="pm-violations-section" hidden>
+          <h2 class="pm-h2">Code cases</h2>
+          <ul class="pm-list" id="pm-violations-list"></ul>
+        </section>
+        <section class="pm-section" id="pm-inspections-section" hidden>
+          <h2 class="pm-h2">Inspections</h2>
+          <ul class="pm-list" id="pm-inspections-list"></ul>
+        </section>
+      </aside>
+    </div>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script type="module" src="/property-map.js"></script>
+  </body>
+</html>

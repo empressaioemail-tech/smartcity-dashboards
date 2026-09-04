@@ -357,7 +357,17 @@ describe("G-90 class discipline for the new chrome", () => {
      * .panel-head, .panel-body, .basis, .btn, .pill, .inp, .actionbar, .t-caption.
      */
     const defined = stylesheetClasses();
-    assert.equal(defined.size, 143, "the defined class vocabulary moved by something other than the four");
+    /**
+     * G-117 added web/property-map.css (18 classes, its own self-contained
+     * stylesheet for the native property map page -- see served-surface.mjs's
+     * STYLESHEET_SOURCES, now including that file) on top of the 143 this
+     * test already measured, hence 161 rather than 143. That file's classes
+     * are unrelated to this dropdown card; naming the new total here (rather
+     * than loosening this assertion) keeps this test proving what it always
+     * proved -- the vocabulary moved by exactly the four named below, not by
+     * some other, unreviewed amount -- against the new baseline.
+     */
+    assert.equal(defined.size, 161, "the defined class vocabulary moved by something other than the four");
     for (const cls of ["topmenu", "pop", "pop-group", "pop-item"]) {
       assert.ok(defined.has(cls), `${cls} is used but no served stylesheet defines it`);
       assert.ok(html.includes(cls), `${cls} is defined but nothing uses it`);
