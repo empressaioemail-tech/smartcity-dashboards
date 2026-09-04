@@ -197,6 +197,35 @@ export async function composeRealPatrolVehicles(pack, domain, opts = {}) {
 
 /* ------------------------------------------------------------- firstdue */
 
+/**
+ * apparatusType/stationLabel below fill two columns ("Type", "Station") the
+ * Apparatus and stations table (web/index.html) has carried since the
+ * fixture domain shipped them (src/domains/fire-apparatus.mjs,
+ * generateApparatusRecords) and web/app.js's renderFireApparatus has always
+ * read (td(record.apparatusType), td(record.stationLabel)) -- this live
+ * mapper simply never populated either, so a granted feed rendered both
+ * columns blank via td()'s existing null-is-blank handling. NOT independently
+ * verified against a live 200: the apparatus scope is still 403'd (see
+ * composeRealFireApparatus and the module header above), so these field
+ * names are unconfirmed. They are not guessed fresh here -- they are the
+ * exact fallback chain smartcity-os's OWN EmergencyResponse.tsx already
+ * gambles on for this same unverified resource (item.name/unit_name/
+ * apparatus_name, item.type, item.station -- client/src/pages/
+ * EmergencyResponse.tsx, the apparatus-card and dispatch-apparatus renders),
+ * kept in sync rather than re-guessed independently. Left null, never
+ * defaulted to an invented string, when absent.
+ *
+ * OCCUPANCY / PRE-PLAN FIELDS (businessName, constructionClass,
+ * requiredFireFlow, isTargetHazard, isHighHazard, buildingUse, numberFloors,
+ * etc.) ARE DELIBERATELY NOT HERE. Those belong to FirstDue's /occupancy
+ * resource (server/routes/firstdue.ts mapOccupancy(), consumed by
+ * VFDPortal.tsx's PrePlan interface), a different endpoint entirely from
+ * /apparatus -- not merely a different field set. src/domains/fire-apparatus.mjs
+ * already states this boundary ("WHAT IS NOT HERE"): occupancy is a real
+ * building with a real address and is out of scope for this domain, not a
+ * gap in it. Force-mapping occupancy fields onto apparatus records here would
+ * fabricate a shape the FirstDue apparatus API does not have.
+ */
 export function mapRealFireApparatusRecord(row, cityKey) {
   return {
     recordId: String(row.id || row.unitId || "").trim() || `unknown-apparatus`,
@@ -205,9 +234,11 @@ export function mapRealFireApparatusRecord(row, cityKey) {
     cityKey,
     origin: "feed",
     accessPolicy: "tenant-private",
-    unitLabel: row.name || row.unitName || "Unnamed apparatus",
+    unitLabel: row.name || row.unitName || row.unit_name || row.apparatus_name || "Unnamed apparatus",
     status: String(row.status || "unknown"),
     station: row.station || row.stationName || null,
+    apparatusType: row.type || row.apparatusType || row.apparatus_type || null,
+    stationLabel: row.station || row.stationName || row.station_name || null,
     provenance: {
       source: "smartcity-os /api/platform/firstdue/apparatus",
       basis: "live",

@@ -49,6 +49,39 @@ describe("vendor-live (G-116 Phase 2 third batch)", () => {
     assert.equal(record.origin, "feed");
   });
 
+  it("fire-apparatus: maps apparatusType/stationLabel when the row carries them", () => {
+    // Constructed sample payload -- the live apparatus endpoint is still
+    // 403'd (see the module header), so this shape is not live-verified. It
+    // mirrors the field names smartcity-os's own EmergencyResponse.tsx
+    // already reads for this same unverified resource (item.type, item.station).
+    const record = mapRealFireApparatusRecord(
+      { id: "E1", name: "Engine 1", status: "in-service", type: "Engine", station: "Station 2" },
+      "bastrop_tx",
+    );
+    assert.equal(record.apparatusType, "Engine");
+    assert.equal(record.stationLabel, "Station 2");
+  });
+
+  it("fire-apparatus: apparatusType/stationLabel/unitLabel try snake_case vendor fallbacks", () => {
+    const record = mapRealFireApparatusRecord(
+      { id: "E2", unit_name: "Ladder 12", status: "in-service", apparatus_type: "Ladder", station_name: "Station 1" },
+      "bastrop_tx",
+    );
+    assert.equal(record.unitLabel, "Ladder 12");
+    assert.equal(record.apparatusType, "Ladder");
+    assert.equal(record.stationLabel, "Station 1");
+  });
+
+  it("fire-apparatus: apparatusType/stationLabel are null (never invented) when the row lacks them", () => {
+    const record = mapRealFireApparatusRecord({ id: "E3", name: "Rescue 1", status: "in-service" }, "bastrop_tx");
+    assert.equal(record.apparatusType, null);
+    assert.equal(record.stationLabel, null);
+    // No occupancy/pre-plan fields fabricated onto an apparatus record.
+    assert.equal("businessName" in record, false);
+    assert.equal("isTargetHazard" in record, false);
+    assert.equal("constructionClass" in record, false);
+  });
+
   it("cip-projects: maps a real PowerBI row, origin feed", () => {
     const record = mapRealCipProjectRecord(
       { name: "Wastewater Treatment Plant #4", overallCompletion: 0.46, phases: [{ task: "Planning" }, { task: "Execution" }] },
