@@ -137,9 +137,27 @@ export function mapRealFleetVehicleRecord(row, cityKey) {
     vin: row.vin || null,
     odometerMiles: row.stats?.odometerMiles ?? row.stats?.obdOdometerMiles ?? null,
     fuelPercent: row.stats?.fuelPercent ?? null,
+    /**
+     * G-116 fleet-enrich. Real DVIR/safety-event/threshold fields, added to
+     * the platform route the same week -- see server/routes/samsara.ts.
+     * dvirUnresolvedDefects/dvirLastInspection are null when Samsara has no
+     * inspection on record for this vehicle (not the same as zero defects,
+     * which the route reports as unresolvedDefectCount: 0). safetyEvents7d
+     * is a real trailing-7-day count already scoped by the route; null only
+     * if that call itself failed upstream. highMileage/lowFuel are the same
+     * >100k mi / <20% fuel threshold flags the real Fleet Management page
+     * (smartcity-os client/src/pages/FleetManagement.tsx) already computes
+     * from this same stats data -- null when the underlying reading is
+     * unknown, never guessed.
+     */
+    dvirUnresolvedDefects: row.dvir?.unresolvedDefectCount ?? null,
+    dvirLastInspection: row.dvir?.lastInspection ?? null,
+    safetyEvents7d: row.safetyEvents7d ?? null,
+    highMileage: row.stats?.highMileage ?? null,
+    lowFuel: row.stats?.lowFuel ?? null,
     provenance: {
       source: "smartcity-os /api/platform/samsara/vehicles",
-      basis: "cachedFetch('vehicles', '/fleet/vehicles'), 60s TTL",
+      basis: "cachedFetch('vehicles', '/fleet/vehicles') + stats batch, 60s TTL, + fetchDvirs()/fetchSafetyEvents() (30-day/7-day windows), 5-min TTL",
       readAt: new Date().toISOString(),
       readAtBasis: "read live for this request; not generated",
     },
