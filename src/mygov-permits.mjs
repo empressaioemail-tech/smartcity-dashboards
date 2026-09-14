@@ -31,6 +31,48 @@ This is a named, deliberate residual, not an oversight -- see G-116's
 close artifact for the honest coverage picture.
 */
 
+/**
+ * G-126 defect 2. smartcity-os's platform route (server/routes/mygov.ts,
+ * read 2026-09-14, ABSOLUTE NO-TOUCH) hardcodes its own query to
+ * `eq(mygovPermits.tenantId, await getBastropTenantId())` server-side and
+ * accepts no tenant parameter from the caller -- and dbPermitToApi, the
+ * exact shape this route returns, drops tenantId from its output entirely.
+ * There is no field on `row` a caller can compare against its own pack.
+ * "Build the paired control" (this mission's own instruction) therefore
+ * cannot mean a per-row check here without inventing a field or changing
+ * smartcity-os, both explicitly out of bounds. What CAN be built, entirely
+ * inside this repo: this feed is verified correct for exactly the one
+ * tenant that hardcoded query serves, so refuse to run it for any other
+ * pack rather than silently stamping that pack's cityKey onto Bastrop's
+ * real rows.
+ *
+ * This is reachable without any smartcity-os change. mygovPermitsGrantFor /
+ * platformGrantForKind (adapters.mjs) gate this feed on a pack merely
+ * HOLDING a `{ kind: "mygov" }` object in grantedAdapters; PLATFORM_MYGOV_
+ * PERMITS_GRANT is one city-agnostic constant, and for a DB-backed pack
+ * grantedAdapters comes straight off a `granted_adapters` column
+ * (city-pack.mjs) -- settable by an ordinary row write, no code review, no
+ * deploy. Nothing before this check stops a second pack from acquiring
+ * that same grant and reaching mapRealPermitRecord.
+ *
+ * WHAT WOULD ACTUALLY CLOSE THE UPSTREAM GAP (out of this mission's scope,
+ * recorded for whoever picks it up): smartcity-os's dbPermitToApi would
+ * need to surface the row's own tenantId (or a public-safe city identifier
+ * derived from it) so a caller-side check could compare the RECORD's
+ * tenant, not just the feed's known-good default.
+ */
+export const VERIFIED_MYGOV_PERMITS_TENANT = "bastrop_tx";
+
+export function assertVerifiedMygovTenant(cityKey) {
+  if (cityKey !== VERIFIED_MYGOV_PERMITS_TENANT) {
+    throw new Error(
+      `mygov real feed is verified live for ${VERIFIED_MYGOV_PERMITS_TENANT} only ` +
+        `(smartcity-os hardcodes its own tenant query and returns no tenant field to ` +
+        `check a record against); refusing to stamp its rows onto ${cityKey}`,
+    );
+  }
+}
+
 const DEFAULT_MYGOV_PLATFORM_URL = "https://smartcity-api-7dyaiy7wha-uc.a.run.app/api/platform/mygov/permits";
 
 function platformUrl(env = process.env) {
@@ -49,6 +91,7 @@ function platformKey(env = process.env) {
  * already keys off of.
  */
 export function mapRealPermitRecord(row, cityKey, accessPolicy) {
+  assertVerifiedMygovTenant(cityKey);
   const recordId = String(row.permitNumber || row.id || "").trim();
   return {
     recordId: recordId || `unknown-${row.id ?? "0"}`,
@@ -137,6 +180,10 @@ export async function fetchRealPermits({ env = process.env, fetchImpl = globalTh
  * equivalent), unrelated to each record's own real permit status field.
  */
 export async function composeRealPermits(pack, domain, grant, { env = process.env, fetchImpl } = {}) {
+  // G-126 defect 2: checked before the network call, not just inside the
+  // row mapper -- a mis-granted pack should not spend the platform key on
+  // a read this feed can never correctly serve it.
+  assertVerifiedMygovTenant(pack.cityKey);
   const base = {
     domainId: domain.id,
     lensId: domain.lensId,
