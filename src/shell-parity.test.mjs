@@ -393,8 +393,21 @@ describe("G-90 class discipline for the new chrome", () => {
      * .metric, turned into the anchor directly rather than covered by one
      * (a first draft's overlay class was cut when it failed the a11y gate's
      * color-contrast check).
+     *
+     * G-123 (Development services redesign, web/shell.css only) added 15
+     * more for the three-tier pattern and its shared components, none of
+     * them for this dropdown card either: attn (the attention row's 6-column
+     * modifier on .metrics -- its tiles are `a.metric` anchors, the same
+     * established shape G-120 hardened above, so no new link class was
+     * needed), metricbar/metricbar-item (the tier-3 compact metric strip
+     * replacing per-tab card tiles on this one lens), loadstrip-head/
+     * loadstrip-body/loadcard/who/bar/hot/row (the one load component
+     * shared by Inspector/Manager/Officer load), filterbar/reset (the
+     * search+status+reset row on every table), pager/pos (the previous/
+     * position/next footer), seg (the List/Map/Performance view-mode
+     * control) -- hence 201 rather than 186.
      */
-    assert.equal(defined.size, 186, "the defined class vocabulary moved by something other than the four");
+    assert.equal(defined.size, 201, "the defined class vocabulary moved by something other than the four");
     for (const cls of ["topmenu", "pop", "pop-group", "pop-item"]) {
       assert.ok(defined.has(cls), `${cls} is used but no served stylesheet defines it`);
       assert.ok(html.includes(cls), `${cls} is defined but nothing uses it`);

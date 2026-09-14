@@ -28,6 +28,8 @@ const kit = readSource("web/sc-kit.css");
 const surface = html + "\n" + app;
 
 const serverSrc = readSource("src/server.mjs");
+const mygovPermitsSrc = readSource("src/mygov-permits.mjs");
+const mygovLiveSrc = readSource("src/mygov-live.mjs");
 const propertyMapHtml = readSource("web/property-map.html");
 const propertyMapJs = readSource("web/property-map.js");
 
@@ -677,10 +679,15 @@ describe("G-77 fixture pack on Development services", () => {
     assert.match(ds, /<table class="dt">/);
     assert.match(app, /loadPipeline\(staffMap\.cityKey\)/);
     assert.match(app, /\/api\/lenses\/development-services\/pipeline\?cityKey=/);
-    assert.match(app, /function renderPipelineMetrics/);
+    /**
+     * G-123: the four tiles moved from Pipeline's own private renderer
+     * (renderPipelineMetrics, deleted) onto the shared compact tier-3
+     * renderMetricBar every Development services tab now uses -- see
+     * src/ds-render.test.mjs's "has ONE implementation" for the full claim.
+     */
+    assert.match(app, /renderMetricBar\(document\.getElementById\("ds-metrics"\)/);
     // A metric with no records keeps saying Not read rather than showing a zero.
     assert.match(app, /value\.textContent = "Not read"/);
-    assert.match(app, /of \$\{pipeline\.recordCount\} generated cases in flight/);
   });
 
   it("G-116 close: real domains rebuild their metric tiles from realStatusCounts instead of forcing them into the fixture's fixed named slots", () => {
@@ -691,13 +698,22 @@ describe("G-77 fixture pack on Development services", () => {
     assert.match(app, /Array\.isArray\(pipeline\.realStatusCounts\)/);
   });
 
-  it("G-116 close: a real record's missing fixture-only fields render blank, never the literal word undefined", () => {
+  it("G-116/G-123 close: a real record's missing fixture-only fields render blank, never the literal word undefined", () => {
     assert.match(app, /text == null \? "" : text/);
     assert.match(app, /record\.dueLabel \|\| ""/);
     assert.match(app, /label \|\| ""/);
-    // The SLA cell is built from two numbers before it ever reaches a cell
-    // helper, so it needs its own guard rather than a shared one.
-    assert.match(app, /slaElapsedHours != null && record\.slaTargetHours != null/);
+    /**
+     * G-123: Work orders' Elapsed-vs-target cell (built from two numbers
+     * with its own guard) left the table entirely -- SLA moved from a
+     * per-row column to the Performance view's aggregate summary, which
+     * reads sla.targetHours etc. off the domain's own measured figures
+     * rather than reconstructing a per-record guard. td()'s shared
+     * discipline is what every remaining real-feed-only column (Inspector,
+     * Department, Officer, Reported, Issued) relies on instead.
+     */
+    for (const field of ["department", "issuedDate", "reportedDate"]) {
+      assert.match(app, new RegExp(`td\\(record\\.${field}, "t-data"\\)`), field);
+    }
   });
 
   it("G-116 close: every static nav href threads the active pack's cityKey forward, so navigation cannot drop a non-default pack", () => {
@@ -748,47 +764,60 @@ describe("G-77 fixture pack on Development services", () => {
     );
   });
 
-  it("G-116 field enrichment: the five MyGov tables carry the new real-feed-only columns, additively", () => {
+  it("G-123: the five MyGov tables carry the approved column set, and never the free-text description", () => {
     /**
-     * A comparison of the real staff dashboard (smartcity-os's own
-     * DevelopmentServicesDashboard.tsx) against what this product mapped
-     * for the same five live MyGov domains found genuine field gaps: real
-     * columns/fields smartcity-os's platform routes already return (or, for
-     * work orders, now return after a narrow smartcity-os fix) that this
-     * product was not reading or displaying. Each new column is additive --
-     * the six/seven/etc. columns each table already had are untouched.
+     * SUPERSEDES the earlier G-116 field-enrichment card. That card added
+     * Contractor/Owner/Fees-as-a-column/Assigned-to/Comments/Resolved to
+     * these five tables; this lane's approved design replaces the "wall of
+     * columns" pattern outright with the spec's own narrower list, and one
+     * of the columns it drops is Comments -- the PII finding this lane's
+     * close names explicitly (a real inspection's row.comments carries
+     * citizen names and phone numbers verbatim, and rendering it in a list
+     * is exactly what the dispatch's PII rule forbids). Applicant and
+     * licence Type survive because the approved spec keeps them; the rest
+     * did not carry forward.
      */
     assert.match(ds, /<th scope="col">Applicant<\/th>/);
-    assert.match(ds, /<th scope="col">Contractor<\/th>/);
-    assert.match(ds, /<th scope="col">Owner<\/th>/);
-    assert.match(ds, /<th scope="col">Fees<\/th>/);
-    assert.match(ds, /<th scope="col">Assigned to<\/th>/);
-    assert.match(ds, /<th scope="col">Comments<\/th>/);
-    assert.match(ds, /<th scope="col">Resolved<\/th>/);
+    assert.match(ds, /<th scope="col">Inspector<\/th>/);
+    assert.match(ds, /<th scope="col">Department<\/th>/);
+    assert.match(ds, /<th scope="col">Officer<\/th>/);
+    assert.match(ds, /<th scope="col">Reported<\/th>/);
+    assert.match(ds, /<th scope="col">Issued<\/th>/);
     assert.match(ds, /<th scope="col">Type<\/th>/);
+    assert.equal(ds.includes(">Comments<"), false, "the free-text description column must not exist on this lens");
+    assert.equal(ds.includes(">Contractor<"), false);
+    assert.equal(ds.includes(">Owner<"), false);
+    assert.equal(ds.includes(">Fees<"), false);
+    assert.equal(ds.includes(">Resolved<"), false);
+    assert.equal(ds.includes(">Assigned to<"), false);
 
-    // Permits (the pipeline table): applicant, contractor, owner, fees.
+    // Permits (the pipeline table): applicant, submittedDate.
     assert.match(app, /td\(record\.applicant, "t-data"\)/);
-    assert.match(app, /td\(record\.contractor, "t-data"\)/);
-    assert.match(app, /td\(record\.ownerName, "t-data"\)/);
-    // Work orders: assignedTo, contractor, fees (contractor/fees share the
-    // permit row's own pattern above, so only the work-order-only one is
-    // pinned again here).
-    assert.match(app, /td\(record\.assignedTo, "t-data"\)/);
-    // Inspections: comments.
-    assert.match(app, /td\(record\.comments, "t-data"\)/);
-    // Code violations: resolvedDate.
-    assert.match(app, /td\(record\.resolvedDate, "t-data"\)/);
-    // Business licenses: licenseType.
-    assert.match(app, /td\(record\.licenseType, "t-data"\)/);
+    assert.match(app, /td\(record\.submittedDate, "t-data"\)/);
+    // Work orders: department.
+    assert.match(app, /td\(record\.department, "t-data"\)/);
+    // Code violations: officer, reportedDate.
+    assert.match(app, /td\(record\.assignedOfficer \|\| record\.officerRef, "t-data"\)/);
+    assert.match(app, /td\(record\.reportedDate, "t-data"\)/);
+    // Business licenses: issuedDate.
+    assert.match(app, /td\(record\.issuedDate, "t-data"\)/);
 
-    // Itemized fees ({type, amount}[]) render as a joined line, not a bare
-    // total -- production shows a real fees array, not just a total.
-    assert.match(app, /function feesLabel\(fees\)/);
-    assert.match(app, /td\(feesLabel\(record\.fees\), "t-data"\)/);
-    // feesLabel itself uses td()'s same null/absence discipline: an absent
-    // or empty array renders blank, never "undefined" or "$0.00".
-    assert.match(app, /if \(!Array\.isArray\(fees\) \|\| fees\.length === 0\) return "";/);
+    /**
+     * The PII regression guard, stated as a positive determination rather
+     * than an absence: record.comments (the live inspections feed's raw
+     * free-text field, see src/mygov-live.mjs mapRealInspectionRecord) must
+     * never be read by any renderer on this lens, under any field name.
+     */
+    assert.equal(app.includes("record.comments"), false, "record.comments must never reach a renderer");
+    /**
+     * The other half of the same finding, at the data layer: row.description
+     * (the live feed's own free-text field name) must never back a field a
+     * renderer displays. Checked directly on the two real-feed mappers this
+     * lane found and fixed the fallback on, not on app.js, which never had
+     * this string in the first place.
+     */
+    assert.equal(mygovPermitsSrc.includes("|| row.description"), false, "mygov-permits.mjs subject must not fall back to the free-text description");
+    assert.equal(mygovLiveSrc.includes("|| row.description"), false, "mygov-live.mjs subject must not fall back to the free-text description");
   });
 
   it("composes existing kit classes and declares no new one", () => {

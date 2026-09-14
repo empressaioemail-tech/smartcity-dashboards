@@ -75,9 +75,21 @@ export const WORK_ORDER_BASIS = fixtureBasisFor("mygov");
 export const DUE_LABEL_FORMAT = /^(due today|due in \d+ days?|\d+ days? past due)$/;
 export const DAY_LABEL_FORMAT = /^(today|in \d+ days?)$/;
 export const WORK_ORDER_ID_FORMAT = /^FIX-WO-\d{4}$/;
+export const MANAGER_REF_FORMAT = /^MGR-\d{2}$/;
 
 /** Five days, because a daily queue that is one day is not a daily queue. */
 export const DAILY_QUEUE_DAYS = 5;
+
+/** How many opaque managers the load strip groups across. G-123: work orders
+ *  had no load dimension at all; inspections' inspectorLoad is the template
+ *  this reuses rather than a second design. */
+export const MANAGER_COUNT = 5;
+
+export const MANAGER_BASIS =
+  "a generated record names no person; the manager is an opaque reference and a granted feed is where a name would come from";
+
+export const MANAGER_LOAD_COUNTING_RULE =
+  "work orders whose managerRef equals this manager, over the generated mygov work-order records on this pack, one row per record";
 
 export const SLA_COUNTING_RULE =
   "work orders whose slaElapsedHours falls in this band, over the generated mygov work-order records on this pack, against a declared 72 hour target";
@@ -142,6 +154,8 @@ export function generateWorkOrderRecords({ cityKey, accessPolicy = "public-free"
         slaTargetHours: SLA_TARGET_HOURS,
         slaElapsedHours,
         slaState: slaStateFor(slaElapsedHours),
+        managerRef: `MGR-${String(1 + ((seq - 1) % MANAGER_COUNT)).padStart(2, "0")}`,
+        managerBasis: MANAGER_BASIS,
         provenance: {
           source: "MyGov output contract",
           basis: WORK_ORDER_BASIS,
@@ -194,6 +208,24 @@ export function slaSummary(records) {
   };
 }
 
+/**
+ * The manager load strip, counted off the records and naming nobody. Same
+ * shape and same discipline as inspections' inspectorLoad: open is measured
+ * against the declared resolved flag, never the literal status string.
+ */
+export function managerLoad(records) {
+  const list = Array.isArray(records) ? records : [];
+  const openIds = WORK_ORDER_STATUS_VALUES.filter((s) => !s.resolved).map((s) => s.id);
+  const refs = [...new Set(list.map((r) => r.managerRef))].sort();
+  return refs.map((managerRef) => ({
+    managerRef,
+    managerBasis: MANAGER_BASIS,
+    workOrderCount: list.filter((r) => r.managerRef === managerRef).length,
+    openCount: list.filter((r) => r.managerRef === managerRef && openIds.includes(r.status)).length,
+    countingRule: MANAGER_LOAD_COUNTING_RULE,
+  }));
+}
+
 /** The daily slice, counted off the records. Relative days only; no calendar date. */
 export function dailyQueue(records) {
   const list = Array.isArray(records) ? records : [];
@@ -224,12 +256,14 @@ export const WORK_ORDERS_DOMAIN = defineDomain({
     "within",
     "at-risk",
     "breached",
+    MANAGER_BASIS,
   ],
   formats: [
     WORK_ORDER_ID_FORMAT,
     /^[A-Z][A-Za-z ]+ Block \d+, Lot \d+$/,
     DUE_LABEL_FORMAT,
     DAY_LABEL_FORMAT,
+    MANAGER_REF_FORMAT,
   ],
   generate(pack, seedFor) {
     const records = generateWorkOrderRecords({
@@ -243,6 +277,7 @@ export const WORK_ORDERS_DOMAIN = defineDomain({
         metrics: workOrderMetrics(records),
         sla: slaSummary(records),
         dailyQueue: dailyQueue(records),
+        managerLoad: managerLoad(records),
       },
     };
   },
