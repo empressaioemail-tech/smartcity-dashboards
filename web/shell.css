@@ -343,6 +343,7 @@ a.prov:hover { border-color: var(--sc-line-strong); background: var(--sc-surface
   flex: none;
 }
 .metric {
+  position: relative;
   border: 1px solid var(--sc-line);
   border-radius: var(--sc-r);
   background: var(--sc-surface);
@@ -351,6 +352,17 @@ a.prov:hover { border-color: var(--sc-line-strong); background: var(--sc-surface
   flex-direction: column;
   gap: var(--sc-1);
   min-width: 0;
+}
+/* G-120. Each tile is a filtered entry point, not a static figure: clicking it
+   navigates to the lens and filter its value describes. The link is a
+   full-bleed sibling rather than the card's own tag, so .metric keeps the
+   </div> the metrics-strip slicer in src/ui.test.mjs depends on, and it is
+   ordered last so it paints (and hit-tests) over the label/value/note text
+   without a z-index. */
+.metriclink {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
 }
 /* At the 12px floor a key like MEETINGS THIS WEEK no longer fits one narrow
    column, and an ellipsis would drop the label rather than the decoration. The
@@ -372,6 +384,27 @@ a.prov:hover { border-color: var(--sc-line-strong); background: var(--sc-surface
    a zero here would be a claim the city has not made. */
 .metric .v.word { font: 620 15px/32px var(--sc-font-ui); letter-spacing: -0.008em; }
 .metric .n { font: 400 12px/16px var(--sc-font-ui); color: var(--sc-ink-3); }
+
+/* ---------- across-departments grid (G-120) ---------- */
+
+.deptsection { display: flex; flex-direction: column; gap: var(--sc-3); }
+.deptsection-head { display: flex; align-items: baseline; gap: var(--sc-2); }
+.deptsection-head h2 { font: 620 15px/22px var(--sc-font-ui); letter-spacing: -0.008em; margin: 0; color: var(--sc-ink); }
+.deptgrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sc-3); }
+.deptcard {
+  display: grid;
+  grid-template-columns: 3px minmax(0, 1fr);
+  gap: var(--sc-3);
+  padding: var(--sc-3) var(--sc-4);
+  border: 1px solid var(--sc-line);
+  border-radius: var(--sc-r);
+  background: var(--sc-surface);
+  min-width: 0;
+}
+.deptcard .rail { background: var(--sc-line); border-radius: var(--sc-r-full); }
+.deptcard .nm { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.deptcard .nm b { font: 600 14px/20px var(--sc-font-ui); color: var(--sc-ink); }
+.deptcard .nm .basis { margin-top: 0; }
 
 /* ---------- region and mount anchor ---------- */
 
@@ -1208,6 +1241,7 @@ html[data-atab="fixture"] #atab-fixture {
   /* Below this width four metric columns are about 75px each. On main that
      ellipsised every key to four characters; two columns keep the label. */
   .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .deptgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 900px) {
@@ -1230,6 +1264,7 @@ html[data-atab="fixture"] #atab-fixture {
   .colstack, .colstack.rail { overflow: visible; min-height: 0; }
   .colstack.rail > .region { min-height: 320px; }
   .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .deptgrid { grid-template-columns: minmax(0, 1fr); }
   .cp-sheet { width: 100vw; }
   .shell-top .searchwrap { display: none; }
   /* The top bar gained three controls at G-90. On a phone the theme toggle

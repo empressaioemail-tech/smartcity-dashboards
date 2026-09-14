@@ -384,8 +384,14 @@ describe("G-90 class discipline for the new chrome", () => {
      * pm-layers-zoomwarn, pm-layers-row-dim), hence 182 rather than 168 --
      * again unrelated to this dropdown card, named here for the same reason
      * as above.
+     *
+     * G-120 (Overview lens design pass) added 5 more to web/shell.css for the
+     * tile-as-link pattern and the across-departments grid (metriclink,
+     * deptsection, deptsection-head, deptgrid, deptcard), hence 187 rather
+     * than 182 -- again unrelated to this dropdown card, named here for the
+     * same reason as above.
      */
-    assert.equal(defined.size, 182, "the defined class vocabulary moved by something other than the four");
+    assert.equal(defined.size, 187, "the defined class vocabulary moved by something other than the four");
     for (const cls of ["topmenu", "pop", "pop-group", "pop-item"]) {
       assert.ok(defined.has(cls), `${cls} is used but no served stylesheet defines it`);
       assert.ok(html.includes(cls), `${cls} is defined but nothing uses it`);

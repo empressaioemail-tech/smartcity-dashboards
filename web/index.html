@@ -328,12 +328,23 @@
               <div class="shell-regions">
                 <div class="colstack" tabindex="0">
                   <div class="metrics" id="overview-metrics">
-                    <div class="metric"><span class="k">Needs a decision</span><span class="v word">Not read</span><span class="n">No operations source</span></div>
-                    <div class="metric"><span class="k">Overdue reviews</span><span class="v word">Not read</span><span class="n">Review mount is preview</span></div>
-                    <div class="metric"><span class="k">Permits in flight</span><span class="v word">Not read</span><span class="n">No permit source</span></div>
-                    <div class="metric"><span class="k">Meetings this week</span><span class="v word">Not read</span><span class="n">No clerk source</span></div>
+                    <div class="metric" id="overview-metric-decisions"><span class="k">Needs a decision</span><span class="v word">Not read</span><span class="n">No operations source</span><a class="metriclink" href="#overview-decisions" aria-label="Needs a decision: Not read. Opens the decision queue below."></a></div>
+                    <div class="metric" id="overview-metric-reviews"><span class="k">Overdue reviews</span><span class="v word">Not read</span><span class="n">Review mount is preview</span><a class="metriclink" href="/?work=review&amp;filter=overdue" data-filter="overdue" aria-label="Overdue reviews: Not read. Opens Plan review, Overdue filter."></a></div>
+                    <div class="metric" id="overview-metric-permits"><span class="k">Permits in flight</span><span class="v word">Not read</span><span class="n">No permit source</span><a class="metriclink" href="/?lens=development-services&amp;tab=pipeline&amp;filter=active" data-filter="active" aria-label="Permits in flight: Not read. Opens Development services, Pipeline, Active filter."></a></div>
+                    <div class="metric" id="overview-metric-meetings"><span class="k">Meetings this week</span><span class="v word">Not read</span><span class="n">No clerk source</span><a class="metriclink" href="#overview-meetings" aria-label="Meetings this week: Not read. Opens public meetings below."></a></div>
                   </div>
-                  <div class="panel">
+                  <div class="panel" id="overview-connections">
+                    <div class="panel-head"><span class="t">Connections</span><span class="grow"></span><span class="prov"><b id="overview-connections-count">0 of 10</b></span></div>
+                    <div class="panel-body" id="overview-connections-lead"><p>This page is quiet because no source has been read. Connecting a source fills the lens it feeds. Nothing here shows a zero until a city has claimed one.</p></div>
+                    <div class="panel-body flush">
+                      <div class="srcreg"><i class="rail"></i><span class="nm"><b>MyGov</b><span>permits, work orders, inspections</span></span><span class="pill p-quiet">Not connected</span></div>
+                      <div class="srcreg"><i class="rail"></i><span class="nm"><b>City clerk calendar</b><span>agendas and meeting packets</span></span><span class="pill p-quiet">Not connected</span></div>
+                      <div class="srcreg"><i class="rail"></i><span class="nm"><b>OpenGov</b><span>budget, accounts, line items</span></span><span class="pill p-quiet">Not connected</span></div>
+                      <div class="srcreg"><i class="rail"></i><span class="nm"><b>Esri / ArcGIS</b><span>parcels and overlays</span></span><span class="pill p-quiet">Not connected</span></div>
+                      <div class="srcreg"><i class="rail"></i><span class="nm"><b>Samsara</b><span>fleet telematics</span></span><span class="pill p-quiet">Not connected</span></div>
+                    </div>
+                  </div>
+                  <div class="panel" id="overview-decisions">
                     <div class="panel-head"><span class="t">What needs you today</span><span class="grow"></span><span class="t-caption">Decision queue</span></div>
                     <div class="state">
                       <span class="st-k">No live operations</span>
@@ -342,6 +353,20 @@
                       <span class="basis">Basis: no operations grant on cityKey <span data-pack-key>this pack</span>. Gold parcel 48021:34137 is a demo fixture, not a city onboarded.</span>
                     </div>
                   </div>
+                  <section class="deptsection" id="overview-departments">
+                    <div class="deptsection-head">
+                      <h2>Across departments</h2>
+                      <span class="t-caption" id="overview-departments-count">none reading</span>
+                    </div>
+                    <div class="deptgrid">
+                      <div class="deptcard"><i class="rail"></i><div class="nm"><b>Development services</b><span class="basis">no source connected</span></div></div>
+                      <div class="deptcard"><i class="rail"></i><div class="nm"><b>Finance</b><span class="basis">no source connected</span></div></div>
+                      <div class="deptcard"><i class="rail"></i><div class="nm"><b>Police</b><span class="basis">no source connected</span></div></div>
+                      <div class="deptcard"><i class="rail"></i><div class="nm"><b>Fire and EMS</b><span class="basis">no source connected</span></div></div>
+                      <div class="deptcard"><i class="rail"></i><div class="nm"><b>Fleet</b><span class="basis">no source connected</span></div></div>
+                      <div class="deptcard"><i class="rail"></i><div class="nm"><b>Public works</b><span class="basis">no source connected</span></div></div>
+                    </div>
+                  </section>
                   <div class="panel" id="overview-meetings">
                     <div class="panel-head"><span class="t">Public meetings</span><span class="grow"></span><span class="prov"><b>City clerk calendar</b> <span class="sep" aria-hidden="true">|</span> <span id="overview-meetings-conn">unread</span></span><span class="pill p-warn" id="overview-meetings-honesty" hidden style="display:none">Partial</span></div>
                     <div class="state" id="overview-meetings-state">
@@ -353,7 +378,7 @@
                     <div class="panel-body flush" id="overview-meetings-list" hidden></div>
                   </div>
                   <div class="panel" id="overview-source-register">
-                    <div class="panel-head"><span class="t">Across departments</span><span class="grow"></span><span class="t-caption">Every lens on the roster, and whether it read</span></div>
+                    <div class="panel-head"><span class="t">Every surface</span><span class="grow"></span><span class="t-caption">Every lens on the roster, and whether it read</span></div>
                     <div class="panel-body flush">
                       <div class="reg-group">Built</div>
                       <div class="srcreg"><i class="rail"></i><span class="nm"><b>Development services</b><span>Permits, inspections, licenses</span></span><span class="pill p-quiet">Not connected</span></div>
@@ -395,11 +420,12 @@
                       <span class="prov"><b>Public record</b></span>
                     </div>
                   </div>
-                  <div class="panel">
-                    <div class="panel-head"><span class="t">Sources</span><span class="grow"></span><span class="prov"><b id="atoms-read">Not read</b></span></div>
-                    <div class="panel-body">
-                      <p class="t-caption" id="atoms-basis">County parcel record is the map subject. The records panel and the files room stay honest when the mount is empty.</p>
-                      <p class="t-data" id="atoms-summary"></p>
+                  <div class="panel" id="overview-located">
+                    <div class="panel-head"><span class="t">On the map</span><span class="grow"></span></div>
+                    <div class="state compact">
+                      <span class="st-k">Nothing located</span>
+                      <h2>No located records on this pack.</h2>
+                      <span class="basis">Basis: no located records on this pack. The map draws the city boundary when one is on file.</span>
                     </div>
                   </div>
                 </div>

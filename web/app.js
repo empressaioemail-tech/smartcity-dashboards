@@ -136,6 +136,48 @@ function renderScope() {
   setText("cp-source-scope", `${currentPackName()} · ${viewLabel}`);
 }
 
+/**
+ * G-120. Connections promotes to the top of Overview's content stack while a
+ * pack reads no sources, carrying a lead paragraph that explains the quiet,
+ * and demotes to the bottom once the pack is actually connected to something
+ * - so a zero-record city reads as "here is what to connect next" rather
+ * than as a broken page.
+ *
+ * Keyed on "granted" (src/city-identity.mjs packSources()), not
+ * "demonstrated". Measured at source rather than assumed: the product's own
+ * public demo pack carries granted 0 but demonstrated a positive count
+ * (generatesFixtures true) - it is a DEMO pack, not the honest-empty one, and
+ * a second shipped pack is granted 0 and demonstrated 0 on purpose so the
+ * empty states stay reachable. Every other figure on this page - the metric
+ * tiles, the across-departments grid, this same panel's own row pills -
+ * answers "is a real source connected", off grantedAdapters, and is honestly
+ * "Not read"/"no source connected" on the demo pack regardless of its
+ * generated fixture records. Keying this panel's placement on "demonstrated"
+ * would have demoted Connections there while every sibling panel on the same
+ * load still read empty - a page that visibly disagreed with itself.
+ * "Granted" is the one figure every honest-empty claim on Overview already
+ * shares, so promotion tracks it too.
+ */
+function placeOverviewConnections(sources) {
+  const panel = document.getElementById("overview-connections");
+  const lead = document.getElementById("overview-connections-lead");
+  if (!panel) return;
+  const total = Number(sources?.total) || 0;
+  const granted = Number(sources?.granted) || 0;
+  setText("overview-connections-count", `${granted} of ${total}`);
+  const connected = granted > 0;
+  if (lead) show(lead, !connected);
+  const stack = panel.parentElement;
+  if (!stack) return;
+  if (connected) {
+    const register = document.getElementById("overview-source-register");
+    if (register && panel.nextElementSibling !== register) stack.insertBefore(panel, register);
+  } else {
+    const metrics = document.getElementById("overview-metrics");
+    if (metrics && metrics.nextElementSibling !== panel) stack.insertBefore(panel, metrics.nextElementSibling);
+  }
+}
+
 function applyIdentity(identity) {
   if (!identity) return;
   const name = String(identity.displayName || "").trim();
@@ -187,6 +229,7 @@ function applyIdentity(identity) {
   if (sources.rule) setText("nav-sources-rule", sources.rule);
   if (sources.demonstratedLabel) setText("nav-demonstrated", sources.demonstratedLabel);
   if (sources.demonstratedRule) setText("nav-demonstrated-rule", sources.demonstratedRule);
+  placeOverviewConnections(sources);
 
   /**
    * G-95, 2.4.2 Page Titled. The pack-level title is the TAIL, never the whole
@@ -1282,7 +1325,7 @@ async function loadDevelopmentServices(cityKey) {
 /* ---------------------------------------------------------------- routing */
 
 function applyLens(staffLens) {
-  const { lens, tab, work, assetTab } = staffLens;
+  const { lens, tab, work, assetTab, filter } = staffLens;
   const workOn = Boolean(work);
 
   /**
@@ -1298,6 +1341,14 @@ function applyLens(staffLens) {
   root.setAttribute("data-surface", workOn ? `work-${work}` : `lens-${lens}`);
   root.setAttribute("data-tab", tab);
   root.setAttribute("data-atab", assetTab);
+  /**
+   * G-120. The filter an Overview tile carried arrives here, not read again
+   * from location.search by whatever destination wants it: one resolver, one
+   * writer, same as data-tab above. A destination lens that has no filter UI
+   * yet simply carries the attribute unused, same as data-atab does off the
+   * assets lens.
+   */
+  root.setAttribute("data-filter", filter || "");
 
   document.querySelectorAll(".lens").forEach((el) => {
     if (el.id.startsWith("work-")) {
@@ -1364,16 +1415,16 @@ async function composeGoldMap(parcelNodeId, cityKey) {
   stages.get("review")?.mount(data.planReview?.url || "");
   stages.get("files")?.mount(data.smartFiles?.url || "");
 
-  const atoms = data.atoms || {};
-  const types = Array.isArray(atoms.types) ? atoms.types.join(", ") : "";
-  setText("atoms-basis", atoms.basis || data.smartsite?.basis || "");
-  if (atoms.status === "ok" && Number(atoms.atomCount) > 0) {
-    setText("atoms-read", `${atoms.atomCount} records read`);
-    setText("atoms-summary", `${atoms.atomCount} records on the map subject. Types: ${types || "none named"}`);
-  } else {
-    setText("atoms-read", "Not read");
-    setText("atoms-summary", atoms.status ? `Records ${atoms.status}` : "");
-  }
+  /**
+   * G-120. The right rail's lower panel used to show data.atoms's own
+   * vocabulary (atom types on the demo parcel) under "Sources" - engine
+   * language a city manager has no use for. It is now "On the map", scoped to
+   * located records (permits, reviews, work orders, enforcement cases with an
+   * address). No composition in this repo yet produces an address-bearing
+   * record, so the panel ships its honest-empty state on every pack rather
+   * than repainting atom types under a friendlier heading; wiring a real
+   * located-records source is left open (see the G-120 close).
+   */
   renderMeetings(data.meetings);
   for (const stage of stages.values()) stage.settle();
 }
