@@ -1471,7 +1471,7 @@ function wireWorkOrderViewModes() {
   seg.addEventListener("click", (event) => {
     const btn = event.target.closest("button[data-view]");
     if (!btn) return;
-    for (const b of seg.querySelectorAll("button")) b.setAttribute("aria-pressed", String(b === btn));
+    for (const b of seg.querySelectorAll("button")) b.setAttribute("aria-selected", String(b === btn));
     const view = btn.dataset.view;
     show(document.getElementById("ds-wo-view-list"), view === "list");
     show(document.getElementById("ds-wo-view-map"), view === "map");

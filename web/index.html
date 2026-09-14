@@ -500,7 +500,7 @@
                     <div class="panel-head"><span class="t">Pipeline</span><span class="grow"></span><span class="pill p-warn" id="ds-pipeline-mark" hidden style="display:none">Demo records</span><span class="prov" id="ds-pipeline-prov" hidden style="display:none"><b>Generated fixture</b><span class="sep" aria-hidden="true">|</span>MyGov output contract</span><span class="t-caption" id="ds-pipeline-caption">Cases in flight</span></div>
                     <div class="filterbar" id="ds-pipeline-filterbar" hidden>
                       <input type="search" id="ds-pipeline-search" placeholder="Search permit #, type, address">
-                      <select id="ds-pipeline-status"><option value="">All statuses</option></select>
+                      <select id="ds-pipeline-status" aria-label="Filter by status"><option value="">All statuses</option></select>
                       <span class="n" id="ds-pipeline-resultcount"></span>
                       <button type="button" class="reset" id="ds-pipeline-reset">Reset</button>
                     </div>
@@ -601,9 +601,9 @@
                     <div class="loadstrip-body" id="ds-insp-load"></div>
                     <div class="filterbar" id="ds-insp-filterbar" hidden>
                       <input type="search" id="ds-insp-search" placeholder="Search inspection #, type, address">
-                      <select id="ds-insp-status"><option value="">All statuses</option></select>
-                      <select id="ds-insp-type"><option value="">All types</option></select>
-                      <select id="ds-insp-sort">
+                      <select id="ds-insp-status" aria-label="Filter by status"><option value="">All statuses</option></select>
+                      <select id="ds-insp-type" aria-label="Filter by type"><option value="">All types</option></select>
+                      <select id="ds-insp-sort" aria-label="Sort order">
                         <option value="default">Sort: default</option>
                         <option value="scheduled">Sort: scheduled soonest</option>
                         <option value="type">Sort: type</option>
@@ -668,9 +668,9 @@
                       <span class="prov" id="ds-wo-prov" hidden style="display:none"><b>Generated fixture</b><span class="sep" aria-hidden="true">|</span>MyGov output contract</span>
                       <span class="t-caption" id="ds-wo-caption">Orders in the queue</span>
                       <div class="seg" id="ds-wo-viewmode" role="tablist" aria-label="View mode">
-                        <button type="button" role="tab" aria-pressed="true" data-view="list">List</button>
-                        <button type="button" role="tab" aria-pressed="false" data-view="map">Map</button>
-                        <button type="button" role="tab" aria-pressed="false" data-view="performance">Performance</button>
+                        <button type="button" role="tab" aria-selected="true" data-view="list">List</button>
+                        <button type="button" role="tab" aria-selected="false" data-view="map">Map</button>
+                        <button type="button" role="tab" aria-selected="false" data-view="performance">Performance</button>
                       </div>
                       <button type="button" class="btn btn-ghost btn-sm" id="ds-wo-export">Export</button>
                     </div>
@@ -682,8 +682,8 @@
                     <div class="loadstrip-body" id="ds-wo-load"></div>
                     <div class="filterbar" id="ds-wo-filterbar" hidden>
                       <input type="search" id="ds-wo-search" placeholder="Search WO #, address, type">
-                      <select id="ds-wo-status"><option value="">All statuses</option></select>
-                      <select id="ds-wo-manager"><option value="">All managers</option></select>
+                      <select id="ds-wo-status" aria-label="Filter by status"><option value="">All statuses</option></select>
+                      <select id="ds-wo-manager" aria-label="Filter by manager"><option value="">All managers</option></select>
                       <span class="n" id="ds-wo-resultcount"></span>
                       <button type="button" class="reset" id="ds-wo-reset">Reset</button>
                     </div>
@@ -759,9 +759,9 @@
                     <div class="loadstrip-body" id="ds-ce-load"></div>
                     <div class="filterbar" id="ds-ce-filterbar" hidden>
                       <input type="search" id="ds-ce-search" placeholder="Search case #, type, address">
-                      <select id="ds-ce-status"><option value="">All statuses</option></select>
-                      <select id="ds-ce-type"><option value="">All types</option></select>
-                      <select id="ds-ce-officer"><option value="">All officers</option></select>
+                      <select id="ds-ce-status" aria-label="Filter by status"><option value="">All statuses</option></select>
+                      <select id="ds-ce-type" aria-label="Filter by type"><option value="">All types</option></select>
+                      <select id="ds-ce-officer" aria-label="Filter by officer"><option value="">All officers</option></select>
                       <span class="n" id="ds-ce-resultcount"></span>
                       <button type="button" class="reset" id="ds-ce-reset">Reset</button>
                     </div>
@@ -811,8 +811,8 @@
                     <div class="panel-head"><span class="t">Licence roll</span><span class="grow"></span><span class="pill p-warn" id="ds-lic-mark" hidden style="display:none">Demo records</span><span class="prov" id="ds-lic-prov" hidden style="display:none"><b>Generated fixture</b><span class="sep" aria-hidden="true">|</span>MyGov output contract</span><span class="t-caption" id="ds-lic-caption">Licences on the roll</span></div>
                     <div class="filterbar" id="ds-lic-filterbar" hidden>
                       <input type="search" id="ds-lic-search" placeholder="Search licence #, type, address">
-                      <select id="ds-lic-status"><option value="">All statuses</option></select>
-                      <select id="ds-lic-type"><option value="">All types</option></select>
+                      <select id="ds-lic-status" aria-label="Filter by status"><option value="">All statuses</option></select>
+                      <select id="ds-lic-type" aria-label="Filter by type"><option value="">All types</option></select>
                       <span class="n" id="ds-lic-resultcount"></span>
                       <button type="button" class="reset" id="ds-lic-reset">Reset</button>
                     </div>

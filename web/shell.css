@@ -485,7 +485,7 @@ a.metric:hover { border-color: var(--sc-line-strong); }
   color: var(--sc-ink-3);
   background: transparent;
 }
-.seg button[aria-pressed="true"] { color: var(--sc-ink); background: var(--sc-surface); }
+.seg button[aria-selected="true"] { color: var(--sc-ink); background: var(--sc-surface); }
 
 /* ---------- filter bar ---------- */
 .filterbar { display: flex; align-items: center; gap: var(--sc-2); flex-wrap: wrap; padding: var(--sc-2) var(--sc-3); border-bottom: 1px solid var(--sc-line-faint); flex: none; }
