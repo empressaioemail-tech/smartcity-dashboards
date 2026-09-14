@@ -343,7 +343,6 @@ a.prov:hover { border-color: var(--sc-line-strong); background: var(--sc-surface
   flex: none;
 }
 .metric {
-  position: relative;
   border: 1px solid var(--sc-line);
   border-radius: var(--sc-r);
   background: var(--sc-surface);
@@ -353,17 +352,18 @@ a.prov:hover { border-color: var(--sc-line-strong); background: var(--sc-surface
   gap: var(--sc-1);
   min-width: 0;
 }
-/* G-120. Each tile is a filtered entry point, not a static figure: clicking it
-   navigates to the lens and filter its value describes. The link is a
-   full-bleed sibling rather than the card's own tag, so .metric keeps the
-   </div> the metrics-strip slicer in src/ui.test.mjs depends on, and it is
-   ordered last so it paints (and hit-tests) over the label/value/note text
-   without a z-index. */
-.metriclink {
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-}
+/* G-120. On Overview, each tile is a filtered entry point rather than a
+   static figure, and IS its own <a href>. A first draft kept .metric a plain
+   div and covered it with a full-bleed absolutely-positioned sibling anchor;
+   the CI a11y gate correctly failed that (color-contrast: axe cannot SETTLE
+   a background for text with an overlapping positioned box on top of it,
+   "bgOverlap" - and a positioned box paints above in-flow inline content
+   regardless of DOM order, so ordering the overlay last did not help). The
+   anchor is the card itself instead, so there is no overlap to resolve.
+   Every other lens's .metric stays a plain div; this reset is scoped to the
+   anchor form only. */
+a.metric { text-decoration: none; }
+a.metric:hover { border-color: var(--sc-line-strong); }
 /* At the 12px floor a key like MEETINGS THIS WEEK no longer fits one narrow
    column, and an ellipsis would drop the label rather than the decoration. The
    four metrics are grid items and stretch together, so wrapping costs nothing. */

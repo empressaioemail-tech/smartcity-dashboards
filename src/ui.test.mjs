@@ -392,7 +392,10 @@ describe("G-75 shell, mounts and motion", () => {
   });
 
   it("states every metric as unread rather than as a zero", () => {
-    const metrics = html.match(/<div class="metrics"[\s\S]*?<\/div>\s*<\/div>/g) || [];
+    // Overview's tiles are the <a class="metric"> form (G-120); every other
+    // lens's are still <div class="metric">, so the closing tag before the
+    // .metrics wrapper's own </div> is either.
+    const metrics = html.match(/<div class="metrics"[\s\S]*?<\/(?:div|a)>\s*<\/div>/g) || [];
     assert.ok(metrics.length >= 2);
     for (const strip of metrics) {
       assert.equal(/class="v[^"]*">\s*0\s*</.test(strip), false);
@@ -434,10 +437,17 @@ describe("G-120 Overview lens design pass", () => {
   it("makes each metric tile a real link to its lens and filter, never a bare div", () => {
     /**
      * Acceptance is the click, not the number (the dispatch's own words): each
-     * tile is a .metric card carrying one full-bleed .metriclink anchor, so the
-     * whole card is the hit target rather than a caption inside it. Not read
-     * keeps its existing word value and basis - a tile whose source has not
-     * read must never start claiming a real destination it cannot back.
+     * tile IS an <a class="metric" href>, the whole card is the hit target.
+     * Not read keeps its existing word value and basis - a tile whose source
+     * has not read must never start claiming a real destination it cannot
+     * back.
+     *
+     * A first draft kept .metric a <div> and covered it with a full-bleed,
+     * absolutely-positioned sibling anchor. The CI a11y gate correctly failed
+     * that on color-contrast: a positioned box paints above in-flow inline
+     * text regardless of DOM order, so axe could not SETTLE a background for
+     * the label/value/note spans underneath it ("bgOverlap"). The anchor is
+     * the card itself instead, which is what this test asserts.
      */
     const tiles = [
       ["overview-metric-decisions", "#overview-decisions"],
@@ -446,18 +456,21 @@ describe("G-120 Overview lens design pass", () => {
       ["overview-metric-meetings", "#overview-meetings"],
     ];
     for (const [id, href] of tiles) {
-      const tile = overview.match(new RegExp(`id="${id}"[\\s\\S]*?</div>`))?.[0] || "";
+      const tile = overview.match(new RegExp(`<a class="metric" id="${id}"[\\s\\S]*?</a>`))?.[0] || "";
+      assert.ok(tile, `${id} is not shipped as <a class="metric">`);
       assert.match(tile, /class="v word">Not read</, `${id} keeps its unread word value`);
-      assert.ok(tile.includes(`class="metriclink" href="${href.replace(/&/g, "&amp;")}"`), `${id} does not link to ${href}`);
+      assert.ok(tile.includes(`href="${href.replace(/&/g, "&amp;")}"`), `${id} does not link to ${href}`);
       assert.match(tile, /aria-label="[^"]+"/, `${id} names its destination for a reader with no eyes on the layout`);
     }
     // The two in-page destinations are real ids the anchors' fragments resolve to.
     assert.match(overview, /id="overview-decisions"/);
     assert.match(overview, /id="overview-meetings"/);
+    // No leftover overlay pattern from the rejected first draft.
+    assert.equal(html.includes("metriclink"), false);
   });
 
-  it("keeps every metriclink and deptcard class defined, never invented ad hoc", () => {
-    for (const cls of ["metriclink", "deptsection", "deptsection-head", "deptgrid", "deptcard"]) {
+  it("keeps every deptcard class defined, never invented ad hoc", () => {
+    for (const cls of ["deptsection", "deptsection-head", "deptgrid", "deptcard"]) {
       assert.ok(stylesheetClasses().has(cls), `${cls} is used but no served stylesheet defines it`);
     }
   });
