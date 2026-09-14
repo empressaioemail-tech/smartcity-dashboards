@@ -131,12 +131,19 @@ body {
   overflow: hidden;
 }
 
+/*
+ * G-128 fix, found by the live probe: the Dock/Expand/Full pill (.pm-dockmode)
+ * sits top:10px/right:10px, so a full-height layers panel at that same top
+ * offset overlapped it and intercepted every click meant for the pill --
+ * Dock/Expand were reachable but Full could never be left again. Cleared by
+ * starting the panel below the pill's own height instead of level with it.
+ */
 .pm-mode-full .pm-layers {
-  top: 10px;
+  top: 48px;
   bottom: 10px;
   right: 10px;
   left: auto;
-  height: calc(100% - 20px);
+  height: calc(100% - 58px);
 }
 
 .pm-mode-dock .pm-layers:not(.pm-layers-open),
