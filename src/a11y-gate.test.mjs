@@ -74,12 +74,13 @@ describe("G-95 the scanned surface list is derived, not written down", () => {
      * and is therefore its own page under 2.4.2 - which is exactly the reading
      * that turned a 16-surface baseline into a 23-surface denominator, and
      * G-123 joining plan-review and flood-study to DS_TABS (named-in-the-strip
-     * only, but still real anchors) into 25.
+     * only, but still real anchors) into 25 -- then G-128 retiring the Place
+     * tab (the map became a persistent rail, not a page of its own) back to 24.
      */
     const expected =
       ALL_LENS_IDS.length - 1 + DS_TABS.length + (WORK_IDS.length - 1) + ASSET_TABS.length + SCANNED_PACKS.length;
     assert.equal(A11Y_TARGETS.length, expected);
-    assert.equal(A11Y_TARGETS.length, 25);
+    assert.equal(A11Y_TARGETS.length, 24);
 
     const surfaces = A11Y_TARGETS.map((t) => t.surface);
     for (const lens of ALL_LENS_IDS) {

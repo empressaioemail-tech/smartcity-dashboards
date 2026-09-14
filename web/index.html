@@ -48,7 +48,6 @@
         var WORK = ["files", "review", "records", "assets", "connections", "people"];
         var DS_TABS = [
           "pipeline",
-          "place",
           "inspections",
           "work-orders",
           "code-enforcement",
@@ -118,7 +117,6 @@
         };
         var TAB_LABELS = {
           pipeline: "Pipeline",
-          place: "Place",
           inspections: "Inspections",
           "work-orders": "Work orders",
           "code-enforcement": "Code enforcement",
@@ -411,8 +409,6 @@
                       <span class="t">The city</span>
                       <span class="grow"></span>
                       <span class="t-caption">SmartSite</span>
-                      <button type="button" class="btn btn-ghost btn-sm" data-stage-present="map">Expand</button>
-                      <button type="button" class="btn btn-ghost btn-sm" data-stage-max="map">Full</button>
                     </div>
                     <div class="region-canvas" id="anchor-overview-map" data-stage="map">
                       <span class="mount-note">The city map mounts here.</span>
@@ -479,7 +475,6 @@
               </div>
               <div class="tabs" role="tablist" aria-label="Development services">
                 <a role="tab" aria-selected="true" data-tab="pipeline" href="/?lens=development-services&amp;tab=pipeline">Pipeline<span class="n" id="tabcount-pipeline"></span></a>
-                <a role="tab" aria-selected="false" data-tab="place" href="/?lens=development-services&amp;tab=place">Place</a>
                 <a role="tab" aria-selected="false" data-tab="inspections" href="/?lens=development-services&amp;tab=inspections">Inspections<span class="n" id="tabcount-inspections"></span></a>
                 <a role="tab" aria-selected="false" data-tab="work-orders" href="/?lens=development-services&amp;tab=work-orders">Work orders<span class="n" id="tabcount-work-orders"></span></a>
                 <a role="tab" aria-selected="false" data-tab="code-enforcement" href="/?lens=development-services&amp;tab=code-enforcement">Code enforcement<span class="n" id="tabcount-code-enforcement"></span></a>
@@ -487,6 +482,8 @@
                 <a role="tab" aria-selected="false" data-tab="plan-review" href="/?lens=development-services&amp;tab=plan-review">Plan review<span class="pill p-info">Next</span></a>
                 <a role="tab" aria-selected="false" data-tab="flood-study" href="/?lens=development-services&amp;tab=flood-study">Flood study<span class="pill p-info">Next</span></a>
               </div>
+              <div class="shell-regions" data-map-mode="dock" id="ds-mapdock-regions">
+              <div class="colstack" tabindex="0">
               <div class="ds-tab on" id="tab-pipeline">
                 <div class="shell-regions solo">
                   <div class="colstack" tabindex="0">
@@ -532,50 +529,6 @@
                       <div class="panel-body">
                         <span class="basis" id="ds-pipeline-basis">Basis: generated fixture records</span>
                       </div>
-                    </div>
-                  </div>
-                  </div>
-                </div>
-              </div>
-              <div class="ds-tab" id="tab-place">
-                <div class="shell-regions">
-                  <div class="colstack" tabindex="0">
-                  <div class="panel">
-                    <div class="panel-head"><span class="t">Place</span><span class="grow"></span><span class="t-caption">Selected parcel</span></div>
-                    <div class="state">
-                      <span class="st-k">Place</span>
-                      <h2>Parcel resolves from the map, not a typed form.</h2>
-                      <p>Click the map to select a place. The identifier appears in the region footer as a consequence. Gold 48021:34137 is the demo fixture.</p>
-                      <span class="basis">Basis: public record on the SmartSite mount. No parcel form on this product.</span>
-                    </div>
-                  </div>
-                  <div class="panel">
-                    <div class="panel-head"><span class="t">On this place</span><span class="grow"></span><span class="t-caption">Related records</span></div>
-                    <div class="panel-body flush">
-                      <div class="srcreg"><i class="rail"></i><span class="nm"><b>Reviews</b><span>Submittals against this parcel</span></span><span class="pill p-quiet">Not connected</span></div>
-                      <div class="srcreg"><i class="rail"></i><span class="nm"><b>Cases</b><span>Permits, inspections, code enforcement</span></span><span class="pill p-quiet">Not connected</span></div>
-                      <div class="srcreg"><i class="rail"></i><span class="nm"><b>Files</b><span>Documents referenced onto this place</span></span><span class="pill p-restricted">Preview</span></div>
-                      <div class="srcreg"><i class="rail"></i><span class="nm"><b>Assets</b><span>City-owned records at this place</span></span><span class="pill p-quiet">Empty</span></div>
-                    </div>
-                  </div>
-                  </div>
-                  <div class="colstack rail" tabindex="0">
-                  <div class="region">
-                    <div class="region-bar">
-                      <span class="t">Place</span>
-                      <span class="grow"></span>
-                      <span class="t-caption">SmartSite</span>
-                      <button type="button" class="btn btn-ghost btn-sm" data-stage-present="map">Expand</button>
-                      <button type="button" class="btn btn-ghost btn-sm" data-stage-max="map">Full</button>
-                    </div>
-                    <div class="region-canvas" id="anchor-place-map" data-stage="map">
-                      <span class="mount-note">The place map mounts here.</span>
-                    </div>
-                    <div class="region-foot">
-                      <span class="t-data">48021:34137</span>
-                      <span class="t-caption">Demo fixture</span>
-                      <span class="grow"></span>
-                      <span class="prov"><b>Public record</b></span>
                     </div>
                   </div>
                   </div>
@@ -879,6 +832,60 @@
                   </div>
                   </div>
                 </div>
+              </div>
+              </div>
+              <div class="colstack rail" tabindex="0">
+                <div class="region">
+                  <div class="region-bar">
+                    <span class="t">Development services</span>
+                    <span class="grow"></span>
+                    <span class="t-caption">SmartSite</span>
+                  </div>
+                  <div class="region-canvas" id="anchor-ds-map" data-stage="map">
+                    <span class="mount-note">The city map mounts here.</span>
+                  </div>
+                  <div class="region-foot">
+                    <span class="t-data">48021:34137</span>
+                    <span class="t-caption">Demo fixture</span>
+                    <span class="grow"></span>
+                    <span class="prov"><b>Public record</b></span>
+                  </div>
+                </div>
+                <div class="mapdock-row">
+                  <section class="panel mapdock-detail" id="ds-property-detail">
+                    <div class="panel-head">
+                      <span class="t" id="ds-property-detail-address">908 PINE ST</span>
+                      <span class="grow"></span>
+                      <span class="t-caption" id="ds-property-detail-parcel">48021:34137</span>
+                    </div>
+                    <div class="panel-body flush" id="ds-property-detail-rows"></div>
+                  </section>
+                  <section class="panel mapdock-records" id="ds-property-records">
+                    <div class="panel-head">
+                      <span class="t">On this parcel</span>
+                      <span class="grow"></span>
+                      <span class="t-caption" id="ds-property-records-count"></span>
+                    </div>
+                    <div class="state compact" id="ds-property-records-empty">
+                      <span class="st-k">Not read</span>
+                      <h2 id="ds-property-records-empty-head">No records on file for this parcel.</h2>
+                      <span class="basis" id="ds-property-records-basis">Basis: property intel has not read for this pack</span>
+                    </div>
+                    <div class="panel-body flush" id="ds-property-records-body" hidden>
+                      <table class="dt">
+                        <thead>
+                          <tr>
+                            <th scope="col">Id</th>
+                            <th scope="col">Subject</th>
+                            <th scope="col">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody id="ds-property-records-rows"></tbody>
+                      </table>
+                    </div>
+                  </section>
+                </div>
+              </div>
               </div>
             </section>
 

@@ -20,11 +20,17 @@
     <p id="pm-status" class="pm-status" role="status" aria-live="polite">Enter an address above and press Search.</p>
     <div class="pm-layout">
       <div id="pm-map" class="pm-map">
+        <div class="pm-dockmode" id="pm-dockmode" role="group" aria-label="Map size">
+          <button type="button" class="pm-dockmode-btn" data-dock-mode="dock" aria-pressed="true">Dock</button>
+          <button type="button" class="pm-dockmode-btn" data-dock-mode="expand" aria-pressed="false">Expand</button>
+          <button type="button" class="pm-dockmode-btn" data-dock-mode="full" aria-pressed="false">Full</button>
+        </div>
         <div class="pm-layers" id="pm-layers">
-          <div class="pm-layers-head">
-            <p class="pm-layers-title">Map layers</p>
+          <button type="button" class="pm-layers-head" id="pm-layers-toggle" aria-expanded="false">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 2 9 5-9 5-9-5 9-5z"/><path d="m3 17 9 5 9-5"/><path d="m3 12 9 5 9-5"/></svg>
+            <p class="pm-layers-title">Layers</p>
             <span class="pm-layers-count" id="pm-layers-count">0 active</span>
-          </div>
+          </button>
           <input
             type="text"
             id="pm-layers-search"

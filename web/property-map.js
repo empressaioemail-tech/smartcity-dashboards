@@ -92,6 +92,30 @@ function show(id, visible) {
 const cityKey = cityKeyFromQuery();
 
 /**
+ * G-128 sliver-defect fix. #pm-panel (the search-result aside) carries no
+ * `hidden` of its own -- only its child sections do -- so it always claims
+ * its fixed `flex: 0 0 340px` in .pm-layout even with nothing found yet.
+ * At the ~380px rail width (--sc-rail, web/shell.css) that leaves #pm-map
+ * a few pixels: the reported "narrow vertical sliver with clipped control
+ * text" is exactly rail-width minus 340px, reproducible on first paint with
+ * no resize involved and no dependency on Leaflet's own size cache -- ruling
+ * out a Leaflet invalidateSize/stale-container-size failure as the
+ * mechanism, since the effect is a plain CSS flex-basis computation visible
+ * before Leaflet ever measures its container.
+ *
+ * The shell (web/app.js) now fetches and renders its own property-detail
+ * and on-this-parcel records panels beside the map (G-128) rather than
+ * relying on this page's own #pm-panel, so when this page is embedded the
+ * aside is redundant dead space, not a needed fallback. Standalone visits
+ * to /property-map.html (window === window.top) keep #pm-panel exactly as
+ * it always worked -- this fix changes nothing about the map engine or the
+ * search flow, only which layout this page's own aside participates in.
+ */
+if (window.self !== window.top) {
+  document.body.classList.add("pm-embedded");
+}
+
+/**
  * Same basemap production's own "GIS & Property Intelligence" map uses --
  * Esri's free public World_Dark_Gray_Base tile service (smartcity-os's
  * BASEMAP_OPTIONS, id "dark"), not a generic OSM tile server. maxNativeZoom
@@ -156,6 +180,80 @@ if (layersControlEl) {
   L.DomEvent.disableClickPropagation(layersControlEl);
   L.DomEvent.disableScrollPropagation(layersControlEl);
 }
+
+/**
+ * G-128. The three dock states this page's own container reflows into
+ * (rail/dock, expanded-in-lens, full). This page never sizes itself -- the
+ * parent shell (web/app.js) owns the anchor's width/height -- so the only
+ * thing owned here is which of the three the map THINKS it is in, which
+ * drives two local, self-contained decisions: whether the layers panel
+ * shows as a full 7-category sidebar (full only, THE LAYERS RULE) or a
+ * compact button-with-count opening a sheet (dock/expand), and telling the
+ * parent shell the mode changed so its CSS can swap which of the three
+ * layout containers is visible (and therefore which anchor this page's
+ * iframe gets measured against). No parcel data crosses this bridge, only
+ * the UI mode -- this is state, not the map engine.
+ */
+let dockMode = "dock";
+const dockModeEl = document.getElementById("pm-dockmode");
+const layersToggleBtn = document.getElementById("pm-layers-toggle");
+let layersSheetOpen = false;
+
+function applyDockMode() {
+  document.body.classList.remove("pm-mode-dock", "pm-mode-expand", "pm-mode-full");
+  document.body.classList.add(`pm-mode-${dockMode}`);
+  if (dockModeEl) {
+    for (const btn of dockModeEl.querySelectorAll("[data-dock-mode]")) {
+      btn.setAttribute("aria-pressed", String(btn.dataset.dockMode === dockMode));
+    }
+  }
+  // Full has the room for the categorized panel and stays open; dock/expand
+  // collapse to the compact button until explicitly opened.
+  if (dockMode === "full") layersSheetOpen = true;
+  else if (layersSheetOpen && dockMode !== "full") layersSheetOpen = false;
+  if (layersToggleBtn) layersToggleBtn.setAttribute("aria-expanded", String(layersSheetOpen));
+  if (layersControlEl) layersControlEl.classList.toggle("pm-layers-open", layersSheetOpen);
+}
+
+function setDockMode(mode) {
+  if (mode !== "dock" && mode !== "expand" && mode !== "full") return;
+  dockMode = mode;
+  applyDockMode();
+  try {
+    window.parent.postMessage({ type: "sc-map-dock-mode", mode }, window.location.origin);
+  } catch {
+    /* cross-origin parent (e.g. this page opened standalone) -- no-op */
+  }
+}
+
+if (dockModeEl) {
+  dockModeEl.addEventListener("click", (event) => {
+    const btn = event.target.closest("[data-dock-mode]");
+    if (btn) setDockMode(btn.dataset.dockMode);
+  });
+}
+
+if (layersToggleBtn) {
+  layersToggleBtn.addEventListener("click", () => {
+    if (dockMode === "full") return; // full stays open, nothing to toggle
+    layersSheetOpen = !layersSheetOpen;
+    layersToggleBtn.setAttribute("aria-expanded", String(layersSheetOpen));
+    if (layersControlEl) layersControlEl.classList.toggle("pm-layers-open", layersSheetOpen);
+  });
+}
+
+/**
+ * The shell may know the mode before this page has finished mounting (a
+ * fresh iframe navigation on a lens that was already in Expand/Full), and
+ * posts it once the iframe loads. Accepted only from this same origin --
+ * the shell is the only sender there is.
+ */
+window.addEventListener("message", (event) => {
+  if (event.origin !== window.location.origin) return;
+  if (event.data && event.data.type === "sc-set-map-dock-mode") setDockMode(event.data.mode);
+});
+
+applyDockMode();
 
 function removeOverlayLayer(key) {
   if (overlayGroups[key]) {

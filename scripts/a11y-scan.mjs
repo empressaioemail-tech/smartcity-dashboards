@@ -1103,6 +1103,17 @@ const CONTRAST_GROUPS = {
    * measurement rather than by luck.
    */
   ".crumb span": ".crumb span",
+  /**
+   * G-128. The property-detail attribute row's value span, .pdl-row .v --
+   * carries the em-dash td()-style placeholder for an absent zoning/flood
+   * value, same shape as the .crumb span blind spot above: punctuation-only
+   * text axe excludes by design, in a class no other declared group's
+   * selector reaches. Added rather than left silent. Swept clean (0
+   * unwaived nodes, this file's own run against this lane's build); the
+   * exact ratio was not captured from a single run and should be quoted
+   * here, .crumb-span style, the next time this group's output is read.
+   */
+  ".pdl-row .v": ".pdl-row .v",
 };
 
 /**
