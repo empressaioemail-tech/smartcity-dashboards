@@ -1054,10 +1054,17 @@ describe("G-88 addressability: a screen that renders can also be driven", () => 
      * The WRITTEN set, derived from both write forms across every executed
      * script. `.dataset.Y =` alone returned two; adding setAttribute("data-...")
      * and the inline head script returns five.
+     *
+     * G-120 added data-filter: applyLens stamps it on <html> beside data-tab
+     * and data-atab, from the same staffLens the Overview tiles' query string
+     * resolves into. Required rather than excused, on the data-tab/data-atab
+     * precedent below - the two cross-lens tiles (Overdue reviews, Permits in
+     * flight) carry data-filter on their own metriclink anchor too, so it is
+     * genuinely attached in markup rather than a root-only write nothing reads.
      */
     assert.deepEqual(
       [...HOOKS_WRITTEN].sort(),
-      ["data-atab", "data-city-key", "data-src", "data-surface", "data-tab", "data-theme"],
+      ["data-atab", "data-city-key", "data-filter", "data-src", "data-surface", "data-tab", "data-theme"],
     );
 
     /**
@@ -1094,6 +1101,21 @@ describe("G-88 addressability: a screen that renders can also be driven", () => 
       assert.ok(HOOKS_WRITTEN.has(hook), `${hook} should still be script-written`);
       assert.ok(REQUIRED_HOOKS.includes(hook), `${hook} is attached in markup and must stay required`);
     }
+    /**
+     * data-filter is WRITTEN (root.setAttribute, mirrored onto the two
+     * cross-lens metriclink anchors) but not yet REQUIRED: nothing reads
+     * `[data-filter]` back, by script or by stylesheet, because no destination
+     * lens has filter UI yet (Any other lens is out of scope for G-120). It is
+     * not EXCUSED either - EXCUSED is for a hook a script provably writes and
+     * that is attached nowhere, and this one is attached. It is simply a
+     * write with no reader yet, same shape as data-atab before the assets
+     * work built one; missingHooks() does not flag it because that check is
+     * about REQUIRED hooks losing their attachment, not about every write
+     * gaining a reader on the same lane that added it.
+     */
+    assert.equal(HOOKS_BY_SCRIPT.has("data-filter"), false, "data-filter has no reader yet");
+    assert.equal(HOOKS_BY_CSS.has("data-filter"), false, "data-filter has no reader yet");
+    assert.equal(REQUIRED_HOOKS.includes("data-filter"), false, "data-filter is written but not required");
   });
 
   it("fires on every behaviour hook, one at a time, and names the one detached", () => {

@@ -33,6 +33,7 @@ function shape(overrides = {}) {
     tab: "",
     assetTab: "",
     work: "",
+    filter: "",
     ...overrides,
   };
 }
@@ -79,6 +80,25 @@ describe("staff review query", () => {
       );
     }
     assert.equal(ALL_LENS_IDS.length, 9);
+  });
+
+  it("carries an Overview tile's filter through raw, to whichever destination reads it", () => {
+    /**
+     * G-120. Unlike tab/atab/work, filter is not checked against a catalog:
+     * the resolver serves every lens, and the filter vocabulary belongs to
+     * whichever destination the tile named (development-services pipeline
+     * states, plan review's own queue states, ...), not to this file.
+     */
+    assert.deepEqual(
+      resolveStaffLensQuery("?lens=development-services&tab=pipeline&filter=active"),
+      shape({ lens: DEVELOPMENT_SERVICES_LENS, isDevelopmentServices: true, tab: "pipeline", filter: "active" }),
+    );
+    assert.deepEqual(
+      resolveStaffLensQuery("?work=review&filter=overdue"),
+      shape({ work: REVIEW_WORK, isReviewWork: true, filter: "overdue" }),
+    );
+    // Absent is the empty string, never undefined, same as every other field here.
+    assert.equal(resolveStaffLensQuery("").filter, "");
   });
 
   it("treats blank or unknown lens as city-manager", () => {

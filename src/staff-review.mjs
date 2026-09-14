@@ -89,6 +89,16 @@ export function resolveStaffLensQuery(search) {
         ? rawAssetTab
         : "inventory"
       : "";
+  /**
+   * G-120. The Overview tiles are filtered entry points: the query string
+   * carries which filter the destination should have applied. Passed through
+   * raw rather than against a catalog, because the filter vocabulary belongs
+   * to whichever destination reads it (development-services pipeline states,
+   * plan review's own queue states, ...) and this resolver serves every lens.
+   * A destination that does not recognise the value simply does not act on
+   * it, the same as an unrecognised tab falls back rather than throwing.
+   */
+  const filter = String(params.get("filter") || "").trim();
   return {
     lens,
     isDevelopmentServices: lens === DEVELOPMENT_SERVICES_LENS,
@@ -98,6 +108,7 @@ export function resolveStaffLensQuery(search) {
     tab,
     assetTab,
     work,
+    filter,
   };
 }
 

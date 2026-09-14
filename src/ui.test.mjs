@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import vm from "node:vm";
 import { FORBIDDEN_PRODUCT_STRINGS } from "./catalog.mjs";
 import { ROSTER_LENS_IDS } from "./staff-review.mjs";
 import { TEMPLATE_CITY, environmentBadgeLabel } from "./city-pack.mjs";
@@ -391,7 +392,10 @@ describe("G-75 shell, mounts and motion", () => {
   });
 
   it("states every metric as unread rather than as a zero", () => {
-    const metrics = html.match(/<div class="metrics"[\s\S]*?<\/div>\s*<\/div>/g) || [];
+    // Overview's tiles are the <a class="metric"> form (G-120); every other
+    // lens's are still <div class="metric">, so the closing tag before the
+    // .metrics wrapper's own </div> is either.
+    const metrics = html.match(/<div class="metrics"[\s\S]*?<\/(?:div|a)>\s*<\/div>/g) || [];
     assert.ok(metrics.length >= 2);
     for (const strip of metrics) {
       assert.equal(/class="v[^"]*">\s*0\s*</.test(strip), false);
@@ -424,6 +428,227 @@ describe("G-75 shell, mounts and motion", () => {
     ]) {
       assert.ok(panel.includes(`<b>${label}</b>`), `Across departments is missing ${label}`);
     }
+  });
+});
+
+describe("G-120 Overview lens design pass", () => {
+  const overview = html.match(/id="lens-city-manager"[\s\S]*?id="lens-development-services"/)?.[0] || "";
+
+  it("makes each metric tile a real link to its lens and filter, never a bare div", () => {
+    /**
+     * Acceptance is the click, not the number (the dispatch's own words): each
+     * tile IS an <a class="metric" href>, the whole card is the hit target.
+     * Not read keeps its existing word value and basis - a tile whose source
+     * has not read must never start claiming a real destination it cannot
+     * back.
+     *
+     * A first draft kept .metric a <div> and covered it with a full-bleed,
+     * absolutely-positioned sibling anchor. The CI a11y gate correctly failed
+     * that on color-contrast: a positioned box paints above in-flow inline
+     * text regardless of DOM order, so axe could not SETTLE a background for
+     * the label/value/note spans underneath it ("bgOverlap"). The anchor is
+     * the card itself instead, which is what this test asserts.
+     */
+    const tiles = [
+      ["overview-metric-decisions", "#overview-decisions"],
+      ["overview-metric-reviews", "/?work=review&filter=overdue"],
+      ["overview-metric-permits", "/?lens=development-services&tab=pipeline&filter=active"],
+      ["overview-metric-meetings", "#overview-meetings"],
+    ];
+    for (const [id, href] of tiles) {
+      const tile = overview.match(new RegExp(`<a class="metric" id="${id}"[\\s\\S]*?</a>`))?.[0] || "";
+      assert.ok(tile, `${id} is not shipped as <a class="metric">`);
+      assert.match(tile, /class="v word">Not read</, `${id} keeps its unread word value`);
+      assert.ok(tile.includes(`href="${href.replace(/&/g, "&amp;")}"`), `${id} does not link to ${href}`);
+      assert.match(tile, /aria-label="[^"]+"/, `${id} names its destination for a reader with no eyes on the layout`);
+    }
+    // The two in-page destinations are real ids the anchors' fragments resolve to.
+    assert.match(overview, /id="overview-decisions"/);
+    assert.match(overview, /id="overview-meetings"/);
+    // No leftover overlay pattern from the rejected first draft.
+    assert.equal(html.includes("metriclink"), false);
+  });
+
+  it("keeps every deptcard class defined, never invented ad hoc", () => {
+    for (const cls of ["deptsection", "deptsection-head", "deptgrid", "deptcard"]) {
+      assert.ok(stylesheetClasses().has(cls), `${cls} is used but no served stylesheet defines it`);
+    }
+  });
+
+  it("rolls up exactly the six named departments, honestly empty on template-city", () => {
+    const grid = overview.match(/id="overview-departments"[\s\S]*?<\/section>/)?.[0] || "";
+    assert.ok(grid, "overview-departments section is missing");
+    const departments = [
+      "Development services",
+      "Finance",
+      "Police",
+      "Fire and EMS",
+      "Fleet",
+      "Public works",
+    ];
+    for (const dept of departments) {
+      assert.ok(grid.includes(`<b>${dept}</b>`), `Across departments is missing ${dept}`);
+    }
+    // Exactly six - not the four-lane v1 shape, not the fourteen-row full roster.
+    assert.equal((grid.match(/class="deptcard"/g) || []).length, departments.length);
+    // No department card claims a number nothing has read.
+    assert.equal(/class="deptcard"[\s\S]*?>\s*\d+\s*</.test(grid), false);
+    for (const dept of departments) assert.ok(grid.includes("no source connected"), dept);
+  });
+
+  it("gives Connections a promotable summary panel, quiet-first by default", () => {
+    const panel = overview.match(/id="overview-connections"[\s\S]*?<\/div>\s*<\/div>\s*<\/div>/)?.[0] || "";
+    assert.ok(panel, "overview-connections panel is missing");
+    assert.match(panel, /id="overview-connections-count"/);
+    assert.match(panel, /id="overview-connections-lead"/);
+    assert.match(panel, /quiet because no source has been read/);
+    // The static default (template-city, and every city before its first
+    // grant) ships promoted: immediately after the metrics strip, ahead of
+    // "What needs you today". app.js demotes it once a pack is connected.
+    const metricsIdx = overview.indexOf('id="overview-metrics"');
+    const connectionsIdx = overview.indexOf('id="overview-connections"');
+    const decisionsIdx = overview.indexOf('id="overview-decisions"');
+    assert.ok(metricsIdx < connectionsIdx && connectionsIdx < decisionsIdx, "Connections is not promoted to the top by default");
+  });
+
+  it("demotes Connections once a pack is granted a real source, promotes otherwise - never on template-city's generated fixtures", () => {
+    /**
+     * The shipped function, executed for real (same shape as lens-claims.test.mjs's
+     * shippedResolver): a copy here would be the CTRL-1 defect inside the file
+     * built to prevent it.
+     */
+    const placeFn = app.match(/function placeOverviewConnections\(sources\) \{[\s\S]*?\n\}/)?.[0];
+    const showFn = app.match(/function show\(el, on\) \{[\s\S]*?\n\}/)?.[0];
+    const setTextFn = app.match(/function setText\(id, value\) \{[\s\S]*?\n\}/)?.[0];
+    for (const [name, text] of [["placeOverviewConnections", placeFn], ["show", showFn], ["setText", setTextFn]]) {
+      assert.ok(text, `${name} could not be sliced out of web/app.js`);
+    }
+
+    function fakeStack(order) {
+      const nodes = new Map();
+      const stack = {
+        insertBefore(node, ref) {
+          const from = order.indexOf(node.id);
+          if (from >= 0) order.splice(from, 1);
+          const to = ref ? order.indexOf(ref.id) : order.length;
+          order.splice(to < 0 ? order.length : to, 0, node.id);
+        },
+      };
+      for (const id of order) {
+        nodes.set(id, {
+          id,
+          parentElement: stack,
+          get nextElementSibling() {
+            const i = order.indexOf(id);
+            const nid = order[i + 1];
+            return nid ? nodes.get(nid) : null;
+          },
+          hidden: false,
+          style: {},
+          textContent: "",
+        });
+      }
+      return { nodes, order };
+    }
+
+    function run(sources) {
+      const { nodes, order } = fakeStack([
+        "overview-metrics",
+        "overview-connections",
+        "overview-decisions",
+        "overview-source-register",
+      ]);
+      // overview-connections-count and overview-connections-lead are not part
+      // of the reordered stack; they are looked up independently.
+      nodes.set("overview-connections-count", { id: "overview-connections-count", textContent: "" });
+      nodes.set("overview-connections-lead", { id: "overview-connections-lead", hidden: false, style: {} });
+      const context = vm.createContext({
+        document: { getElementById: (id) => nodes.get(id) || null },
+        Number,
+        String,
+      });
+      vm.runInContext(
+        `${setTextFn}\n${showFn}\n${placeFn}\nglobalThis.out = () => placeOverviewConnections(${JSON.stringify(sources)});`,
+        context,
+      );
+      // Called twice against the same live stack: idempotent, so a second
+      // identity resolution for the same pack (a cityKey switch back to
+      // itself, a retry) does not shuffle the DOM further.
+      context.out();
+      const firstOrder = [...order];
+      context.out();
+      return {
+        order,
+        firstOrder,
+        countText: nodes.get("overview-connections-count").textContent,
+        leadHidden: nodes.get("overview-connections-lead").hidden,
+      };
+    }
+
+    const empty = run({ granted: 0, total: 10, demonstrated: 0 });
+    assert.deepEqual(empty.order.slice(0, 2), ["overview-metrics", "overview-connections"], "empty pack should keep Connections promoted");
+    assert.equal(empty.leadHidden, false, "empty pack should show the lead paragraph");
+    assert.equal(empty.countText, "0 of 10");
+
+    /**
+     * The regression this test exists for. template-city (src/city-pack.mjs
+     * TEMPLATE_CITY) is granted 0 but demonstrated 6 - it is the PUBLIC DEMO
+     * pack, generating fixture records, not the honest-empty one. Every other
+     * panel on Overview answers "is a real source connected" off grantedAdapters
+     * and reads empty on this exact shape. Keying promotion on demonstrated
+     * would demote Connections here while its siblings stayed empty - a page
+     * disagreeing with itself on its own primary dev target.
+     */
+    const templateCity = run({ granted: 0, total: 10, demonstrated: 6 });
+    assert.deepEqual(
+      templateCity.order.slice(0, 2),
+      ["overview-metrics", "overview-connections"],
+      "template-city's generated fixtures must not demote Connections while granted is still zero",
+    );
+    assert.equal(templateCity.leadHidden, false, "template-city keeps the lead paragraph, matching its empty siblings");
+
+    const populated = run({ granted: 7, total: 10, demonstrated: 3 });
+    assert.deepEqual(
+      populated.order,
+      ["overview-metrics", "overview-decisions", "overview-connections", "overview-source-register"],
+      "a demonstrating pack should demote Connections to just above the full register",
+    );
+    assert.equal(populated.leadHidden, true, "a demonstrating pack should hide the quiet-explainer paragraph");
+    assert.equal(populated.countText, "7 of 10");
+
+    // Idempotent: the second call against the same stack left it exactly
+    // where the first call put it.
+    assert.deepEqual(populated.order, populated.firstOrder);
+    assert.deepEqual(empty.order, empty.firstOrder);
+  });
+
+  it("replaces the atom-vocabulary Sources panel with located records, honestly empty on every pack today", () => {
+    const rail = overview.match(/class="colstack rail"[\s\S]*$/)?.[0] || "";
+    assert.equal(/\bSources\b/.test(rail.replace("SmartSite", "")), false, "the old Sources panel title is still shipping");
+    assert.match(rail, /id="overview-located"/);
+    assert.match(rail, />On the map</);
+    assert.match(rail, /No located records on this pack\./);
+    assert.match(rail, /class="basis">Basis: no located records on this pack\./);
+    // The engine vocabulary this panel used to leak must not survive under the
+    // new heading either.
+    for (const atomType of ["buildable-envelope", "rrc-pipeline-fact", "setback-rule"]) {
+      assert.equal(rail.includes(atomType), false, atomType);
+    }
+    assert.equal(overview.includes('id="atoms-basis"'), false);
+    assert.equal(overview.includes('id="atoms-read"'), false);
+    assert.equal(overview.includes('id="atoms-summary"'), false);
+    assert.equal(app.includes('"atoms-basis"'), false);
+    assert.equal(app.includes('"atoms-summary"'), false);
+    assert.equal(app.includes('"atoms-read"'), false);
+  });
+
+  it("keeps the map and the demo-fixture parcel readout on screen, untouched", () => {
+    // G-121 owns the map's own rendering defects and the address lookup that
+    // arrives with the SmartSite mount itself; this lane only checks the
+    // region is still present in the rail, not relocated or removed.
+    assert.match(overview, /id="anchor-overview-map"/);
+    assert.match(overview, /id="overview-parcel">48021:34137</);
+    assert.match(overview, /class="t-caption">Demo fixture</);
   });
 });
 
