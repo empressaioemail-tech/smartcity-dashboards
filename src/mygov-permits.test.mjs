@@ -5,10 +5,12 @@ import {
   realStatusCounts,
   fetchRealPermits,
   composeRealPermits,
+  assertVerifiedMygovTenant,
+  VERIFIED_MYGOV_PERMITS_TENANT,
 } from "./mygov-permits.mjs";
 import { getDomain } from "./domains.mjs";
 import { PLATFORM_MYGOV_PERMITS_GRANT } from "./adapters.mjs";
-import { BASTROP_TX } from "./city-pack.mjs";
+import { BASTROP_TX, TEMPLATE_CITY } from "./city-pack.mjs";
 
 const SAMPLE_ROW = {
   id: "PRM-1324",
@@ -172,5 +174,53 @@ describe("mygov-permits (G-116 Phase 2 live feed)", () => {
     assert.equal(out.status, "granted-empty");
     assert.equal(out.granted, true);
     assert.equal(out.recordCount, 0);
+  });
+
+  describe("G-126 defect 2: refuse rather than relabel when the pack is not the verified tenant", () => {
+    it("the verified tenant is bastrop_tx, matching what smartcity-os's platform route actually hardcodes", () => {
+      assert.equal(VERIFIED_MYGOV_PERMITS_TENANT, "bastrop_tx");
+    });
+
+    it("assertVerifiedMygovTenant passes for the verified tenant and is not vacuous", () => {
+      assert.doesNotThrow(() => assertVerifiedMygovTenant("bastrop_tx"));
+    });
+
+    it("assertVerifiedMygovTenant refuses every other cityKey, including a plausible-looking one", () => {
+      for (const cityKey of ["template-city", "icc-demo", "", null, undefined]) {
+        assert.throws(
+          () => assertVerifiedMygovTenant(cityKey),
+          /mygov real feed is verified live for bastrop_tx only/,
+          `cityKey=${cityKey} must be refused`,
+        );
+      }
+    });
+
+    it("mapRealPermitRecord refuses to stamp a real Bastrop row onto a different pack's cityKey", () => {
+      assert.throws(
+        () => mapRealPermitRecord(SAMPLE_ROW, "template-city", "tenant-private"),
+        /mygov real feed is verified live for bastrop_tx only/,
+      );
+    });
+
+    it("composeRealPermits refuses BEFORE making the network call, for a pack that is not bastrop_tx", async () => {
+      const domain = getDomain("permits-pipeline");
+      let fetchCalled = false;
+      const fetchImpl = async () => {
+        fetchCalled = true;
+        return { ok: true, json: async () => ({ permits: [SAMPLE_ROW], total: 1 }) };
+      };
+      // TEMPLATE_CITY does not hold PLATFORM_MYGOV_PERMITS_GRANT today, but this
+      // proves the refusal does not depend on that -- a mis-attached grant (e.g.
+      // a DB-backed pack's granted_adapters column) must still be caught here.
+      await assert.rejects(
+        () =>
+          composeRealPermits(TEMPLATE_CITY, domain, PLATFORM_MYGOV_PERMITS_GRANT, {
+            env: { PLATFORM_INTERNAL_API_KEY: "test-key" },
+            fetchImpl,
+          }),
+        /mygov real feed is verified live for bastrop_tx only/,
+      );
+      assert.equal(fetchCalled, false, "must refuse before spending the platform key on a call it cannot correctly serve");
+    });
   });
 });
