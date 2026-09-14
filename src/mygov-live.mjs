@@ -219,7 +219,13 @@ export function mapRealCodeViolationRecord(row, cityKey) {
     cityKey,
     origin: "feed",
     accessPolicy: "tenant-private",
-    subject: row.type || row.description || "Untitled violation",
+    /**
+     * G-123 PII finding: row.description is the vendor's free-text field
+     * (citizen names, complaint addresses per this lane's dispatch) and must
+     * never back a rendered field. The fallback chain stops at "Untitled
+     * violation" rather than reaching for it.
+     */
+    subject: row.type || "Untitled violation",
     status: String(row.status || "unknown"),
     place: {
       label: row.address || "Address not on record",

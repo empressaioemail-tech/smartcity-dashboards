@@ -715,24 +715,6 @@ function pctText(value) {
   return `${Math.round(value * 100)}%`;
 }
 
-/**
- * A real fees array ({type, amount}[]) rendered as one itemized line rather
- * than collapsed to a bare total -- the real source (and the production
- * staff dashboard) carries fees itemized, not just a total, so the cell
- * keeps that instead of summing it away. Absent or empty renders blank,
- * same discipline as td().
- */
-function feesLabel(fees) {
-  if (!Array.isArray(fees) || fees.length === 0) return "";
-  return fees
-    .map((f) => {
-      const amount = Number(f && f.amount) || 0;
-      const label = f && f.type ? String(f.type) : "Fee";
-      return `${label}: $${amount.toFixed(2)}`;
-    })
-    .join(", ");
-}
-
 function statusCell(record, statusLabels) {
   const cell = document.createElement("td");
   const pill = document.createElement("span");
@@ -743,155 +725,427 @@ function statusCell(record, statusLabels) {
   return cell;
 }
 
-function dueCell(record) {
-  const cell = document.createElement("td");
-  const value = document.createElement("span");
-  value.className = "t-data";
-  /** Real records carry no fixture dueLabel -- blank, not "undefined". */
-  value.textContent = record.dueLabel || "";
-  cell.append(value);
-  return cell;
+/* ------------------------------------------------------------- G-123 tables
+
+Shared client-side filter/paginate for every Development services table. The
+seam still returns the full record set in one read -- G-97's own constraint
+("The browser renders records; it never generates them") stands, and this
+only slices what is already in hand. No domain here carries enough real rows
+to make a server-side page cheaper than the request it would add, and the
+shipped demo pack is at most a few dozen rows.
+*/
+
+const DS_PAGE_SIZE = 50;
+const dsState = Object.create(null);
+/** The last successful payload per tab, so a filter/page change re-derives
+ *  from what was already fetched rather than re-fetching. */
+const dsLast = Object.create(null);
+
+function dsStateFor(prefix) {
+  return dsState[prefix] || (dsState[prefix] = { page: 0, search: "", status: "", extra: {} });
 }
 
-function renderPipelineMetrics(pipeline) {
-  if (Array.isArray(pipeline.realStatusCounts)) {
-    renderRealStatusTiles(
-      document.getElementById("ds-metrics"),
-      pipeline.realStatusCounts,
-      `of ${pipeline.recordCount} real cases in flight`,
+function fieldValue(record, path) {
+  return path.split(".").reduce((v, k) => (v == null ? v : v[k]), record);
+}
+
+function dsFilterPage(prefix, records, searchFields) {
+  const state = dsStateFor(prefix);
+  let rows = records;
+  if (state.search) {
+    const q = state.search.toLowerCase();
+    rows = rows.filter((r) =>
+      searchFields.some((f) => String(fieldValue(r, f) || "").toLowerCase().includes(q)),
+    );
+  }
+  if (state.status) rows = rows.filter((r) => r.status === state.status);
+  for (const key of Object.keys(state.extra)) {
+    const value = state.extra[key];
+    if (value) rows = rows.filter((r) => String(fieldValue(r, key) || "") === value);
+  }
+  const total = rows.length;
+  const pageCount = Math.max(1, Math.ceil(total / DS_PAGE_SIZE));
+  if (state.page >= pageCount) state.page = pageCount - 1;
+  if (state.page < 0) state.page = 0;
+  const start = state.page * DS_PAGE_SIZE;
+  return { pageRows: rows.slice(start, start + DS_PAGE_SIZE), total, page: state.page, pageCount };
+}
+
+function renderPager(prefix, page, pageCount, total) {
+  const prev = document.getElementById(`${prefix}-prev`);
+  const next = document.getElementById(`${prefix}-next`);
+  const pos = document.getElementById(`${prefix}-pos`);
+  if (pos) {
+    pos.textContent = total === 0 ? "0 results" : `Page ${page + 1} of ${pageCount} · ${total} total`;
+  }
+  if (prev) prev.disabled = page <= 0;
+  if (next) next.disabled = page >= pageCount - 1;
+}
+
+/** Fills a <select> with the declared status vocabulary (or, for a real feed
+ *  with unknown cardinality, whatever distinct values the records carry),
+ *  keeping the caller's current selection if it still exists. */
+function populateSelect(id, options) {
+  const select = document.getElementById(id);
+  if (!select) return;
+  const current = select.value;
+  const placeholder = select.options[0];
+  select.replaceChildren(placeholder);
+  for (const opt of options) {
+    const el = document.createElement("option");
+    el.value = opt.value;
+    el.textContent = opt.label;
+    select.append(el);
+  }
+  if ([...select.options].some((o) => o.value === current)) select.value = current;
+}
+
+/**
+ * Consumes the filter an attention-row tile (or, per G-120, an Overview
+ * tile) carried, per that same lane's own mechanism: applyLens writes it
+ * once onto the root as data-filter, and a destination lens that has filter
+ * UI reads it from there rather than re-parsing location.search itself. An
+ * unrecognised value -- a filter naming a status this tab's own vocabulary
+ * does not have, e.g. Pipeline's current "active"/"expiring" -- is a silent
+ * no-op, the same discipline G-120's own author documented for an unbuilt
+ * destination: "a destination that does not recognise the value simply
+ * does not act on it, the same as an unrecognised tab falls back rather
+ * than throwing."
+ */
+function applyPendingDsFilter(prefix, statusSelectId) {
+  const wanted = document.documentElement.getAttribute("data-filter") || "";
+  if (!wanted) return;
+  const select = document.getElementById(statusSelectId);
+  if (!select) return;
+  if (![...select.options].some((o) => o.value === wanted)) return;
+  select.value = wanted;
+  dsStateFor(prefix).status = wanted;
+}
+
+function distinctValues(records, field) {
+  return [...new Set(records.map((r) => fieldValue(r, field)).filter(Boolean))].sort();
+}
+
+/**
+ * A table's re-render entry point: reads the current filter-bar controls into
+ * state, re-derives the page from the cached payload, and repaints rows and
+ * the pager. Registered once per prefix so every control (search, selects,
+ * reset, prev/next) can call the same function.
+ */
+const dsRerender = Object.create(null);
+
+/**
+ * The universal three: search, status, reset, plus pagination. Every id here
+ * is a literal template built from `prefix` alone (never from a runtime
+ * array of control names) so the addressability gate can resolve every one
+ * of them against the served markup by static inspection. A tab's OWN extra
+ * controls (a type select, a sort order, a manager filter) are wired
+ * separately, right beside the tab that owns them, for the same reason: a
+ * shared loop over a config array is exactly the shape src/addressability.
+ * test.mjs cannot trace an id through.
+ *
+ * `onReset` lets a caller clear its own extra controls in the same click;
+ * it is a plain function reference, not an id lookup, so it carries no
+ * addressing risk.
+ */
+function wireDsFilterBar(prefix, { onReset } = {}) {
+  const search = document.getElementById(`${prefix}-search`);
+  const status = document.getElementById(`${prefix}-status`);
+  const reset = document.getElementById(`${prefix}-reset`);
+  const prev = document.getElementById(`${prefix}-prev`);
+  const next = document.getElementById(`${prefix}-next`);
+  const go = () => {
+    const state = dsStateFor(prefix);
+    state.page = 0;
+    if (search) state.search = search.value.trim();
+    if (status) state.status = status.value;
+    dsRerender[prefix]?.();
+  };
+  search?.addEventListener("input", go);
+  status?.addEventListener("change", go);
+  reset?.addEventListener("click", () => {
+    const state = dsStateFor(prefix);
+    state.page = 0;
+    state.search = "";
+    state.status = "";
+    state.extra = {};
+    if (search) search.value = "";
+    if (status) status.value = "";
+    onReset?.();
+    dsRerender[prefix]?.();
+  });
+  prev?.addEventListener("click", () => {
+    const state = dsStateFor(prefix);
+    if (state.page > 0) {
+      state.page -= 1;
+      dsRerender[prefix]?.();
+    }
+  });
+  // next's own bound is enforced by renderPager disabling the button at the
+  // last page, so a click here always has a next page to move to.
+  next?.addEventListener("click", () => {
+    const state = dsStateFor(prefix);
+    state.page += 1;
+    dsRerender[prefix]?.();
+  });
+}
+
+/**
+ * One extra filter select, wired by its OWN already-concatenated literal id
+ * -- never `${prefix}-${id}` from two separately-varying parameters. Two
+ * independent parameters feeding one getElementById template is exactly
+ * what produced ds-ce-manager, ds-lic-officer and the other combinations
+ * nothing ever calls: the gate correctly cannot tell which (prefix, id)
+ * PAIRS actually occur together, only that each has appeared somewhere, so
+ * it checks the full cross product. A single, fully-known id string per
+ * call site has no such ambiguity.
+ */
+function wireDsExtraSelect(fullId, prefix, field) {
+  document.getElementById(fullId)?.addEventListener("change", () => {
+    const state = dsStateFor(prefix);
+    state.page = 0;
+    const el = document.getElementById(fullId);
+    if (el) state.extra[field] = el.value;
+    dsRerender[prefix]?.();
+  });
+}
+
+/** A control that re-renders on change without filtering anything itself
+ *  (Inspections' sort order is a re-ordering, not a dsFilterPage filter). */
+function wireDsExtraTrigger(fullId, prefix) {
+  document.getElementById(fullId)?.addEventListener("change", () => {
+    dsRerender[prefix]?.();
+  });
+}
+
+/** The one load component: inspector, manager, and officer load are the same
+ *  shape (work distributed across people), so this is the only renderer. */
+function renderLoadStrip(prefix, payload, cfg) {
+  const head = document.getElementById(`${prefix}-load-head`);
+  const summary = document.getElementById(`${prefix}-load-summary`);
+  const body = document.getElementById(`${prefix}-load`);
+  if (!body) return;
+  const ok = payload.status === "ok";
+  const rows = ok ? extrasOf(payload)[cfg.extrasKey] || [] : [];
+  show(head, rows.length > 0);
+  if (rows.length === 0) {
+    body.replaceChildren();
+    return;
+  }
+  const totalOpen = rows.reduce((sum, r) => sum + (r.openCount || 0), 0);
+  if (summary) {
+    summary.textContent = `${rows.length} ${cfg.noun}${rows.length === 1 ? "" : "s"} · ${totalOpen} open`;
+  }
+  const max = Math.max(...rows.map((r) => r[cfg.countField] || 0), 1);
+  body.replaceChildren(
+    ...rows.map((row) => {
+      const card = document.createElement("div");
+      card.className = "loadcard";
+      const who = document.createElement("span");
+      who.className = "who";
+      who.textContent = row[cfg.refField];
+      const rowEl = document.createElement("div");
+      rowEl.className = "row";
+      const n = document.createElement("span");
+      n.className = "n";
+      n.textContent = `${row.openCount} open`;
+      const bar = document.createElement("div");
+      bar.className = "bar";
+      const barFill = document.createElement("i");
+      barFill.style.width = `${Math.round(((row[cfg.countField] || 0) / max) * 100)}%`;
+      bar.append(barFill);
+      rowEl.append(n, bar);
+      card.append(who, rowEl);
+      return card;
+    }),
+  );
+}
+
+/**
+ * The tab metric strip (tier 3): compact, secondary, no cards. Reads the
+ * region's own declared metrics by id; a tile the payload has no source for
+ * keeps saying "Not read" rather than a zero, same discipline the old card
+ * strip carried.
+ */
+function renderMetricBar(strip, payload) {
+  if (!strip) return;
+  const ok = payload.status === "ok";
+  const extras = payload.extras || {};
+  if (ok && Array.isArray(extras.realStatusCounts)) {
+    strip.replaceChildren(
+      ...extras.realStatusCounts.map(({ status, count }) => {
+        const item = document.createElement("div");
+        item.className = "metricbar-item";
+        const v = document.createElement("span");
+        v.className = "v";
+        v.textContent = String(count);
+        const k = document.createElement("span");
+        k.className = "k";
+        k.textContent = status;
+        item.append(v, k);
+        return item;
+      }),
     );
     return;
   }
-  for (const metric of pipeline.metrics || []) {
-    const el = document.querySelector(`#ds-metrics .metric[data-metric="${metric.id}"]`);
-    if (!el) continue;
-    const value = el.querySelector(".v");
-    const note = el.querySelector(".n");
-    if (!pipeline.generated) {
-      el.classList.remove("has-value");
-      if (value) {
-        value.classList.add("word");
-        value.textContent = "Not read";
-      }
-      if (note) note.textContent = "No permit source";
+  const metrics = ok && Array.isArray(extras.metrics) ? extras.metrics : [];
+  const byId = {};
+  for (const metric of metrics) byId[metric.id] = metric;
+  for (const item of strip.querySelectorAll(".metricbar-item[data-metric]")) {
+    const metric = byId[item.dataset.metric];
+    const value = item.querySelector(".v");
+    if (!value) continue;
+    if (!metric) {
+      value.classList.add("word");
+      value.textContent = "Not read";
       continue;
     }
-    el.classList.add("has-value");
-    if (value) {
-      value.classList.remove("word");
-      value.textContent = String(metric.count);
-    }
-    /** The counting rule travels with the number, next to the number. */
-    if (note) note.textContent = `of ${pipeline.recordCount} generated cases in flight`;
+    value.classList.remove("word");
+    value.textContent = String(metric.count);
   }
 }
 
+/* ------------------------------------------------------ attention row (G-123)
+
+Tier 1: the six filtered entry points named in the approved design. Three
+(WO overdue, WO due today, and -- when the vocabulary matches -- WO active)
+are computed off data this lens already reads; two (Pipeline active,
+Pipeline expiring) and one (Plan review active) have no source this lens can
+read without either guessing at an unverified status taxonomy or reaching
+into a separate product's own data. Acceptance is the click, not the number:
+every tile still navigates, and an uncomputed one states "Not read" rather
+than a zero, exactly like every other unread source on this product.
+*/
+
+function setAttnTile(id, text, isWord) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = text;
+  el.classList.toggle("word", Boolean(isWord));
+}
+
+function renderWorkOrderAttnTiles(payload) {
+  const ok = payload.status === "ok";
+  const records = ok && Array.isArray(payload.records) ? payload.records : [];
+  if (!ok) return;
+  const overdue = records.filter((r) => typeof r.dueOffsetDays === "number" && r.dueOffsetDays < 0);
+  const dueToday = records.filter((r) => r.dueOffsetDays === 0);
+  setAttnTile("attn-wo-overdue-v", String(overdue.length), false);
+  setAttnTile("attn-wo-due-today-v", String(dueToday.length), false);
+  // "active" has no analogue in the current work-order status vocabulary
+  // (past-sla/at-risk/scheduled/closed) -- see this lane's close.
+}
+
+/* -------------------------------------------------------------- tab strip */
+
+function setTabCount(id, count) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = count == null ? "" : String(count);
+}
+
+/* -------------------------------------------------------------- pipeline */
+
 function renderPipeline(pipeline) {
+  const status = String(pipeline.sourceStatus || "did-not-read");
   const empty = document.getElementById("ds-pipeline-empty");
+  const emptyKicker = document.getElementById("ds-pipeline-empty-kicker");
+  const emptyHead = document.getElementById("ds-pipeline-empty-head");
+  const emptyBasis = document.getElementById("ds-pipeline-empty-basis");
   const wrap = document.getElementById("ds-pipeline-records");
   const rows = document.getElementById("ds-pipeline-rows");
   const mark = document.getElementById("ds-pipeline-mark");
   const prov = document.getElementById("ds-pipeline-prov");
   const caption = document.getElementById("ds-pipeline-caption");
   const basis = document.getElementById("ds-pipeline-basis");
-  const emptyHead = document.getElementById("ds-pipeline-empty-head");
-  const emptyKicker = document.getElementById("ds-pipeline-empty-kicker");
-  const emptyBasis = document.getElementById("ds-pipeline-empty-basis");
+  const filterbar = document.getElementById("ds-pipeline-filterbar");
 
-  renderPipelineMetrics(pipeline);
-  /**
-   * The Development services breadcrumb used to be written from here, which
-   * made the pipeline a second writer of the city's identity. It is now a
-   * [data-pack-name] element like every other crumb, with applyIdentity as its
-   * only writer, and a test asserts the two paths agree on displayName.
-   */
+  renderMetricBar(document.getElementById("ds-metrics"), {
+    status: pipeline.generated || Array.isArray(pipeline.realStatusCounts) ? "ok" : status,
+    extras: { metrics: pipeline.metrics, realStatusCounts: pipeline.realStatusCounts },
+  });
 
   /**
-   * G-97. The state sentence is written on EVERY render, not only when the
-   * queue is empty.
-   *
-   * The pipeline said one sentence for all four source states, so an ungranted
-   * region and a city that generates nothing read identically; the compose has
-   * carried sourceStatus since G-91 and nothing had ever read it. Writing it
-   * unconditionally also stops the hidden block keeping a stale claim: with
-   * records on screen the honest-empty text is not displayed, but it is still in
-   * the document, and "Pipeline unread" sitting under fourteen rendered cases is
-   * a sentence this pack has not earned.
+   * The Development services breadcrumb is a [data-pack-name] element like
+   * every other crumb, with applyIdentity as its only writer -- this
+   * function does not write it, and a test asserts the two paths agree on
+   * displayName.
    */
-  const status = String(pipeline.sourceStatus || "did-not-read");
-  /** G-100. The badge, the chip and the register row, from the same status. */
   applyLensState(
     "ds-state-chip",
     "development-services",
     sourcedLabel([{ status, source: Array.isArray(pipeline.realStatusCounts) ? "live" : undefined }]),
   );
-  if (emptyKicker) {
-    emptyKicker.textContent = REGION_KICKER[status] || REGION_KICKER["did-not-read"];
-  }
+  if (emptyKicker) emptyKicker.textContent = REGION_KICKER[status] || REGION_KICKER["did-not-read"];
   if (emptyHead) emptyHead.textContent = regionHead(status, "Pipeline", pipeline.cityKey);
-  /** The absence carries the basis the pack itself stated. */
   if (emptyBasis && pipeline.basis) emptyBasis.textContent = `Basis: ${pipeline.basis}`;
 
   const records = Array.isArray(pipeline.records) ? pipeline.records : [];
-  /**
-   * G-97. ONE severity rendering across the product.
-   *
-   * G-97 R3 read the resolved flag the record contract has carried since G-77
-   * and rendered a resolved status quiet, which is the visual law's inverted
-   * applicability - a pass is quiet, and eight coloured pills for the rows that
-   * need nobody are the loudest thing on a page. It named the consequence in its
-   * own close: Development services still rendered ready-to-issue through p-ok,
-   * so one severity vocabulary had two renderings across two lenses. That is
-   * settled here by adopting the incumbent rather than left as a divergence for
-   * somebody to find. The pipeline carries its tiles at the top level, so the
-   * shared resolver is called with the shape it reads.
-   */
   const statusLabels = statusLabelsFor({ extras: { metrics: pipeline.metrics } });
+
+  setTabCount("tabcount-pipeline", records.length || null);
+  setAttnTile("attn-pipeline-active-v", "Not read", true);
+  setAttnTile("attn-pipeline-expiring-v", "Not read", true);
 
   if (records.length === 0) {
     show(empty, true);
     show(wrap, false);
+    show(filterbar, false);
     if (rows) rows.replaceChildren();
     show(mark, false);
     show(prov, false);
     if (caption) caption.textContent = "Cases in flight";
+    renderPager("ds-pipeline", 0, 1, 0);
     return;
   }
 
-  /** Same fix as renderRegion: "Demo records" is a false claim on a real pipeline. */
   const isReal = Array.isArray(pipeline.realStatusCounts);
   show(empty, false);
   show(wrap, true);
   show(mark, !isReal);
   show(prov, !isReal);
+  show(filterbar, true);
   if (caption) caption.textContent = `${records.length} cases in flight`;
   if (basis) basis.textContent = `Basis: ${pipeline.basis}`;
-  if (!rows) return;
-  rows.replaceChildren(
-    ...records.map((record) => {
-      const row = document.createElement("tr");
-      row.append(
-        td(record.recordId, "id"),
-        td(record.subject, "subj"),
-        td(STAGE_LABELS[record.stage] || record.stage),
-        td(record.place && record.place.label ? record.place.label : ""),
-        dueCell(record),
-        statusCell(record, statusLabels),
-        /**
-         * Real-feed-only columns (applicant/contractor/owner/fees) --
-         * mapRealPermitRecord is the only source that populates these; a
-         * generated fixture case simply has none, so td()/feesLabel()
-         * render blank rather than "undefined".
-         */
-        td(record.applicant, "t-data"),
-        td(record.contractor, "t-data"),
-        td(record.ownerName, "t-data"),
-        td(feesLabel(record.fees), "t-data"),
-      );
-      return row;
-    }),
+
+  populateSelect(
+    "ds-pipeline-status",
+    distinctValues(records, "status").map((id) => ({
+      value: id,
+      label: (statusLabels[id] || { label: id }).label,
+    })),
   );
+  applyPendingDsFilter("ds-pipeline", "ds-pipeline-status");
+
+  dsLast["ds-pipeline"] = { records, statusLabels };
+  dsRerender["ds-pipeline"]();
 }
+
+function pipelineRow(record, statusLabels) {
+  const row = document.createElement("tr");
+  row.append(
+    td(record.recordId, "id"),
+    td(record.subject, "subj"),
+    td(record.place && record.place.label ? record.place.label : ""),
+    td(record.applicant, "t-data"),
+    statusCell(record, statusLabels),
+    td(record.submittedDate, "t-data"),
+  );
+  return row;
+}
+
+dsRerender["ds-pipeline"] = () => {
+  const cache = dsLast["ds-pipeline"];
+  if (!cache) return;
+  const { pageRows, total, page, pageCount } = dsFilterPage("ds-pipeline", cache.records, [
+    "recordId",
+    "subject",
+    "place.label",
+  ]);
+  const rowsEl = document.getElementById("ds-pipeline-rows");
+  if (rowsEl) fill(rowsEl, pageRows.map((r) => pipelineRow(r, cache.statusLabels)));
+  renderPager("ds-pipeline", page, pageCount, total);
+  setText("ds-pipeline-resultcount", `${total} results`);
+};
 
 async function loadPipeline(cityKey) {
   const key = String(cityKey || "").trim();
@@ -904,10 +1158,6 @@ async function loadPipeline(cityKey) {
   } catch {
     data = null;
   }
-  /**
-   * A failed read is not an empty city. It renders as a stated failure with its
-   * own basis rather than as a city that has no cases.
-   */
   if (!data) {
     renderPipeline({
       cityKey: key,
@@ -921,28 +1171,7 @@ async function loadPipeline(cityKey) {
   renderPipeline(data);
 }
 
-/* ---------------------------------------------- development services regions
-
-RULING 1 AT THE PIXEL, on the seam main already carries.
-
-This block originally shipped its own four-state map, its own region renderer
-and its own metric renderer. G-97 R3 merged first with an equivalent set, so
-this lane DELETED its copies rather than renaming around the collision: two
-implementations of one rule is the CTRL-1 shape and the two would have said
-different sentences for the same state on two lenses of one product
-(DEV_PROCESS 2.4). The incumbent on main wins and this lane adapts onto it, so
-REGION_KICKER, regionHead, unreadRegion, loadDomain, renderRegion,
-renderRegionMetrics, statusLabelsFor and fill above are the only implementation.
-
-What is genuinely this lens's own is below: the row for each record type, and
-the SECOND AXIS every Development services domain carries beside its queue -
-the paired result classes and the inspector load, the service level against the
-declared target and the daily slice, the escalation ladder in declared step
-order, the expiry bands. Each carries its own counting rule, and each states the
-absences the domain declared - the inspector held off an inspection, the
-assessed figure held off a case, the renewal charge held off a licence - in the
-domain's own words rather than in words written here.
-*/
+/* -------------------------------------------------- shared region helpers */
 
 function extrasOf(payload) {
   return payload && payload.extras && typeof payload.extras === "object" ? payload.extras : {};
@@ -980,26 +1209,6 @@ function placeCell(record) {
   return td(record.place && record.place.label ? record.place.label : "");
 }
 
-/**
- * A stage id rendered for reading. DERIVED from the declared id rather than
- * copied into a second vocabulary here: a display map for work-order stages
- * would be a copy of WORK_ORDER_STAGE_VALUES that nothing keeps in step.
- */
-function stageLabel(id) {
-  const value = String(id || "");
-  if (!value) return "";
-  const words = value.replace(/-/g, " ");
-  return words.charAt(0).toUpperCase() + words.slice(1);
-}
-
-/**
- * A register of a region's second axis.
- *
- * When the region has no source the register is EMPTIED and its basis line
- * carries the pack's own sentence. An empty container plus a stated basis is an
- * absence; an empty container alone is a blank, and a blank is what ruling 1
- * exists to stop.
- */
 function renderRegister(containerId, basisId, payload, buildRows, rule) {
   const container = document.getElementById(containerId);
   const basis = document.getElementById(basisId);
@@ -1032,7 +1241,6 @@ function renderRegister(containerId, basisId, payload, buildRows, rule) {
   if (basis) basis.textContent = `Basis: ${ok ? rule(payload) : payload.basis}`;
 }
 
-/** A key-value block for a region's summary figures. Same absence discipline. */
 function renderKeyValues(containerId, basisId, payload, buildPairs, rule) {
   const container = document.getElementById(containerId);
   const basis = document.getElementById(basisId);
@@ -1051,7 +1259,6 @@ function renderKeyValues(containerId, basisId, payload, buildPairs, rule) {
   if (basis) basis.textContent = `Basis: ${ok ? rule(payload) : payload.basis}`;
 }
 
-/** The first declared value of a field across a region's rows, or "". */
 function firstOf(list, field) {
   const rows = Array.isArray(list) ? list : [];
   for (const row of rows) if (row && row[field]) return row[field];
@@ -1070,25 +1277,65 @@ function inspectionRow(record, payload) {
   row.append(
     td(record.recordId, "id"),
     td(record.inspectionType, "subj"),
-    pillCell(result.label, result.severity),
     placeCell(record),
-    /**
-     * An unscheduled inspection carries no day, so the cell carries the
-     * record's own scheduleBasis rather than a blank or an invented date.
-     */
+    /** Inspector, replacing the old free-text Comments column -- G-123 PII
+     *  finding: a real inspection's row.comments carries citizen names and
+     *  phone numbers verbatim and must never render in a list. inspectorRef
+     *  is the opaque fixture reference; a real feed's own inspector name (a
+     *  staff identifier, not citizen PII) renders when present. */
+    td(record.inspector || record.inspectorRef, "t-data"),
+    pillCell(result.label, result.severity),
     record.dayLabel ? dataCell(record.dayLabel) : basisCell(record.scheduleBasis || ""),
-    statusCell(record, statusLabelsFor(payload)),
-    /** Real-feed-only column -- see mapRealInspectionRecord. */
-    td(record.comments, "t-data"),
   );
   return row;
 }
 
+function inspectionDerivedMetrics(records) {
+  const completed = records.filter((r) => r.status === "completed" || r.result !== "not-inspected");
+  const decided = completed.filter((r) => r.result === "passed" || r.result === "failed" || r.result === "corrections");
+  const passed = decided.filter((r) => r.result === "passed");
+  const passRate = decided.length > 0 ? `${Math.round((passed.length / decided.length) * 100)}%` : null;
+  const withDay = completed.filter((r) => typeof r.dayOffset === "number");
+  const avgDays =
+    withDay.length > 0
+      ? (withDay.reduce((sum, r) => sum + Math.abs(r.dayOffset), 0) / withDay.length).toFixed(1)
+      : null;
+  return { passRate, avgDays };
+}
+
 function renderInspections(payload) {
   const ok = renderRegion("ds-insp", payload);
-  renderRegionMetrics(document.getElementById("ds-insp-metrics"), payload);
+  renderMetricBar(document.getElementById("ds-insp-metrics"), payload);
   const records = ok && Array.isArray(payload.records) ? payload.records : [];
-  fill(document.getElementById("ds-insp-rows"), records.map((r) => inspectionRow(r, payload)));
+  const { passRate, avgDays } = inspectionDerivedMetrics(records);
+  setAttnTile("ds-insp-passrate", passRate || "Not read", !passRate);
+  setAttnTile("ds-insp-avgdays", avgDays ? `${avgDays} days` : "Not read", !avgDays);
+  setTabCount("tabcount-inspections", ok ? records.length : null);
+
+  renderLoadStrip("ds-insp", payload, {
+    extrasKey: "inspectorLoad",
+    refField: "inspectorRef",
+    countField: "inspectionCount",
+    noun: "inspector",
+  });
+
+  show(document.getElementById("ds-insp-filterbar"), records.length > 0);
+  if (records.length > 0) {
+    const labels = statusLabelsFor(payload);
+    populateSelect(
+      "ds-insp-status",
+      distinctValues(records, "status").map((id) => ({ value: id, label: (labels[id] || { label: id }).label })),
+    );
+    populateSelect(
+      "ds-insp-type",
+      distinctValues(records, "inspectionType").map((v) => ({ value: v, label: v })),
+    );
+    applyPendingDsFilter("ds-insp", "ds-insp-status");
+  }
+
+  dsLast["ds-insp"] = { records, payload };
+  dsRerender["ds-insp"]();
+
   renderRegister(
     "ds-insp-results",
     "ds-insp-results-basis",
@@ -1102,62 +1349,77 @@ function renderInspections(payload) {
       })),
     (data) => firstOf(extrasOf(data).results, "countingRule") || data.basis,
   );
-  renderRegister(
-    "ds-insp-load",
-    "ds-insp-load-basis",
-    payload,
-    (data) =>
-      (extrasOf(data).inspectorLoad || []).map((load) => ({
-        title: load.inspectorRef,
-        sub: `${load.openCount} open`,
-        value: load.inspectionCount,
-        severity: "quiet",
-      })),
-    /** The inspector absence travels here, in the domain's own words. */
-    (data) =>
-      [
-        firstOf(extrasOf(data).inspectorLoad, "countingRule"),
-        firstOf(extrasOf(data).inspectorLoad, "inspectorBasis"),
-      ]
-        .filter(Boolean)
-        .join(" | ") || data.basis,
-  );
 }
+
+dsRerender["ds-insp"] = () => {
+  const cache = dsLast["ds-insp"];
+  if (!cache) return;
+  const sortSelect = document.getElementById("ds-insp-sort");
+  let records = cache.records;
+  if (sortSelect?.value === "scheduled") {
+    records = [...records].sort((a, b) => (a.dayOffset ?? 999) - (b.dayOffset ?? 999));
+  } else if (sortSelect?.value === "type") {
+    records = [...records].sort((a, b) => (a.inspectionType || "").localeCompare(b.inspectionType || ""));
+  }
+  const { pageRows, total, page, pageCount } = dsFilterPage("ds-insp", records, [
+    "recordId",
+    "inspectionType",
+    "place.label",
+  ]);
+  const rowsEl = document.getElementById("ds-insp-rows");
+  if (rowsEl) fill(rowsEl, pageRows.map((r) => inspectionRow(r, cache.payload)));
+  renderPager("ds-insp", page, pageCount, total);
+  setText("ds-insp-resultcount", `${total} results`);
+};
 
 /* --------------------------------------------------------- work orders */
 
-function workOrderRow(record, payload) {
+function workOrderRow(record) {
   const row = document.createElement("tr");
   row.append(
     td(record.recordId, "id"),
     td(record.subject, "subj"),
-    td(stageLabel(record.stage)),
     placeCell(record),
-    dueCell(record),
-    /**
-     * The target travels with the elapsed figure, so the number is readable.
-     * A real work order carries no fixture SLA clock -- blank, not a string
-     * built from two missing numbers ("undefined h of undefined h").
-     */
-    dataCell(
-      record.slaElapsedHours != null && record.slaTargetHours != null
-        ? `${record.slaElapsedHours} h of ${record.slaTargetHours} h`
-        : "",
-    ),
-    statusCell(record, statusLabelsFor(payload)),
-    /** Real-feed-only columns -- see mapRealWorkOrderRecord. */
-    td(record.assignedTo, "t-data"),
-    td(record.contractor, "t-data"),
-    td(feesLabel(record.fees), "t-data"),
+    /** Real-feed-only column -- see mapRealWorkOrderRecord. */
+    td(record.department, "t-data"),
+    dataCell((WORK_ORDER_STATUS_LABELS[record.status] || { label: record.status }).label || record.status),
+    dataCell(record.dueLabel || ""),
   );
   return row;
 }
 
 function renderWorkOrders(payload) {
   const ok = renderRegion("ds-wo", payload);
-  renderRegionMetrics(document.getElementById("ds-wo-metrics"), payload);
+  renderMetricBar(document.getElementById("ds-wo-metrics"), payload);
   const records = ok && Array.isArray(payload.records) ? payload.records : [];
-  fill(document.getElementById("ds-wo-rows"), records.map((r) => workOrderRow(r, payload)));
+  setTabCount("tabcount-work-orders", ok ? records.length : null);
+  renderWorkOrderAttnTiles(payload);
+  setAttnTile("attn-wo-active-v", "Not read", true);
+
+  renderLoadStrip("ds-wo", payload, {
+    extrasKey: "managerLoad",
+    refField: "managerRef",
+    countField: "workOrderCount",
+    noun: "manager",
+  });
+
+  show(document.getElementById("ds-wo-filterbar"), records.length > 0);
+  if (records.length > 0) {
+    const labels = statusLabelsFor(payload);
+    populateSelect(
+      "ds-wo-status",
+      distinctValues(records, "status").map((id) => ({ value: id, label: (labels[id] || { label: id }).label })),
+    );
+    populateSelect(
+      "ds-wo-manager",
+      distinctValues(records, "managerRef").map((v) => ({ value: v, label: v })),
+    );
+    applyPendingDsFilter("ds-wo", "ds-wo-status");
+  }
+
+  dsLast["ds-wo"] = { records, payload };
+  dsRerender["ds-wo"]();
+
   renderKeyValues(
     "ds-wo-sla",
     "ds-wo-sla-basis",
@@ -1189,6 +1451,34 @@ function renderWorkOrders(payload) {
   );
 }
 
+dsRerender["ds-wo"] = () => {
+  const cache = dsLast["ds-wo"];
+  if (!cache) return;
+  const { pageRows, total, page, pageCount } = dsFilterPage("ds-wo", cache.records, [
+    "recordId",
+    "subject",
+    "place.label",
+  ]);
+  const rowsEl = document.getElementById("ds-wo-rows");
+  if (rowsEl) fill(rowsEl, pageRows.map((r) => workOrderRow(r)));
+  renderPager("ds-wo", page, pageCount, total);
+  setText("ds-wo-resultcount", `${total} results`);
+};
+
+function wireWorkOrderViewModes() {
+  const seg = document.getElementById("ds-wo-viewmode");
+  if (!seg) return;
+  seg.addEventListener("click", (event) => {
+    const btn = event.target.closest("button[data-view]");
+    if (!btn) return;
+    for (const b of seg.querySelectorAll("button")) b.setAttribute("aria-selected", String(b === btn));
+    const view = btn.dataset.view;
+    show(document.getElementById("ds-wo-view-list"), view === "list");
+    show(document.getElementById("ds-wo-view-map"), view === "map");
+    show(document.getElementById("ds-wo-view-performance"), view === "performance");
+  });
+}
+
 /* ---------------------------------------------------- code enforcement */
 
 function codeViolationRow(record, payload) {
@@ -1197,117 +1487,214 @@ function codeViolationRow(record, payload) {
   for (const rung of extrasOf(payload).escalation || []) {
     rungs[rung.id] = { label: rung.label, severity: rung.severity };
   }
-  const rung = rungs[record.escalation] || { label: record.escalation, severity: "quiet" };
   row.append(
     td(record.recordId, "id"),
     td(record.violationType, "subj"),
-    pillCell(rung.label, rung.severity),
-    dataCell(String(record.escalationStep)),
     placeCell(record),
-    dueCell(record),
     statusCell(record, statusLabelsFor(payload)),
+    dataCell(String(record.escalationStep)),
     /** Real-feed-only column -- see mapRealCodeViolationRecord. */
-    td(record.resolvedDate, "t-data"),
+    td(record.assignedOfficer || record.officerRef, "t-data"),
+    /** Real-feed-only column -- see mapRealCodeViolationRecord. */
+    td(record.reportedDate, "t-data"),
   );
   return row;
 }
 
 function renderCodeEnforcement(payload) {
   const ok = renderRegion("ds-ce", payload);
-  renderRegionMetrics(document.getElementById("ds-ce-metrics"), payload);
+  renderMetricBar(document.getElementById("ds-ce-metrics"), payload);
   const records = ok && Array.isArray(payload.records) ? payload.records : [];
-  fill(document.getElementById("ds-ce-rows"), records.map((r) => codeViolationRow(r, payload)));
-  renderRegister(
-    "ds-ce-ladder",
-    "ds-ce-ladder-basis",
-    payload,
-    (data) =>
-      (extrasOf(data).escalation || []).map((rung) => ({
-        title: rung.label,
-        /** The step is DATA on the rung, so the order is visible rather than
-         *  implied by the position of the row. */
-        sub: `Step ${rung.step}`,
-        value: rung.count,
-        severity: rung.severity,
-      })),
-    (data) => firstOf(extrasOf(data).escalation, "countingRule") || data.basis,
-  );
-  renderKeyValues(
-    "ds-ce-stats",
-    "ds-ce-stats-basis",
-    payload,
-    (data) => {
-      const figures = extrasOf(data).stats || {};
-      return [
-        ["Open", figures.open],
-        ["Closed", figures.closed],
-        ["Measured", figures.measured],
-        /** The assessed figure this product has not read, stated rather than blank. */
-        ["Penalty", figures.penaltyBasis],
-      ];
-    },
-    (data) => (extrasOf(data).stats || {}).countingRule || data.basis,
-  );
+  setTabCount("tabcount-code-enforcement", ok ? records.length : null);
+  setAttnTile("ds-ce-total", ok ? String(records.length) : "Not read", !ok);
+
+  renderLoadStrip("ds-ce", payload, {
+    extrasKey: "officerLoad",
+    refField: "officerRef",
+    countField: "caseCount",
+    noun: "officer",
+  });
+
+  show(document.getElementById("ds-ce-filterbar"), records.length > 0);
+  if (records.length > 0) {
+    const labels = statusLabelsFor(payload);
+    populateSelect(
+      "ds-ce-status",
+      distinctValues(records, "status").map((id) => ({ value: id, label: (labels[id] || { label: id }).label })),
+    );
+    populateSelect(
+      "ds-ce-type",
+      distinctValues(records, "violationType").map((v) => ({ value: v, label: v })),
+    );
+    populateSelect(
+      "ds-ce-officer",
+      distinctValues(records, "officerRef").map((v) => ({ value: v, label: v })),
+    );
+    applyPendingDsFilter("ds-ce", "ds-ce-status");
+  }
+
+  dsLast["ds-ce"] = { records, payload };
+  dsRerender["ds-ce"]();
 }
+
+dsRerender["ds-ce"] = () => {
+  const cache = dsLast["ds-ce"];
+  if (!cache) return;
+  const { pageRows, total, page, pageCount } = dsFilterPage("ds-ce", cache.records, [
+    "recordId",
+    "violationType",
+    "place.label",
+  ]);
+  const rowsEl = document.getElementById("ds-ce-rows");
+  if (rowsEl) fill(rowsEl, pageRows.map((r) => codeViolationRow(r, cache.payload)));
+  renderPager("ds-ce", page, pageCount, total);
+  setText("ds-ce-resultcount", `${total} results`);
+};
 
 /* ------------------------------------------------------------ licences */
 
-function licenceRow(record, payload) {
+function licenceRow(record) {
   const row = document.createElement("tr");
   row.append(
     td(record.recordId, "id"),
-    td(record.licenseCategory, "subj"),
-    dataCell(record.holderRef),
+    /** A generated record names no business (holderRef, opaque); a real
+     *  record's own subject (business name) is the licence holder's real,
+     *  self-declared identity on their own licence -- not citizen PII. */
+    dataCell(record.subject || record.holderRef),
+    td(record.type, "t-data"),
     placeCell(record),
-    dataCell(record.expiryLabel),
-    statusCell(record, statusLabelsFor(payload)),
     /** Real-feed-only column -- see mapRealBusinessLicenseRecord. */
-    td(record.licenseType, "t-data"),
+    td(record.issuedDate, "t-data"),
+    dataCell(record.expiryLabel || record.expirationDate || ""),
+    statusCell(record, LICENSE_STATUS_LABELS),
   );
   return row;
 }
 
-/** An expiry band's bounds, read off the payload. Null is open-ended. */
-function bandBounds(band) {
-  if (band.from === null || band.from === undefined) return `up to ${band.to} days`;
-  if (band.to === null || band.to === undefined) return `${band.from} days and beyond`;
-  return `${band.from} to ${band.to} days`;
-}
-
 function renderLicences(payload) {
   const ok = renderRegion("ds-lic", payload);
-  renderRegionMetrics(document.getElementById("ds-lic-metrics"), payload);
+  renderMetricBar(document.getElementById("ds-lic-metrics"), payload);
   const records = ok && Array.isArray(payload.records) ? payload.records : [];
-  fill(document.getElementById("ds-lic-rows"), records.map((r) => licenceRow(r, payload)));
-  renderRegister(
-    "ds-lic-expiry",
-    "ds-lic-expiry-basis",
-    payload,
-    (data) =>
-      (extrasOf(data).expiry || []).map((band) => ({
-        title: band.label,
-        sub: bandBounds(band),
-        value: band.count,
-        severity: band.severity,
+  /** licenseType (real feed) and licenseCategory (fixture) are the same
+   *  concept under two names; normalized once here so every downstream
+   *  read -- the column, the filter, the distinct-types count -- uses one
+   *  field rather than repeating the `||` fallback at each call site. */
+  for (const record of records) record.type = record.licenseType || record.licenseCategory;
+  setTabCount("tabcount-licenses", ok ? records.length : null);
+  setAttnTile("ds-lic-total", ok ? String(records.length) : "Not read", !ok);
+  const expiringSoon = records.filter((r) => r.status === "expiring").length;
+  setAttnTile("ds-lic-expiringsoon", ok ? String(expiringSoon) : "Not read", !ok);
+  const types = distinctValues(records, "type");
+  setAttnTile("ds-lic-types", ok ? String(types.length) : "Not read", !ok);
+
+  show(document.getElementById("ds-lic-filterbar"), records.length > 0);
+  if (records.length > 0) {
+    populateSelect(
+      "ds-lic-status",
+      distinctValues(records, "status").map((id) => ({
+        value: id,
+        label: (LICENSE_STATUS_LABELS[id] || { label: id }).label,
       })),
-    /** The holder and the renewal charge this product has not read, both in the
-     *  domain's own words, joined rather than rewritten. */
-    (data) =>
-      [
-        firstOf(extrasOf(data).expiry, "countingRule"),
-        extrasOf(data).chargesBasis,
-        firstOf(data.records, "holderBasis"),
-      ]
-        .filter(Boolean)
-        .join(" | ") || data.basis,
+    );
+    populateSelect("ds-lic-type", types.map((v) => ({ value: v, label: v })));
+    applyPendingDsFilter("ds-lic", "ds-lic-status");
+  }
+
+  dsLast["ds-lic"] = { records };
+  dsRerender["ds-lic"]();
+
+  const chargesBasis = extrasOf(payload).chargesBasis;
+  const holderBasis = firstOf(payload.records, "holderBasis");
+  setText(
+    "ds-lic-recordsbasis",
+    `Basis: ${[payload.basis, chargesBasis, holderBasis].filter(Boolean).join(" | ")}`,
   );
 }
 
+dsRerender["ds-lic"] = () => {
+  const cache = dsLast["ds-lic"];
+  if (!cache) return;
+  const { pageRows, total, page, pageCount } = dsFilterPage("ds-lic", cache.records, [
+    "recordId",
+    "subject",
+    "holderRef",
+    "place.label",
+  ]);
+  const rowsEl = document.getElementById("ds-lic-rows");
+  if (rowsEl) fill(rowsEl, pageRows.map((r) => licenceRow(r)));
+  renderPager("ds-lic", page, pageCount, total);
+  setText("ds-lic-resultcount", `${total} results`);
+};
+
+/* ----------------------------------------------------------- DS controls */
+
+const WORK_ORDER_STATUS_LABELS = Object.fromEntries(
+  [
+    { id: "past-sla", label: "Past SLA" },
+    { id: "at-risk", label: "At risk" },
+    { id: "scheduled", label: "Scheduled" },
+    { id: "closed", label: "Closed" },
+  ].map((v) => [v.id, v]),
+);
+
+const LICENSE_STATUS_LABELS = Object.fromEntries(
+  [
+    { id: "expired", label: "Expired", severity: "crit" },
+    { id: "expiring", label: "Expiring", severity: "warn" },
+    { id: "renewal-submitted", label: "Renewal submitted", severity: "info" },
+    { id: "active", label: "Active", severity: "ok" },
+  ].map((v) => [v.id, v]),
+);
+
+/** Wires every static DS control once, at page init. */
+function wireDsControls() {
+  wireDsFilterBar("ds-pipeline");
+
+  wireDsFilterBar("ds-insp", {
+    onReset: () => {
+      const type = document.getElementById("ds-insp-type");
+      if (type) type.value = "";
+      const sort = document.getElementById("ds-insp-sort");
+      if (sort) sort.value = "default";
+    },
+  });
+  wireDsExtraSelect("ds-insp-type", "ds-insp", "inspectionType");
+  wireDsExtraTrigger("ds-insp-sort", "ds-insp");
+
+  wireDsFilterBar("ds-wo", {
+    onReset: () => {
+      const manager = document.getElementById("ds-wo-manager");
+      if (manager) manager.value = "";
+    },
+  });
+  wireDsExtraSelect("ds-wo-manager", "ds-wo", "managerRef");
+
+  wireDsFilterBar("ds-ce", {
+    onReset: () => {
+      const type = document.getElementById("ds-ce-type");
+      if (type) type.value = "";
+      const officer = document.getElementById("ds-ce-officer");
+      if (officer) officer.value = "";
+    },
+  });
+  wireDsExtraSelect("ds-ce-type", "ds-ce", "violationType");
+  wireDsExtraSelect("ds-ce-officer", "ds-ce", "officerRef");
+
+  wireDsFilterBar("ds-lic", {
+    onReset: () => {
+      const type = document.getElementById("ds-lic-type");
+      if (type) type.value = "";
+    },
+  });
+  wireDsExtraSelect("ds-lic-type", "ds-lic", "type");
+
+  wireWorkOrderViewModes();
+}
+
 /**
- * The lens. Four regions off the route the product already serves, in parallel.
- * A read that did not answer becomes did-not-read WITH a basis rather than an
- * empty city, which is the same determination every other region on this
- * product makes.
+ * The lens. Four regions off the route the product already serves, in
+ * parallel, plus the fifth (pipeline) loaded separately since it long
+ * predates this batch and keeps its own route.
  */
 async function loadDevelopmentServices(cityKey) {
   const [inspections, workOrders, codeViolations, licences] = await Promise.all([
@@ -2639,6 +3026,7 @@ bindFeedback();
 loadShellState(staffMap.cityKey);
 loadIdentity(staffMap.cityKey);
 composeGoldMap(staffMap.parcelNodeId, staffMap.cityKey);
+wireDsControls();
 loadPipeline(staffMap.cityKey);
 loadDevelopmentServices(staffMap.cityKey);
 loadFleetLens(staffMap.cityKey);

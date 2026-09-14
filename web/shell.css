@@ -406,6 +406,126 @@ a.metric:hover { border-color: var(--sc-line-strong); }
 .deptcard .nm b { font: 600 14px/20px var(--sc-font-ui); color: var(--sc-ink); }
 .deptcard .nm .basis { margin-top: 0; }
 
+/* ---------- attention row (tier 1: filtered entry points, primary) ---------- */
+/* Reuses .metrics/.metric's card look at six columns instead of four. G-123:
+   acceptance is the click, not the number, so every tile is a real link --
+   the SAME a.metric anchor-is-the-card shape G-120 already established and
+   hardened on Overview (a.metric { text-decoration: none } above), after its
+   own first draft (a full-bleed overlay anchor) failed CI's a11y gate on
+   color-contrast (bgOverlap: a positioned box paints over in-flow text
+   regardless of DOM order, so axe cannot resolve a background for it). No
+   second link-styling rule is added here; the tile is the anchor itself. */
+.metrics.attn { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+
+/* ---------- tab strip inline counts (tier 2) ---------- */
+.tabs .n {
+  font: 400 12px/16px var(--sc-font-data);
+  font-variant-numeric: tabular-nums;
+  color: var(--sc-ink-3);
+}
+
+/* ---------- tab metric strip (tier 3: compact, secondary, no cards) ---------- */
+.metricbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  border: 1px solid var(--sc-line-faint);
+  border-radius: var(--sc-r);
+  background: var(--sc-surface-2);
+  padding: var(--sc-1) 0;
+  flex: none;
+}
+.metricbar-item {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  padding: 6px var(--sc-4);
+  border-left: 1px solid var(--sc-line-faint);
+}
+.metricbar-item:first-child { border-left: 0; }
+.metricbar-item .v {
+  font: 400 17px/22px var(--sc-font-data);
+  font-variant-numeric: tabular-nums;
+  color: var(--sc-ink);
+}
+.metricbar-item .v.word { font: 620 13px/22px var(--sc-font-ui); color: var(--sc-ink-3); }
+.metricbar-item .k { font: 400 12px/16px var(--sc-font-ui); color: var(--sc-ink-3); }
+
+/* ---------- ONE load component (inspector / manager / officer load) ---------- */
+.loadstrip-head { display: flex; align-items: center; gap: var(--sc-2); padding: var(--sc-2) var(--sc-3); }
+.loadstrip-head .t { font: 600 13px/18px var(--sc-font-ui); color: var(--sc-ink); }
+.loadstrip-head .n { font: 400 12px/16px var(--sc-font-data); color: var(--sc-ink-3); }
+.loadstrip-body { display: flex; gap: var(--sc-2); padding: 0 var(--sc-3) var(--sc-3); flex-wrap: wrap; }
+.loadcard {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 120px;
+  padding: var(--sc-2) var(--sc-3);
+  border: 1px solid var(--sc-line-faint);
+  border-radius: var(--sc-r-control);
+  background: var(--sc-surface-2);
+}
+.loadcard .who { font: 600 13px/18px var(--sc-font-ui); color: var(--sc-ink); }
+.loadcard .row { display: flex; align-items: center; gap: 6px; }
+.loadcard .n { font: 400 13px/18px var(--sc-font-data); font-variant-numeric: tabular-nums; color: var(--sc-ink-2); }
+.loadcard .bar { flex: 1; height: 3px; border-radius: 2px; background: var(--sc-line); }
+.loadcard .bar > i { display: block; height: 3px; border-radius: 2px; background: var(--sc-accent); }
+.loadcard .bar > i.hot { background: var(--sc-crit); }
+
+/* ---------- view mode segmented control (List / Map / Performance) ---------- */
+.seg { display: flex; gap: 2px; padding: 2px; background: var(--sc-surface-2); border: 1px solid var(--sc-line); border-radius: var(--sc-r-control); flex: none; }
+.seg button {
+  appearance: none;
+  border: 0;
+  cursor: pointer;
+  font: 500 12px/16px var(--sc-font-ui);
+  padding: 3px 10px;
+  border-radius: 3px;
+  color: var(--sc-ink-3);
+  background: transparent;
+}
+.seg button[aria-selected="true"] { color: var(--sc-ink); background: var(--sc-surface); }
+
+/* ---------- filter bar ---------- */
+.filterbar { display: flex; align-items: center; gap: var(--sc-2); flex-wrap: wrap; padding: var(--sc-2) var(--sc-3); border-bottom: 1px solid var(--sc-line-faint); flex: none; }
+.filterbar input[type="search"] {
+  flex: 1;
+  min-width: 200px;
+  height: 28px;
+  border: 1px solid var(--sc-line);
+  border-radius: var(--sc-r-control);
+  background: var(--sc-surface-2);
+  padding: 0 var(--sc-3);
+  font: 400 13px/18px var(--sc-font-ui);
+  color: var(--sc-ink);
+}
+.filterbar select {
+  height: 28px;
+  border: 1px solid var(--sc-line);
+  border-radius: var(--sc-r-control);
+  background: var(--sc-surface);
+  padding: 0 var(--sc-2);
+  font: 400 13px/18px var(--sc-font-ui);
+  color: var(--sc-ink-2);
+}
+.filterbar .n { font: 400 12px/16px var(--sc-font-data); color: var(--sc-ink-3); }
+.filterbar .reset { font: 400 12px/16px var(--sc-font-ui); color: var(--sc-accent); background: none; border: 0; cursor: pointer; padding: 0; }
+
+/* ---------- pagination, at the foot of every table ---------- */
+.pager { display: flex; align-items: center; padding: var(--sc-2) var(--sc-4); border-top: 1px solid var(--sc-line-faint); flex: none; }
+.pager button {
+  appearance: none;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  font: 400 12px/16px var(--sc-font-ui);
+  color: var(--sc-accent);
+  padding: 0;
+}
+.pager button:disabled { color: var(--sc-ink-3); cursor: default; }
+.pager .pos { flex: 1; text-align: center; font: 400 12px/16px var(--sc-font-data); color: var(--sc-ink-3); }
+
 /* ---------- region and mount anchor ---------- */
 
 .region {
@@ -827,7 +947,9 @@ html[data-tab="place"] #tab-place,
 html[data-tab="inspections"] #tab-inspections,
 html[data-tab="work-orders"] #tab-work-orders,
 html[data-tab="code-enforcement"] #tab-code-enforcement,
-html[data-tab="licenses"] #tab-licenses {
+html[data-tab="licenses"] #tab-licenses,
+html[data-tab="plan-review"] #tab-plan-review,
+html[data-tab="flood-study"] #tab-flood-study {
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -1242,6 +1364,7 @@ html[data-atab="fixture"] #atab-fixture {
      ellipsised every key to four characters; two columns keep the label. */
   .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .deptgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .metrics.attn { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
 @media (max-width: 900px) {
@@ -1265,6 +1388,8 @@ html[data-atab="fixture"] #atab-fixture {
   .colstack.rail > .region { min-height: 320px; }
   .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .deptgrid { grid-template-columns: minmax(0, 1fr); }
+  .metrics.attn { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .filterbar input[type="search"] { min-width: 100%; }
   .cp-sheet { width: 100vw; }
   .shell-top .searchwrap { display: none; }
   /* The top bar gained three controls at G-90. On a phone the theme toggle

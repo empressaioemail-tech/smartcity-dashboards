@@ -47,6 +47,13 @@ export const ALL_LENS_IDS = [...LEAD_LENS_IDS, ...ROSTER_LENS_IDS];
  * one of the five Development services domains in DOMAIN_REGISTRY and the live
  * dashboard reads it across work-orders/{daily-queue,geo-clusters,sla,stats}.
  *
+ * `plan-review` and `flood-study` JOINED at G-123, named in the strip only.
+ * Plan review is a separate scope (operator ruling 2026-09-14) already served
+ * at Work -> Plan review (`#anchor-work-review`); this tab is NOT a second
+ * door onto those same records; it renders the honest not-built state and
+ * points there. Flood study (G-125) is named, not yet scoped. Neither carries
+ * a DOMAIN_REGISTRY entry, matching Place.
+ *
  * The inline head script in web/index.html carries a SECOND COPY of this list,
  * because a script that imports is a module and a module is deferred, which is
  * the G-89 defect. src/first-paint.test.mjs is the divergence test that holds
@@ -59,6 +66,8 @@ export const DS_TABS = [
   "work-orders",
   "code-enforcement",
   "licenses",
+  "plan-review",
+  "flood-study",
 ];
 
 export const ASSET_TABS = ["inventory", "map", "fixture"];
@@ -186,6 +195,8 @@ export const TAB_LABELS = {
   "work-orders": "Work orders",
   "code-enforcement": "Code enforcement",
   licenses: "Licenses",
+  "plan-review": "Plan review",
+  "flood-study": "Flood study",
 };
 
 export const WORK_LABELS = {

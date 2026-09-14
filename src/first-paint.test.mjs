@@ -1017,8 +1017,9 @@ describe("G-89 first paint", () => {
 
   it("keeps the tab panels on the same rule, so the right lens does not swap tables", () => {
     // Same defect one altitude down: #tab-pipeline and #atab-inventory carry
-    // class="on" in the static markup.
-    assert.equal(panels(HTML, "ds-tab").length, 6);
+    // class="on" in the static markup. Eight rather than six since G-123
+    // joined plan-review and flood-study to DS_TABS, named-in-the-strip only.
+    assert.equal(panels(HTML, "ds-tab").length, 8);
     assert.equal(panels(HTML, "assets-tab").length, 3);
     assert.deepEqual(
       firstPaintVisible({ html: HTML, css: CSS, search: "?lens=development-services&tab=work-orders", panelClass: "ds-tab" }),
@@ -1232,7 +1233,7 @@ describe("G-89 first paint", () => {
 
     assert.deepEqual(sorted(enumeratedShowIds(CSS, "data-tab", "tab-")), sorted(DS_TABS.map((t) => `tab-${t}`)));
     assert.deepEqual(sorted(panels(HTML, "ds-tab").map((p) => p.id)), sorted(DS_TABS.map((t) => `tab-${t}`)));
-    assert.equal(enumeratedShowIds(CSS, "data-tab", "tab-").length, 6);
+    assert.equal(enumeratedShowIds(CSS, "data-tab", "tab-").length, 8);
 
     assert.deepEqual(sorted(enumeratedShowIds(CSS, "data-atab", "atab-")), sorted(ASSET_TABS.map((a) => `atab-${a}`)));
     assert.deepEqual(sorted(panels(HTML, "assets-tab").map((p) => p.id)), sorted(ASSET_TABS.map((a) => `atab-${a}`)));

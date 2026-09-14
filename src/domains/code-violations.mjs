@@ -107,6 +107,18 @@ export function assertEscalationBand(status, escalation) {
 
 export const CODE_CASE_ID_FORMAT = /^FIX-CE-\d{4}$/;
 export const DUE_LABEL_FORMAT = /^(due today|due in \d+ days?|\d+ days? past due)$/;
+export const OFFICER_REF_FORMAT = /^OFF-\d{2}$/;
+
+/** How many opaque officers the load strip groups across. G-123: code
+ *  enforcement had no load dimension at all; inspections' inspectorLoad is
+ *  the template this reuses rather than a second design. */
+export const OFFICER_COUNT = 4;
+
+export const OFFICER_BASIS =
+  "a generated record names no person; the officer is an opaque reference and a granted feed is where a name would come from";
+
+export const OFFICER_LOAD_COUNTING_RULE =
+  "cases whose officerRef equals this officer, over the generated mygov code-violation records on this pack, one row per record";
 
 export const CODE_BASIS = fixtureBasisFor("mygov");
 
@@ -177,6 +189,8 @@ export function generateCodeViolationRecords({
         dueOffsetDays,
         dueLabel: dueLabelFor(dueOffsetDays),
         penaltyBasis: PENALTY_BASIS,
+        officerRef: `OFF-${String(1 + ((seq - 1) % OFFICER_COUNT)).padStart(2, "0")}`,
+        officerBasis: OFFICER_BASIS,
         provenance: {
           source: "MyGov output contract",
           basis: CODE_BASIS,
@@ -248,6 +262,24 @@ export function codeViolationStats(records) {
   };
 }
 
+/**
+ * The officer load strip, counted off the records and naming nobody. Same
+ * shape and same discipline as inspections' inspectorLoad: open is measured
+ * against the declared resolved flag, never the literal status string.
+ */
+export function officerLoad(records) {
+  const list = Array.isArray(records) ? records : [];
+  const openIds = CODE_CASE_STATUS_VALUES.filter((s) => !s.resolved).map((s) => s.id);
+  const refs = [...new Set(list.map((r) => r.officerRef))].sort();
+  return refs.map((officerRef) => ({
+    officerRef,
+    officerBasis: OFFICER_BASIS,
+    caseCount: list.filter((r) => r.officerRef === officerRef).length,
+    openCount: list.filter((r) => r.officerRef === officerRef && openIds.includes(r.status)).length,
+    countingRule: OFFICER_LOAD_COUNTING_RULE,
+  }));
+}
+
 export const CODE_VIOLATIONS_DOMAIN = defineDomain({
   id: "code-violations",
   lensId: "development-services",
@@ -261,8 +293,9 @@ export const CODE_VIOLATIONS_DOMAIN = defineDomain({
     ...CODE_CASE_STATUS_VALUES.map((s) => s.id),
     ...CODE_ESCALATION_VALUES.map((e) => e.id),
     PENALTY_BASIS,
+    OFFICER_BASIS,
   ],
-  formats: [CODE_CASE_ID_FORMAT, PLACE_LABEL_FORMAT, DUE_LABEL_FORMAT],
+  formats: [CODE_CASE_ID_FORMAT, PLACE_LABEL_FORMAT, DUE_LABEL_FORMAT, OFFICER_REF_FORMAT],
   generate(pack, seedFor) {
     const records = generateCodeViolationRecords({
       cityKey: pack.cityKey,
@@ -275,6 +308,7 @@ export const CODE_VIOLATIONS_DOMAIN = defineDomain({
         metrics: codeViolationMetrics(records),
         escalation: escalationLadder(records),
         stats: codeViolationStats(records),
+        officerLoad: officerLoad(records),
       },
     };
   },

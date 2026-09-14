@@ -65,13 +65,19 @@ const PREFIX = {
   "business-licenses": "ds-lic",
 };
 
-/** The metric strip id per domain, and the declared status vocabulary it renders. */
+/**
+ * The metric strip id per domain, and the declared status vocabulary it
+ * renders. business-licenses is EXCLUDED: this lane's approved per-tab spec
+ * gives it a wholly derived strip (total licences, expiring soon, licence
+ * types) rather than the four LICENSE_STATUS_VALUES tiles every other strip
+ * still carries -- checked separately below rather than forced into this
+ * shape.
+ */
 const STRIPS = {
   "permits-pipeline": { strip: "ds-metrics", values: CASE_STATUS_VALUES },
   inspections: { strip: "ds-insp-metrics", values: INSPECTION_STATUS_VALUES },
   "work-orders": { strip: "ds-wo-metrics", values: WORK_ORDER_STATUS_VALUES },
   "code-violations": { strip: "ds-ce-metrics", values: CODE_CASE_STATUS_VALUES },
-  "business-licenses": { strip: "ds-lic-metrics", values: LICENSE_STATUS_VALUES },
 };
 
 /**
@@ -323,10 +329,23 @@ describe("G-97 the four source states are four sentences", () => {
     // The pipeline reads it too, off the sourceStatus the compose already carried.
     assert.match(app, /const status = String\(pipeline\.sourceStatus \|\| "did-not-read"\)/);
     assert.match(app, /regionHead\(status, "Pipeline", pipeline\.cityKey\)/);
-    // And the four new regions render through the shared renderer, not a copy.
+    // And the four new regions render through the shared four-state renderer.
     for (const prefix of ["ds-insp", "ds-wo", "ds-ce", "ds-lic"]) {
       assert.match(app, new RegExp(`renderRegion\\("${prefix}", payload\\)`), prefix);
-      assert.match(app, new RegExp(`renderRegionMetrics\\(document\\.getElementById\\("${prefix}-metrics"\\), payload\\)`), prefix);
+    }
+    /**
+     * G-123: the metric STRIP is a second, deliberate divergence, not a
+     * CTRL-1 copy of the same rule. Development services moved its tab
+     * metric strip to the new compact tier-3 pattern (renderMetricBar,
+     * .metricbar-item) this lane's dispatch mandates; every other lens
+     * (Fleet, CIP, police cameras, patrol vehicles, fire apparatus) kept
+     * the older card pattern (renderRegionMetrics, .metric) untouched. Two
+     * renderers exist because they now render two different shapes, not
+     * because one rule was implemented twice.
+     */
+    assert.equal((app.match(/function renderMetricBar\(strip, payload\) \{/g) || []).length, 1);
+    for (const prefix of ["ds-metrics", "ds-insp-metrics", "ds-wo-metrics", "ds-ce-metrics", "ds-lic-metrics"]) {
+      assert.match(app, new RegExp(`renderMetricBar\\(document\\.getElementById\\("${prefix}"\\)`), prefix);
     }
   });
 
@@ -406,39 +425,54 @@ describe("G-97 the metric strips agree with the declared vocabulary", () => {
      * declaration. Counting rule: the .k text of every .metric inside the
      * strip, in document order, against the declared values in the same order.
      */
+    /**
+     * G-123: the strip now carries the declared vocabulary PLUS, on three of
+     * the five tabs, additional derived tiles the mission's per-tab metric
+     * spec asks for (pass rate, avg days, total, expiring soon, licence
+     * types) that no adapter contract declares at all -- there is no vendor
+     * enum for "average days to complete". So this checks that every
+     * DECLARED value is present with its declared label, tolerating (not
+     * requiring) extra tiles beyond it, rather than an exact set match.
+     */
     for (const [domainId, { strip, values }] of Object.entries(STRIPS)) {
       const block = ds.match(new RegExp(`id="${strip}"[\\s\\S]*?\\n\\s*</div>`))?.[0] || "";
       assert.ok(block, `${domainId} strip ${strip} not found`);
-      const tiles = [...block.matchAll(/data-metric="([^"]+)"><span class="k">([^<]*)</g)];
-      assert.deepEqual(
-        tiles.map((m) => m[1]),
-        values.map((v) => v.id),
-        `${domainId} tiles are not the declared statuses, in order`,
-      );
-      assert.deepEqual(
-        tiles.map((m) => m[2]),
-        values.map((v) => v.label),
-        `${domainId} tile labels drifted from the declared labels`,
-      );
+      const tiles = [...block.matchAll(/data-metric="([^"]+)">[\s\S]*?<span class="k">([^<]*)</g)];
+      const byId = Object.fromEntries(tiles.map((m) => [m[1], m[2]]));
+      for (const v of values) {
+        assert.ok(v.id in byId, `${domainId} strip is missing the declared ${v.id} tile`);
+        assert.equal(byId[v.id], v.label, `${domainId} tile ${v.id} label drifted from the declared label`);
+      }
     }
     /**
-     * The shared metric renderer writes the VALUE and the NOTE and never the
-     * label, so the static markup is the only source of a tile's name and this
-     * assertion is the whole control rather than half of one. Stated here
-     * because the earlier draft of this lane wrote the label at runtime and the
-     * check would have been comparing a fallback nobody reads.
+     * The shared metric renderer writes the VALUE and never the label, so the
+     * static markup is the only source of a tile's name and this assertion is
+     * the whole control rather than half of one.
      */
-    const metrics = app.match(/function renderRegionMetrics\(strip, payload\) \{[\s\S]*?\n\}/)?.[0] || "";
+    const metrics = app.match(/function renderMetricBar\(strip, payload\) \{[\s\S]*?\n\}/)?.[0] || "";
     assert.ok(metrics);
     assert.equal(/\.k"\)|metric\.label/.test(metrics), false, "the tile label is written at runtime after all");
   });
 
   it("states an unread tile as a word rather than as a zero, on every strip", () => {
-    for (const { strip } of Object.values(STRIPS)) {
+    for (const [domainId, { strip }] of Object.entries(STRIPS)) {
       const block = ds.match(new RegExp(`id="${strip}"[\\s\\S]*?\\n\\s*</div>`))?.[0] || "";
       assert.equal(/class="v[^"]*">\s*0\s*</.test(block), false, strip);
-      assert.equal((block.match(/Not read/g) || []).length, 4, strip);
+      // Counting rule: every .metricbar-item in the strip starts "Not read"
+      // on the pre-read static markup, derived tiles included.
+      const tileCount = (block.match(/class="metricbar-item"/g) || []).length;
+      assert.equal((block.match(/Not read/g) || []).length, tileCount, `${domainId}: ${strip}`);
     }
+  });
+
+  it("carries business-licenses' own derived strip, none of it a LICENSE_STATUS_VALUES tile", () => {
+    const block = ds.match(/id="ds-lic-metrics"[\s\S]*?\n\s*<\/div>/)?.[0] || "";
+    assert.ok(block, "ds-lic-metrics strip not found");
+    assert.equal((block.match(/class="metricbar-item"/g) || []).length, 3);
+    for (const id of ["total", "expiring-soon", "types"]) {
+      assert.ok(block.includes(`data-metric="${id}"`), id);
+    }
+    assert.equal((block.match(/Not read/g) || []).length, 3, "pre-read markup starts all three unread");
   });
 });
 
@@ -451,17 +485,24 @@ describe("G-97 the tab roster, and the Review tab that left", () => {
       "work-orders",
       "code-enforcement",
       "licenses",
+      "plan-review",
+      "flood-study",
     ]);
     // Every domain's declared tab is on the roster, derived rather than listed.
     for (const domain of DS_DOMAINS) {
       assert.ok(DS_TABS.includes(domain.tab), `${domain.id} declares tab ${domain.tab}, not on the roster`);
     }
-    // Place is the one tab with no domain: it is the SmartSite parcel mount.
+    /**
+     * Three tabs carry no domain: Place (the SmartSite parcel mount) plus
+     * Plan review and Flood study, joined at G-123 named-in-the-strip-only
+     * per the dispatch's explicit OUT-OF-SCOPE section -- neither has a
+     * DOMAIN_REGISTRY entry, matching Place's own precedent.
+     */
     const withDomain = new Set(DS_DOMAINS.map((d) => d.tab));
     assert.deepEqual(
       DS_TABS.filter((t) => !withDomain.has(t)),
-      ["place"],
-      "a tab without a domain that is not Place",
+      ["place", "plan-review", "flood-study"],
+      "a tab without a domain that is not one of the three named exceptions",
     );
   });
 

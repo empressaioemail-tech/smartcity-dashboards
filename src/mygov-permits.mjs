@@ -100,7 +100,14 @@ export function mapRealPermitRecord(row, cityKey, accessPolicy) {
     cityKey,
     origin: "feed",
     accessPolicy,
-    subject: row.title || row.description || row.type || "Untitled permit",
+    /**
+     * G-123 PII finding: row.description is the vendor's free-text field and
+     * the class of column this lane's dispatch names by example (citizen
+     * names, phone numbers). It must never back a rendered field, so the
+     * fallback chain stops at row.type rather than reaching for it -- a
+     * permit with neither a title nor a type states that absence instead.
+     */
+    subject: row.title || row.type || "Untitled permit",
     // Real, not fixture -- see module header. Not one of CASE_STATUS_VALUES.
     status: String(row.derivedStatus || row.status || "unknown"),
     place: {

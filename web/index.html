@@ -53,6 +53,8 @@
           "work-orders",
           "code-enforcement",
           "licenses",
+          "plan-review",
+          "flood-study",
         ];
         var ASSET_TABS = ["inventory", "map", "fixture"];
         var FALLBACK_LENS = "city-manager";
@@ -121,6 +123,8 @@
           "work-orders": "Work orders",
           "code-enforcement": "Code enforcement",
           licenses: "Licenses",
+          "plan-review": "Plan review",
+          "flood-study": "Flood study",
         };
         var WORK_LABELS = {
           files: "Files",
@@ -441,25 +445,65 @@
                 </div>
                 <p class="lede">What the permitting system this city already runs is carrying. Every region below states whether it has a source, and says which of the four it is rather than going blank.</p>
               </header>
+              <div class="metrics attn" id="ds-attn">
+                <a class="metric" id="attn-wo-active" href="/?lens=development-services&amp;tab=work-orders" aria-label="WO active: Not read. Opens Work orders.">
+                  <span class="k">WO active</span>
+                  <span class="v word" id="attn-wo-active-v">Not read</span>
+                  <span class="n">Work orders</span>
+                </a>
+                <a class="metric" id="attn-wo-overdue" href="/?lens=development-services&amp;tab=work-orders&amp;filter=overdue" data-filter="overdue" aria-label="WO overdue: Not read. Opens Work orders, Overdue filter.">
+                  <span class="k">WO overdue</span>
+                  <span class="v word" id="attn-wo-overdue-v">Not read</span>
+                  <span class="n">Work orders &middot; Overdue</span>
+                </a>
+                <a class="metric" id="attn-wo-due-today" href="/?lens=development-services&amp;tab=work-orders&amp;filter=due-today" data-filter="due-today" aria-label="WO due today: Not read. Opens Work orders, Due today filter.">
+                  <span class="k">WO due today</span>
+                  <span class="v word" id="attn-wo-due-today-v">Not read</span>
+                  <span class="n">Work orders &middot; Due today</span>
+                </a>
+                <a class="metric" id="attn-pipeline-active" href="/?lens=development-services&amp;tab=pipeline&amp;filter=active" data-filter="active" aria-label="Active projects: Not read. Opens Pipeline, Active filter.">
+                  <span class="k">Active projects</span>
+                  <span class="v word" id="attn-pipeline-active-v">Not read</span>
+                  <span class="n">Pipeline &middot; Active</span>
+                </a>
+                <a class="metric" id="attn-pipeline-expiring" href="/?lens=development-services&amp;tab=pipeline&amp;filter=expiring" data-filter="expiring" aria-label="Expiring: Not read. Opens Pipeline, Expiring filter.">
+                  <span class="k">Expiring</span>
+                  <span class="v word" id="attn-pipeline-expiring-v">Not read</span>
+                  <span class="n">Pipeline &middot; Expiring</span>
+                </a>
+                <a class="metric" id="attn-plan-review-active" href="/?work=review" aria-label="Active reviews: Not read. Opens Plan review.">
+                  <span class="k">Active reviews</span>
+                  <span class="v word" id="attn-plan-review-active-v">Not read</span>
+                  <span class="n">Plan review &middot; Active</span>
+                </a>
+              </div>
               <div class="tabs" role="tablist" aria-label="Development services">
-                <a role="tab" aria-selected="true" data-tab="pipeline" href="/?lens=development-services&amp;tab=pipeline">Pipeline</a>
+                <a role="tab" aria-selected="true" data-tab="pipeline" href="/?lens=development-services&amp;tab=pipeline">Pipeline<span class="n" id="tabcount-pipeline"></span></a>
                 <a role="tab" aria-selected="false" data-tab="place" href="/?lens=development-services&amp;tab=place">Place</a>
-                <a role="tab" aria-selected="false" data-tab="inspections" href="/?lens=development-services&amp;tab=inspections">Inspections</a>
-                <a role="tab" aria-selected="false" data-tab="work-orders" href="/?lens=development-services&amp;tab=work-orders">Work orders</a>
-                <a role="tab" aria-selected="false" data-tab="code-enforcement" href="/?lens=development-services&amp;tab=code-enforcement">Code enforcement</a>
-                <a role="tab" aria-selected="false" data-tab="licenses" href="/?lens=development-services&amp;tab=licenses">Licenses</a>
+                <a role="tab" aria-selected="false" data-tab="inspections" href="/?lens=development-services&amp;tab=inspections">Inspections<span class="n" id="tabcount-inspections"></span></a>
+                <a role="tab" aria-selected="false" data-tab="work-orders" href="/?lens=development-services&amp;tab=work-orders">Work orders<span class="n" id="tabcount-work-orders"></span></a>
+                <a role="tab" aria-selected="false" data-tab="code-enforcement" href="/?lens=development-services&amp;tab=code-enforcement">Code enforcement<span class="n" id="tabcount-code-enforcement"></span></a>
+                <a role="tab" aria-selected="false" data-tab="licenses" href="/?lens=development-services&amp;tab=licenses">Licenses<span class="n" id="tabcount-licenses"></span></a>
+                <a role="tab" aria-selected="false" data-tab="plan-review" href="/?lens=development-services&amp;tab=plan-review">Plan review<span class="pill p-info">Next</span></a>
+                <a role="tab" aria-selected="false" data-tab="flood-study" href="/?lens=development-services&amp;tab=flood-study">Flood study<span class="pill p-info">Next</span></a>
               </div>
               <div class="ds-tab on" id="tab-pipeline">
                 <div class="shell-regions solo">
                   <div class="colstack" tabindex="0">
-                  <div class="metrics" id="ds-metrics">
-                    <div class="metric" data-metric="overdue"><span class="k">Overdue</span><span class="v word">Not read</span><span class="n">No permit source</span></div>
-                    <div class="metric" data-metric="in-review"><span class="k">In review</span><span class="v word">Not read</span><span class="n">No permit source</span></div>
-                    <div class="metric" data-metric="awaiting-applicant"><span class="k">Awaiting applicant</span><span class="v word">Not read</span><span class="n">No permit source</span></div>
-                    <div class="metric" data-metric="ready-to-issue"><span class="k">Ready to issue</span><span class="v word">Not read</span><span class="n">No permit source</span></div>
+                  <div class="metricbar" id="ds-metrics">
+                    <div class="metricbar-item" data-metric="overdue"><span class="v word">Not read</span><span class="k">Overdue</span></div>
+                    <div class="metricbar-item" data-metric="in-review"><span class="v word">Not read</span><span class="k">In review</span></div>
+                    <div class="metricbar-item" data-metric="awaiting-applicant"><span class="v word">Not read</span><span class="k">Awaiting applicant</span></div>
+                    <div class="metricbar-item" data-metric="ready-to-issue"><span class="v word">Not read</span><span class="k">Ready to issue</span></div>
                   </div>
                   <div class="panel">
                     <div class="panel-head"><span class="t">Pipeline</span><span class="grow"></span><span class="pill p-warn" id="ds-pipeline-mark" hidden style="display:none">Demo records</span><span class="prov" id="ds-pipeline-prov" hidden style="display:none"><b>Generated fixture</b><span class="sep" aria-hidden="true">|</span>MyGov output contract</span><span class="t-caption" id="ds-pipeline-caption">Cases in flight</span></div>
+                    <div class="filterbar" id="ds-pipeline-filterbar" hidden>
+                      <input type="search" id="ds-pipeline-search" placeholder="Search permit #, type, address">
+                      <select id="ds-pipeline-status" aria-label="Filter by status"><option value="">All statuses</option></select>
+                      <span class="n" id="ds-pipeline-resultcount"></span>
+                      <button type="button" class="reset" id="ds-pipeline-reset">Reset</button>
+                    </div>
                     <div class="state" id="ds-pipeline-empty">
                       <span class="st-k" id="ds-pipeline-empty-kicker">Pipeline unread</span>
                       <h2 id="ds-pipeline-empty-head">No cases are in flight on this pack.</h2>
@@ -470,20 +514,21 @@
                       <table class="dt">
                         <thead>
                           <tr>
-                            <th scope="col">Case</th>
-                            <th scope="col">Subject</th>
-                            <th scope="col">Stage</th>
-                            <th scope="col">Place</th>
-                            <th scope="col">Due</th>
-                            <th scope="col">Status</th>
+                            <th scope="col">Permit #</th>
+                            <th scope="col">Type</th>
+                            <th scope="col">Address</th>
                             <th scope="col">Applicant</th>
-                            <th scope="col">Contractor</th>
-                            <th scope="col">Owner</th>
-                            <th scope="col">Fees</th>
+                            <th scope="col">Status</th>
+                            <th scope="col">Submitted</th>
                           </tr>
                         </thead>
                         <tbody id="ds-pipeline-rows"></tbody>
                       </table>
+                      <div class="pager" id="ds-pipeline-pager">
+                        <button type="button" id="ds-pipeline-prev">Previous</button>
+                        <span class="pos" id="ds-pipeline-pos"></span>
+                        <button type="button" id="ds-pipeline-next">Next</button>
+                      </div>
                       <div class="panel-body">
                         <span class="basis" id="ds-pipeline-basis">Basis: generated fixture records</span>
                       </div>
@@ -539,35 +584,58 @@
               <div class="ds-tab" id="tab-inspections">
                 <div class="shell-regions solo">
                   <div class="colstack" tabindex="0">
-                  <div class="metrics" id="ds-insp-metrics">
-                    <div class="metric" data-metric="past-due"><span class="k">Past due</span><span class="v word">Not read</span><span class="n">No inspection source</span></div>
-                    <div class="metric" data-metric="unscheduled"><span class="k">Unscheduled</span><span class="v word">Not read</span><span class="n">No inspection source</span></div>
-                    <div class="metric" data-metric="scheduled"><span class="k">Scheduled</span><span class="v word">Not read</span><span class="n">No inspection source</span></div>
-                    <div class="metric" data-metric="completed"><span class="k">Completed</span><span class="v word">Not read</span><span class="n">No inspection source</span></div>
+                  <div class="metricbar" id="ds-insp-metrics">
+                    <div class="metricbar-item" data-metric="past-due"><span class="v word">Not read</span><span class="k">Past due</span></div>
+                    <div class="metricbar-item" data-metric="unscheduled"><span class="v word">Not read</span><span class="k">Unscheduled</span></div>
+                    <div class="metricbar-item" data-metric="scheduled"><span class="v word">Not read</span><span class="k">Scheduled</span></div>
+                    <div class="metricbar-item" data-metric="completed"><span class="v word">Not read</span><span class="k">Completed</span></div>
+                    <div class="metricbar-item" data-metric="pass-rate"><span class="v word" id="ds-insp-passrate">Not read</span><span class="k">Pass rate (30d)</span></div>
+                    <div class="metricbar-item" data-metric="avg-days"><span class="v word" id="ds-insp-avgdays">Not read</span><span class="k">Avg days to complete (30d)</span></div>
                   </div>
                   <div class="panel">
                     <div class="panel-head"><span class="t">Inspections</span><span class="grow"></span><span class="pill p-warn" id="ds-insp-mark" hidden style="display:none">Demo records</span><span class="prov" id="ds-insp-prov" hidden style="display:none"><b>Generated fixture</b><span class="sep" aria-hidden="true">|</span>MyGov output contract</span><span class="t-caption" id="ds-insp-caption">Inspections on the board</span></div>
+                    <div class="loadstrip-head" id="ds-insp-load-head" hidden>
+                      <span class="t">Inspector load</span>
+                      <span class="n" id="ds-insp-load-summary"></span>
+                    </div>
+                    <div class="loadstrip-body" id="ds-insp-load"></div>
+                    <div class="filterbar" id="ds-insp-filterbar" hidden>
+                      <input type="search" id="ds-insp-search" placeholder="Search inspection #, type, address">
+                      <select id="ds-insp-status" aria-label="Filter by status"><option value="">All statuses</option></select>
+                      <select id="ds-insp-type" aria-label="Filter by type"><option value="">All types</option></select>
+                      <select id="ds-insp-sort" aria-label="Sort order">
+                        <option value="default">Sort: default</option>
+                        <option value="scheduled">Sort: scheduled soonest</option>
+                        <option value="type">Sort: type</option>
+                      </select>
+                      <span class="n" id="ds-insp-resultcount"></span>
+                      <button type="button" class="reset" id="ds-insp-reset">Reset</button>
+                    </div>
                     <div class="state" id="ds-insp-state">
                       <span class="st-k" id="ds-insp-kicker">Inspections unread</span>
                       <h2 id="ds-insp-head">No inspections are on the board for this pack.</h2>
-                      <p>An inspection carries a result only once it has happened, so the result column states not inspected rather than leaving a cell blank. No inspector is named.</p>
+                      <p>An inspection carries a result only once it has happened, so the result column states not inspected rather than leaving a cell blank.</p>
                       <span class="basis" id="ds-insp-basis">Basis: no adapter granted and no records generated</span>
                     </div>
                     <div id="ds-insp-records" hidden>
                       <table class="dt">
                         <thead>
                           <tr>
-                            <th scope="col">Inspection</th>
+                            <th scope="col">Inspection #</th>
                             <th scope="col">Type</th>
+                            <th scope="col">Address</th>
+                            <th scope="col">Inspector</th>
                             <th scope="col">Result</th>
-                            <th scope="col">Place</th>
-                            <th scope="col">When</th>
-                            <th scope="col">Status</th>
-                            <th scope="col">Comments</th>
+                            <th scope="col">Scheduled</th>
                           </tr>
                         </thead>
                         <tbody id="ds-insp-rows"></tbody>
                       </table>
+                      <div class="pager" id="ds-insp-pager">
+                        <button type="button" id="ds-insp-prev">Previous</button>
+                        <span class="pos" id="ds-insp-pos"></span>
+                        <button type="button" id="ds-insp-next">Next</button>
+                      </div>
                       <div class="panel-body">
                         <span class="basis" id="ds-insp-recordsbasis">Basis: generated fixture records</span>
                       </div>
@@ -580,27 +648,45 @@
                       <span class="basis" id="ds-insp-results-basis">Basis: no inspection source has been read for this pack</span>
                     </div>
                   </div>
-                  <div class="panel">
-                    <div class="panel-head"><span class="t">Inspector load</span><span class="grow"></span><span class="t-caption">Grouped by an opaque reference</span></div>
-                    <div class="panel-body flush" id="ds-insp-load"></div>
-                    <div class="panel-body">
-                      <span class="basis" id="ds-insp-load-basis">Basis: no inspection source has been read for this pack</span>
-                    </div>
-                  </div>
                   </div>
                 </div>
               </div>
               <div class="ds-tab" id="tab-work-orders">
                 <div class="shell-regions solo">
                   <div class="colstack" tabindex="0">
-                  <div class="metrics" id="ds-wo-metrics">
-                    <div class="metric" data-metric="past-sla"><span class="k">Past SLA</span><span class="v word">Not read</span><span class="n">No work-order source</span></div>
-                    <div class="metric" data-metric="at-risk"><span class="k">At risk</span><span class="v word">Not read</span><span class="n">No work-order source</span></div>
-                    <div class="metric" data-metric="scheduled"><span class="k">Scheduled</span><span class="v word">Not read</span><span class="n">No work-order source</span></div>
-                    <div class="metric" data-metric="closed"><span class="k">Closed</span><span class="v word">Not read</span><span class="n">No work-order source</span></div>
+                  <div class="metricbar" id="ds-wo-metrics">
+                    <div class="metricbar-item" data-metric="past-sla"><span class="v word">Not read</span><span class="k">Past SLA</span></div>
+                    <div class="metricbar-item" data-metric="at-risk"><span class="v word">Not read</span><span class="k">At risk</span></div>
+                    <div class="metricbar-item" data-metric="scheduled"><span class="v word">Not read</span><span class="k">Scheduled</span></div>
+                    <div class="metricbar-item" data-metric="closed"><span class="v word">Not read</span><span class="k">Closed</span></div>
                   </div>
                   <div class="panel">
-                    <div class="panel-head"><span class="t">Work orders</span><span class="grow"></span><span class="pill p-warn" id="ds-wo-mark" hidden style="display:none">Demo records</span><span class="prov" id="ds-wo-prov" hidden style="display:none"><b>Generated fixture</b><span class="sep" aria-hidden="true">|</span>MyGov output contract</span><span class="t-caption" id="ds-wo-caption">Orders in the queue</span></div>
+                    <div class="panel-head">
+                      <span class="t">Work orders</span>
+                      <span class="grow"></span>
+                      <span class="pill p-warn" id="ds-wo-mark" hidden style="display:none">Demo records</span>
+                      <span class="prov" id="ds-wo-prov" hidden style="display:none"><b>Generated fixture</b><span class="sep" aria-hidden="true">|</span>MyGov output contract</span>
+                      <span class="t-caption" id="ds-wo-caption">Orders in the queue</span>
+                      <div class="seg" id="ds-wo-viewmode" role="tablist" aria-label="View mode">
+                        <button type="button" role="tab" aria-selected="true" data-view="list">List</button>
+                        <button type="button" role="tab" aria-selected="false" data-view="map">Map</button>
+                        <button type="button" role="tab" aria-selected="false" data-view="performance">Performance</button>
+                      </div>
+                      <button type="button" class="btn btn-ghost btn-sm" id="ds-wo-export">Export</button>
+                    </div>
+                    <div id="ds-wo-view-list">
+                    <div class="loadstrip-head" id="ds-wo-load-head" hidden>
+                      <span class="t">Manager load</span>
+                      <span class="n" id="ds-wo-load-summary"></span>
+                    </div>
+                    <div class="loadstrip-body" id="ds-wo-load"></div>
+                    <div class="filterbar" id="ds-wo-filterbar" hidden>
+                      <input type="search" id="ds-wo-search" placeholder="Search WO #, address, type">
+                      <select id="ds-wo-status" aria-label="Filter by status"><option value="">All statuses</option></select>
+                      <select id="ds-wo-manager" aria-label="Filter by manager"><option value="">All managers</option></select>
+                      <span class="n" id="ds-wo-resultcount"></span>
+                      <button type="button" class="reset" id="ds-wo-reset">Reset</button>
+                    </div>
                     <div class="state" id="ds-wo-state">
                       <span class="st-k" id="ds-wo-kicker">Work orders unread</span>
                       <h2 id="ds-wo-head">No work orders are in the queue for this pack.</h2>
@@ -611,37 +697,44 @@
                       <table class="dt">
                         <thead>
                           <tr>
-                            <th scope="col">Order</th>
-                            <th scope="col">Subject</th>
-                            <th scope="col">Stage</th>
-                            <th scope="col">Place</th>
-                            <th scope="col">Due</th>
-                            <th scope="col">Elapsed</th>
+                            <th scope="col">WO #</th>
+                            <th scope="col">Type</th>
+                            <th scope="col">Address</th>
+                            <th scope="col">Department</th>
                             <th scope="col">Status</th>
-                            <th scope="col">Assigned to</th>
-                            <th scope="col">Contractor</th>
-                            <th scope="col">Fees</th>
+                            <th scope="col">Opened</th>
                           </tr>
                         </thead>
                         <tbody id="ds-wo-rows"></tbody>
                       </table>
+                      <div class="pager" id="ds-wo-pager">
+                        <button type="button" id="ds-wo-prev">Previous</button>
+                        <span class="pos" id="ds-wo-pos"></span>
+                        <button type="button" id="ds-wo-next">Next</button>
+                      </div>
                       <div class="panel-body">
                         <span class="basis" id="ds-wo-recordsbasis">Basis: generated fixture records</span>
                       </div>
                     </div>
-                  </div>
-                  <div class="panel">
-                    <div class="panel-head"><span class="t">Service level</span><span class="grow"></span><span class="t-caption">Measured off the queue against a declared target</span></div>
-                    <div class="panel-body">
-                      <dl class="kv" id="ds-wo-sla"></dl>
-                      <span class="basis" id="ds-wo-sla-basis">Basis: no work-order source has been read for this pack</span>
                     </div>
-                  </div>
-                  <div class="panel">
-                    <div class="panel-head"><span class="t">Daily queue</span><span class="grow"></span><span class="t-caption">Relative days, never a calendar date</span></div>
-                    <div class="panel-body flush" id="ds-wo-daily"></div>
-                    <div class="panel-body">
-                      <span class="basis" id="ds-wo-daily-basis">Basis: no work-order source has been read for this pack</span>
+                    <div id="ds-wo-view-map" hidden>
+                      <div class="state">
+                        <span class="st-k">Work orders &middot; Map</span>
+                        <h2>The map view is not built on this lens yet.</h2>
+                        <p>Work orders locate onto the same map component the Place tab uses, and that component is pinned pending a redesign (G-121, G-124). Building a second map here ahead of that would duplicate work rather than share it.</p>
+                        <span class="basis">Basis: not built; the shared map component is held pending G-121/G-124</span>
+                      </div>
+                    </div>
+                    <div id="ds-wo-view-performance" hidden>
+                      <div class="panel-body">
+                        <dl class="kv" id="ds-wo-sla"></dl>
+                        <span class="basis" id="ds-wo-sla-basis">Basis: no work-order source has been read for this pack</span>
+                      </div>
+                      <div class="panel-head"><span class="t">Daily queue</span><span class="grow"></span><span class="t-caption">Relative days, never a calendar date</span></div>
+                      <div class="panel-body flush" id="ds-wo-daily"></div>
+                      <div class="panel-body">
+                        <span class="basis" id="ds-wo-daily-basis">Basis: no work-order source has been read for this pack</span>
+                      </div>
                     </div>
                   </div>
                   </div>
@@ -650,14 +743,28 @@
               <div class="ds-tab" id="tab-code-enforcement">
                 <div class="shell-regions solo">
                   <div class="colstack" tabindex="0">
-                  <div class="metrics" id="ds-ce-metrics">
-                    <div class="metric" data-metric="past-compliance"><span class="k">Past compliance date</span><span class="v word">Not read</span><span class="n">No case source</span></div>
-                    <div class="metric" data-metric="awaiting-reinspection"><span class="k">Awaiting reinspection</span><span class="v word">Not read</span><span class="n">No case source</span></div>
-                    <div class="metric" data-metric="notice-issued"><span class="k">Notice issued</span><span class="v word">Not read</span><span class="n">No case source</span></div>
-                    <div class="metric" data-metric="closed-compliant"><span class="k">Closed compliant</span><span class="v word">Not read</span><span class="n">No case source</span></div>
+                  <div class="metricbar" id="ds-ce-metrics">
+                    <div class="metricbar-item" data-metric="past-compliance"><span class="v word">Not read</span><span class="k">Past compliance date</span></div>
+                    <div class="metricbar-item" data-metric="awaiting-reinspection"><span class="v word">Not read</span><span class="k">Awaiting reinspection</span></div>
+                    <div class="metricbar-item" data-metric="notice-issued"><span class="v word">Not read</span><span class="k">Notice issued</span></div>
+                    <div class="metricbar-item" data-metric="closed-compliant"><span class="v word">Not read</span><span class="k">Closed compliant</span></div>
+                    <div class="metricbar-item" data-metric="total"><span class="v word" id="ds-ce-total">Not read</span><span class="k">Total</span></div>
                   </div>
                   <div class="panel">
                     <div class="panel-head"><span class="t">Cases</span><span class="grow"></span><span class="pill p-warn" id="ds-ce-mark" hidden style="display:none">Demo records</span><span class="prov" id="ds-ce-prov" hidden style="display:none"><b>Generated fixture</b><span class="sep" aria-hidden="true">|</span>MyGov output contract</span><span class="t-caption" id="ds-ce-caption">Cases on the ladder</span></div>
+                    <div class="loadstrip-head" id="ds-ce-load-head" hidden>
+                      <span class="t">Officer load</span>
+                      <span class="n" id="ds-ce-load-summary"></span>
+                    </div>
+                    <div class="loadstrip-body" id="ds-ce-load"></div>
+                    <div class="filterbar" id="ds-ce-filterbar" hidden>
+                      <input type="search" id="ds-ce-search" placeholder="Search case #, type, address">
+                      <select id="ds-ce-status" aria-label="Filter by status"><option value="">All statuses</option></select>
+                      <select id="ds-ce-type" aria-label="Filter by type"><option value="">All types</option></select>
+                      <select id="ds-ce-officer" aria-label="Filter by officer"><option value="">All officers</option></select>
+                      <span class="n" id="ds-ce-resultcount"></span>
+                      <button type="button" class="reset" id="ds-ce-reset">Reset</button>
+                    </div>
                     <div class="state" id="ds-ce-state">
                       <span class="st-k" id="ds-ce-kicker">Code enforcement unread</span>
                       <h2 id="ds-ce-head">No enforcement cases are open on this pack.</h2>
@@ -668,35 +775,25 @@
                       <table class="dt">
                         <thead>
                           <tr>
-                            <th scope="col">Case</th>
-                            <th scope="col">Violation</th>
-                            <th scope="col">Escalation</th>
-                            <th scope="col">Step</th>
-                            <th scope="col">Place</th>
-                            <th scope="col">Compliance</th>
+                            <th scope="col">Case #</th>
+                            <th scope="col">Type</th>
+                            <th scope="col">Address</th>
                             <th scope="col">Status</th>
-                            <th scope="col">Resolved</th>
+                            <th scope="col">Step</th>
+                            <th scope="col">Officer</th>
+                            <th scope="col">Reported</th>
                           </tr>
                         </thead>
                         <tbody id="ds-ce-rows"></tbody>
                       </table>
+                      <div class="pager" id="ds-ce-pager">
+                        <button type="button" id="ds-ce-prev">Previous</button>
+                        <span class="pos" id="ds-ce-pos"></span>
+                        <button type="button" id="ds-ce-next">Next</button>
+                      </div>
                       <div class="panel-body">
                         <span class="basis" id="ds-ce-recordsbasis">Basis: generated fixture records</span>
                       </div>
-                    </div>
-                  </div>
-                  <div class="panel">
-                    <div class="panel-head"><span class="t">Escalation ladder</span><span class="grow"></span><span class="t-caption">In declared step order, not array order</span></div>
-                    <div class="panel-body flush" id="ds-ce-ladder"></div>
-                    <div class="panel-body">
-                      <span class="basis" id="ds-ce-ladder-basis">Basis: no case source has been read for this pack</span>
-                    </div>
-                  </div>
-                  <div class="panel">
-                    <div class="panel-head"><span class="t">Case load</span><span class="grow"></span><span class="t-caption">Open and closed are two measured filters, never one minus the other</span></div>
-                    <div class="panel-body">
-                      <dl class="kv" id="ds-ce-stats"></dl>
-                      <span class="basis" id="ds-ce-stats-basis">Basis: no case source has been read for this pack</span>
                     </div>
                   </div>
                   </div>
@@ -705,14 +802,20 @@
               <div class="ds-tab" id="tab-licenses">
                 <div class="shell-regions solo">
                   <div class="colstack" tabindex="0">
-                  <div class="metrics" id="ds-lic-metrics">
-                    <div class="metric" data-metric="expired"><span class="k">Expired</span><span class="v word">Not read</span><span class="n">No licence source</span></div>
-                    <div class="metric" data-metric="expiring"><span class="k">Expiring</span><span class="v word">Not read</span><span class="n">No licence source</span></div>
-                    <div class="metric" data-metric="renewal-submitted"><span class="k">Renewal submitted</span><span class="v word">Not read</span><span class="n">No licence source</span></div>
-                    <div class="metric" data-metric="active"><span class="k">Active</span><span class="v word">Not read</span><span class="n">No licence source</span></div>
+                  <div class="metricbar" id="ds-lic-metrics">
+                    <div class="metricbar-item" data-metric="total"><span class="v word" id="ds-lic-total">Not read</span><span class="k">Total licences</span></div>
+                    <div class="metricbar-item" data-metric="expiring-soon"><span class="v word" id="ds-lic-expiringsoon">Not read</span><span class="k">Expiring soon</span></div>
+                    <div class="metricbar-item" data-metric="types"><span class="v word" id="ds-lic-types">Not read</span><span class="k">Licence types</span></div>
                   </div>
                   <div class="panel">
                     <div class="panel-head"><span class="t">Licence roll</span><span class="grow"></span><span class="pill p-warn" id="ds-lic-mark" hidden style="display:none">Demo records</span><span class="prov" id="ds-lic-prov" hidden style="display:none"><b>Generated fixture</b><span class="sep" aria-hidden="true">|</span>MyGov output contract</span><span class="t-caption" id="ds-lic-caption">Licences on the roll</span></div>
+                    <div class="filterbar" id="ds-lic-filterbar" hidden>
+                      <input type="search" id="ds-lic-search" placeholder="Search licence #, type, address">
+                      <select id="ds-lic-status" aria-label="Filter by status"><option value="">All statuses</option></select>
+                      <select id="ds-lic-type" aria-label="Filter by type"><option value="">All types</option></select>
+                      <span class="n" id="ds-lic-resultcount"></span>
+                      <button type="button" class="reset" id="ds-lic-reset">Reset</button>
+                    </div>
                     <div class="state" id="ds-lic-state">
                       <span class="st-k" id="ds-lic-kicker">Licences unread</span>
                       <h2 id="ds-lic-head">No licences are on the roll for this pack.</h2>
@@ -723,27 +826,55 @@
                       <table class="dt">
                         <thead>
                           <tr>
-                            <th scope="col">Licence</th>
-                            <th scope="col">Category</th>
-                            <th scope="col">Holder</th>
-                            <th scope="col">Place</th>
-                            <th scope="col">Expiry</th>
-                            <th scope="col">Status</th>
+                            <th scope="col">Licence #</th>
+                            <th scope="col">Subject</th>
                             <th scope="col">Type</th>
+                            <th scope="col">Address</th>
+                            <th scope="col">Issued</th>
+                            <th scope="col">Expires</th>
+                            <th scope="col">Status</th>
                           </tr>
                         </thead>
                         <tbody id="ds-lic-rows"></tbody>
                       </table>
+                      <div class="pager" id="ds-lic-pager">
+                        <button type="button" id="ds-lic-prev">Previous</button>
+                        <span class="pos" id="ds-lic-pos"></span>
+                        <button type="button" id="ds-lic-next">Next</button>
+                      </div>
                       <div class="panel-body">
                         <span class="basis" id="ds-lic-recordsbasis">Basis: generated fixture records</span>
                       </div>
                     </div>
                   </div>
+                  </div>
+                </div>
+              </div>
+              <div class="ds-tab" id="tab-plan-review">
+                <div class="shell-regions solo">
+                  <div class="colstack" tabindex="0">
                   <div class="panel">
-                    <div class="panel-head"><span class="t">Expiry</span><span class="grow"></span><span class="t-caption">Bands derived from the offset, inclusive and non-overlapping</span></div>
-                    <div class="panel-body flush" id="ds-lic-expiry"></div>
-                    <div class="panel-body">
-                      <span class="basis" id="ds-lic-expiry-basis">Basis: no licence source has been read for this pack</span>
+                    <div class="panel-head"><span class="t">Plan review</span><span class="grow"></span><span class="t-caption">Named in this lens; built and served elsewhere</span></div>
+                    <div class="state">
+                      <span class="st-k">Plan review</span>
+                      <h2>Plan review is not this tab.</h2>
+                      <p>Plan review is a separate scope (operator ruling 2026-09-14) and a separate product surface: it is already reachable from Work &rarr; Plan review, mounted there rather than duplicated as a second door into the same records.</p>
+                      <span class="basis">Basis: named in the strip per this lane's dispatch; not built here, and not held to this tab's empty-pack discipline because it renders no data of its own</span>
+                    </div>
+                  </div>
+                  </div>
+                </div>
+              </div>
+              <div class="ds-tab" id="tab-flood-study">
+                <div class="shell-regions solo">
+                  <div class="colstack" tabindex="0">
+                  <div class="panel">
+                    <div class="panel-head"><span class="t">Flood study</span><span class="grow"></span><span class="t-caption">Parcel-level flood determination</span></div>
+                    <div class="state">
+                      <span class="st-k">Flood study</span>
+                      <h2>Flood study is named, not scoped.</h2>
+                      <p>This is the parcel-level flood determination (the Smart Site flood study), a different product from the emergency operational flood surface on the Emergency lens. It is a separate row (G-125) and is not built here.</p>
+                      <span class="basis">Basis: named in the strip per this lane's dispatch; not yet scoped as its own row</span>
                     </div>
                   </div>
                   </div>
