@@ -871,6 +871,88 @@ a.metric:hover { border-color: var(--sc-line-strong); }
 .colstack.rail > .region { flex: 1; min-height: 260px; }
 .colstack.rail > .panel { flex: none; }
 
+/* ---------- map dock: three states (G-128) ----------
+   Dock (default, no [data-map-mode] override needed): the map region takes
+   the remaining rail height (flex:1 above) and any panels beneath it stack
+   full-width, because .colstack is already flex-column -- this is the
+   Overview pattern this generalizes to Development services. Expand/Full
+   are set on .shell-regions by web/app.js from the map's own in-iframe
+   Dock/Expand/Full pill (property-map.js's setDockMode(), postMessage'd up
+   as "state", never map-engine data) and reflow two things: the lens's own
+   primary content shrinks to a quiet 250px strip (Expand) or is hidden
+   entirely (Full), and the rail's own trailing panels -- wrapped in
+   .mapdock-row, a lens supplies zero, one or two of them -- move from
+   stacked-beneath (Dock) to a side-by-side row (Expand/Full) beneath the
+   now-larger map. mapdock-row is display:contents in Dock so its children
+   join .colstack.rail's own flex-column directly, needing no extra rule
+   there beyond the existing .colstack.rail > .panel above -- but contents
+   does not change DOM-selector matching, so mapdock-row > .mapdock-detail/
+   .mapdock-records get their own flex:none for that case explicitly. */
+.shell-regions[data-map-mode="expand"] {
+  grid-template-columns: 250px minmax(0, 1fr);
+}
+.shell-regions[data-map-mode="full"] {
+  grid-template-columns: 0 minmax(0, 1fr);
+}
+.shell-regions[data-map-mode="expand"] > .colstack:not(.rail) {
+  opacity: 0.55;
+  pointer-events: none;
+  overflow: hidden;
+}
+.shell-regions[data-map-mode="full"] > .colstack:not(.rail) {
+  display: none;
+}
+.mapdock-row {
+  display: contents;
+}
+.mapdock-row > .mapdock-detail,
+.mapdock-row > .mapdock-records {
+  flex: none;
+}
+.shell-regions[data-map-mode="expand"] .mapdock-row,
+.shell-regions[data-map-mode="full"] .mapdock-row {
+  display: flex;
+  flex-direction: row;
+  flex: none;
+  gap: var(--sc-3);
+  height: 320px;
+}
+.shell-regions[data-map-mode="expand"] .mapdock-row > .mapdock-records,
+.shell-regions[data-map-mode="full"] .mapdock-row > .mapdock-records {
+  flex: 2 1 0;
+  min-width: 0;
+}
+.shell-regions[data-map-mode="expand"] .mapdock-row > .mapdock-detail {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.shell-regions[data-map-mode="full"] .mapdock-row > .mapdock-detail {
+  flex: none;
+  width: 320px;
+}
+
+/* The property-detail attribute rows (zoning/flood/buildable area). Composes
+   existing tokens only, same shape family as .metricbar-item's label+value
+   but a fuller row: a label, a value, and a provenance caption -- .basis
+   already carries that caption role elsewhere, reused here rather than
+   invented twice. */
+.pdl-row {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px var(--sc-3);
+  border-bottom: 1px solid var(--sc-line-faint);
+}
+.pdl-row:last-child { border-bottom: none; }
+.pdl-row .k {
+  font: 500 12px/16px var(--sc-font-data);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--sc-ink-3);
+}
+.pdl-row .v { font: 400 14px/20px var(--sc-font-ui); color: var(--sc-ink); }
+.pdl-row .basis { margin-top: var(--sc-1); }
+
 .lens { display: none; }
 .lens.on { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .ds-tab, .assets-tab { display: none; }
@@ -943,7 +1025,6 @@ html[data-surface="work-people"] #work-people {
    table and then swapped it out. Same mechanism, same script, same shape. */
 html[data-tab] .ds-tab { display: none; }
 html[data-tab="pipeline"] #tab-pipeline,
-html[data-tab="place"] #tab-place,
 html[data-tab="inspections"] #tab-inspections,
 html[data-tab="work-orders"] #tab-work-orders,
 html[data-tab="code-enforcement"] #tab-code-enforcement,

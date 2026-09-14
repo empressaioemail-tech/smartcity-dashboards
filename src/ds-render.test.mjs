@@ -480,7 +480,6 @@ describe("G-97 the tab roster, and the Review tab that left", () => {
   it("is the roster the ruling names, in order", () => {
     assert.deepEqual(DS_TABS, [
       "pipeline",
-      "place",
       "inspections",
       "work-orders",
       "code-enforcement",
@@ -493,16 +492,18 @@ describe("G-97 the tab roster, and the Review tab that left", () => {
       assert.ok(DS_TABS.includes(domain.tab), `${domain.id} declares tab ${domain.tab}, not on the roster`);
     }
     /**
-     * Three tabs carry no domain: Place (the SmartSite parcel mount) plus
-     * Plan review and Flood study, joined at G-123 named-in-the-strip-only
-     * per the dispatch's explicit OUT-OF-SCOPE section -- neither has a
-     * DOMAIN_REGISTRY entry, matching Place's own precedent.
+     * Two tabs carry no domain: Plan review and Flood study, joined at G-123
+     * named-in-the-strip-only per the dispatch's explicit OUT-OF-SCOPE
+     * section -- neither has a DOMAIN_REGISTRY entry. Place (the former
+     * third exception, the SmartSite parcel mount) LEFT the roster at G-128:
+     * the map stopped being a tab and became a persistent rail beside every
+     * remaining tab, matching Overview.
      */
     const withDomain = new Set(DS_DOMAINS.map((d) => d.tab));
     assert.deepEqual(
       DS_TABS.filter((t) => !withDomain.has(t)),
-      ["place", "plan-review", "flood-study"],
-      "a tab without a domain that is not one of the three named exceptions",
+      ["plan-review", "flood-study"],
+      "a tab without a domain that is not one of the two named exceptions",
     );
   });
 
@@ -580,11 +581,13 @@ describe("G-97 the lane's standing constraints, measured on the section it owns"
 
   it("grants nothing, connects nothing, and leaves the assets row at zero", () => {
     assert.deepEqual(TEMPLATE_CITY.grantedAdapters ?? [], []);
-    // G-24: the one asset row on this lens stays an honest Empty, on every pack.
-    assert.match(
-      ds,
-      /<b>Assets<\/b><span>City-owned records at this place<\/span><\/span><span class="pill p-quiet">Empty</,
-    );
+    /**
+     * G-24: no adapter is granted on any pack. The markup-level row this
+     * once checked ("On this place" > Assets: Empty) lived in the Place tab,
+     * retired at G-128 when the map stopped being a tab and became a
+     * persistent rail; grantedAdapters staying an empty array above is the
+     * substantive check and does not depend on that panel's markup.
+     */
     // The browser renders records; it never generates them.
     assert.equal(/generatePipelineRecords|generateInspectionRecords|composeDomain\(/.test(app), false);
     // And the four new regions read the route that already existed, not a new one.

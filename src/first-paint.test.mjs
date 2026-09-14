@@ -1018,8 +1018,10 @@ describe("G-89 first paint", () => {
   it("keeps the tab panels on the same rule, so the right lens does not swap tables", () => {
     // Same defect one altitude down: #tab-pipeline and #atab-inventory carry
     // class="on" in the static markup. Eight rather than six since G-123
-    // joined plan-review and flood-study to DS_TABS, named-in-the-strip only.
-    assert.equal(panels(HTML, "ds-tab").length, 8);
+    // joined plan-review and flood-study to DS_TABS, named-in-the-strip only;
+    // seven rather than eight since G-128 retired the Place tab (the map
+    // became a persistent rail beside every remaining tab, not a tab itself).
+    assert.equal(panels(HTML, "ds-tab").length, 7);
     assert.equal(panels(HTML, "assets-tab").length, 3);
     assert.deepEqual(
       firstPaintVisible({ html: HTML, css: CSS, search: "?lens=development-services&tab=work-orders", panelClass: "ds-tab" }),
@@ -1216,8 +1218,8 @@ describe("G-89 first paint", () => {
   it("keeps the CSS enumeration in step with the panels, in three directions", () => {
     /**
      * CSS cannot compare two attribute values, so the show list is an
-     * enumeration: 15 surfaces + 6 Development-services tabs + 3 Assets tabs =
-     * 24 show selectors, plus 3 hide rules. Counting rule: one show selector
+     * enumeration: 15 surfaces + 7 Development-services tabs + 3 Assets tabs =
+     * 25 show selectors, plus 3 hide rules. Counting rule: one show selector
      * per addressable panel. Nothing keeps an enumeration in step with a panel
      * list except a test, so this is that test - and it compares THREE sources,
      * not two, because the ids also have to agree with the router's own lists.
@@ -1233,7 +1235,7 @@ describe("G-89 first paint", () => {
 
     assert.deepEqual(sorted(enumeratedShowIds(CSS, "data-tab", "tab-")), sorted(DS_TABS.map((t) => `tab-${t}`)));
     assert.deepEqual(sorted(panels(HTML, "ds-tab").map((p) => p.id)), sorted(DS_TABS.map((t) => `tab-${t}`)));
-    assert.equal(enumeratedShowIds(CSS, "data-tab", "tab-").length, 8);
+    assert.equal(enumeratedShowIds(CSS, "data-tab", "tab-").length, 7);
 
     assert.deepEqual(sorted(enumeratedShowIds(CSS, "data-atab", "atab-")), sorted(ASSET_TABS.map((a) => `atab-${a}`)));
     assert.deepEqual(sorted(panels(HTML, "assets-tab").map((p) => p.id)), sorted(ASSET_TABS.map((a) => `atab-${a}`)));

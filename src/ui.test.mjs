@@ -236,7 +236,10 @@ describe("G-75 shell, mounts and motion", () => {
     assert.match(html, /id="map-site"/);
     assert.match(html, /id="review-site"/);
     assert.match(html, /id="files-site"/);
-    // One SmartSite iframe serves both the Overview rail and the Place rail.
+    // One SmartSite iframe serves both the Overview rail and the persistent
+    // Development services rail (G-128 -- Place stopped being a tab and the
+    // map became a rail beside every remaining DS tab, same pattern Overview
+    // already had).
     assert.equal((html.match(/id="map-site"/g) || []).length, 1);
     assert.equal((html.match(/<iframe /g) || []).length, 3);
     /**
@@ -248,7 +251,7 @@ describe("G-75 shell, mounts and motion", () => {
      * review stage still exists, and anchor-work-review still carries
      * data-stage="review", so MountStage.findAnchor() still resolves one.
      */
-    for (const anchor of ["anchor-overview-map", "anchor-place-map", "anchor-work-review", "anchor-files"]) {
+    for (const anchor of ["anchor-overview-map", "anchor-ds-map", "anchor-work-review", "anchor-files"]) {
       assert.match(html, new RegExp(`id="${anchor}"`), anchor);
     }
     assert.equal(html.includes('id="anchor-ds-review"'), false, "the Development services Review tab left at G-97");
@@ -285,11 +288,20 @@ describe("G-75 shell, mounts and motion", () => {
     assert.match(app, /function reducedMotion/);
     assert.match(app, /return reducedMotion\(\) \? 0 : SPRING\.duration/);
     assert.match(app, /transitionTo\(state\)/);
-    for (const state of ["collapsed", "presented", "max"]) {
+    /**
+     * "presented" left this list at G-128: the map's own Expand/Full pill
+     * moved inside property-map.js (overlaying the map itself) and posts UI
+     * state up as "dock"/"expand"/"full", so nothing sets MountStage to
+     * "presented" any more -- Plan review and Files never used it either
+     * (they only ever exposed a Full button). Removed rather than left
+     * unreachable: an addressability gate refuses dead behaviour hooks.
+     */
+    for (const state of ["collapsed", "max"]) {
       assert.ok(app.includes(`"${state}"`), state);
     }
-    assert.match(html, /data-stage-present="map"/);
-    assert.match(html, /data-stage-max="map"/);
+    assert.equal(app.includes('"presented"'), false, "presented left with its only caller, the map's old external Expand button");
+    assert.match(html, /data-stage-max="review"|data-stage-max="files"/);
+    assert.equal(html.includes('data-stage-present='), false, "no button posts to the presented state any more");
     assert.match(html, /id="stage-scrim"/);
     assert.match(app, /event\.key !== "Escape"/);
   });
@@ -1117,10 +1129,15 @@ describe("G-77 fixture pack on Development services", () => {
     assert.match(html, /No city-owned asset records for <span data-pack-key>/);
     // Generation is server side. The browser renders records, never invents them.
     assert.equal(/generatePipelineRecords|composePipeline/.test(app), false);
-    // The one asset row on this lens stays an honest Empty, on every pack.
+    /**
+     * The Development services "On this place" > Assets: Empty row this once
+     * checked lived in the Place tab, retired at G-128 (the map stopped
+     * being a tab and became a persistent rail). The still-live Assets row
+     * in Overview's source register carries the same honest-empty pill.
+     */
     assert.match(
-      ds,
-      /<b>Assets<\/b><span>City-owned records at this place<\/span><\/span><span class="pill p-quiet">Empty</,
+      html,
+      /<b>Assets<\/b><span>City-owned inventory<\/span><\/span><span class="pill p-quiet">Empty</,
     );
   });
 });

@@ -369,11 +369,6 @@ class MountStage {
         h: Math.max(200, vh - topBottom - inset * 2),
       };
     }
-    if (this.state === "presented") {
-      const w = Math.min(1080, vw - 64);
-      const h = Math.min(760, vh - 96);
-      return { x: Math.round((vw - w) / 2), y: Math.round((vh - h) / 2), w, h };
-    }
     const anchor = this.findAnchor();
     this.anchor = anchor;
     if (!anchor) return null;
@@ -426,7 +421,6 @@ class MountStage {
       return;
     }
     const isOpen = state !== "collapsed";
-    this.el.classList.toggle("is-presented", state === "presented");
     this.el.classList.toggle("is-max", state === "max");
     this.el.style.pointerEvents = "";
     this.place(to);
@@ -526,7 +520,7 @@ function closeStages() {
   const open = openStage();
   if (!open) return;
   open.transitionTo("collapsed");
-  open.el.classList.remove("is-presented", "is-max");
+  open.el.classList.remove("is-max");
 }
 
 function bindStages() {
@@ -545,16 +539,14 @@ function bindStages() {
   }
 
   document.addEventListener("click", (event) => {
-    const present = event.target.closest("[data-stage-present]");
     const max = event.target.closest("[data-stage-max]");
-    if (!present && !max) return;
-    const name = (present || max).dataset.stagePresent || (present || max).dataset.stageMax;
+    if (!max) return;
+    const name = max.dataset.stageMax;
     const stage = stages.get(name);
     if (!stage || !stage.mounted) return;
     event.preventDefault();
-    const want = present ? "presented" : "max";
     setText("stage-esc-label", stage.label);
-    stage.transitionTo(stage.state === want ? "collapsed" : want);
+    stage.transitionTo(stage.state === "max" ? "collapsed" : "max");
   });
 
   const scrim = document.getElementById("stage-scrim");
@@ -1707,6 +1699,162 @@ async function loadDevelopmentServices(cityKey) {
   renderWorkOrders(workOrders || unreadRegion("Work orders", cityKey));
   renderCodeEnforcement(codeViolations || unreadRegion("Code enforcement", cityKey));
   renderLicences(licences || unreadRegion("Licenses", cityKey));
+}
+
+/* --------------------------------------------------------- G-128 map dock
+ *
+ * Property detail and on-this-parcel records for the persistent map rail,
+ * fetched by the shell itself from the SAME /api/property-map/summary route
+ * web/property-map.js's own iframe already calls (src/property-map.mjs's
+ * composePropertyIntelSummary) -- no new server route, no map-engine change.
+ *
+ * Queried address: the product's established gold parcel is
+ * GOLD_PARCEL_NODE_ID "48021:34137" (src/staff-map.mjs), and the approved
+ * design mockup (_design/smartcity-map-dock/) pairs that exact parcel id
+ * with "908 Pine St" as the address the panel shows. That address is not
+ * itself a constant anywhere in this repo -- composePropertyIntelSummary
+ * takes an address, not a parcel id, and no fixture equivalent exists for a
+ * live ArcGIS-backed search (see that module's own header). Verify this
+ * resolves against the real geocoder for this pack's one served city as
+ * part of this row's live probe; if it does not, this panel renders the
+ * honest not-read/no-match state below rather than fabricated data either
+ * way.
+ */
+const DS_PROPERTY_DOCK_ADDRESS = "908 Pine St";
+
+/** Real values only -- never the free-text description field a permit,
+ * code case, or inspection record may also carry (same rule as G-123's
+ * tables). Only id/subject/status cross into the row. */
+function propertyRecordRow(record) {
+  const id = record.permitNumber || record.caseNumber || "";
+  return [
+    td(id, "id"),
+    td(record.type, "subj"),
+    td(record.status),
+  ];
+}
+
+function renderPropertyDetail(result) {
+  const rows = document.getElementById("ds-property-detail-rows");
+  if (!rows) return;
+  const snapshot = (result && result.snapshot) || {};
+  const items = [
+    { k: "Zoning district", v: snapshot.zoning, basis: snapshot.zoningCode ? `zoning code: ${snapshot.zoningCode}` : null },
+    { k: "Flood zone", v: snapshot.floodZone, basis: null },
+    {
+      k: "Buildable area",
+      v: "Refused",
+      basis: "Refused by ruling R-2: the envelope draws, the figure is withheld until an envelope atom backs it",
+    },
+  ];
+  rows.replaceChildren(
+    ...items.map((item) => {
+      const row = document.createElement("div");
+      row.className = "pdl-row";
+      const k = document.createElement("span");
+      k.className = "k";
+      k.textContent = item.k;
+      const v = document.createElement("span");
+      v.className = "v";
+      v.textContent = item.v == null || item.v === "" ? "—" : item.v;
+      row.append(k, v);
+      if (item.basis) {
+        const b = document.createElement("span");
+        b.className = "basis";
+        b.textContent = item.basis;
+        row.append(b);
+      }
+      return row;
+    }),
+  );
+}
+
+/**
+ * A11y: th-has-data-cells fired on this table when it rendered with real
+ * headers and an empty tbody -- headers describing nothing is not a pass.
+ * Same shape as ds-pipeline-empty/ds-pipeline-records elsewhere on this
+ * lens: the table and its honest-empty sibling are mutually hidden, never
+ * both, and never a headers-only table left visible with zero rows.
+ */
+function renderPropertyRecords(result, basisText) {
+  const rowsEl = document.getElementById("ds-property-records-rows");
+  const countEl = document.getElementById("ds-property-records-count");
+  const body = document.getElementById("ds-property-records-body");
+  const empty = document.getElementById("ds-property-records-empty");
+  const emptyBasis = document.getElementById("ds-property-records-basis");
+  if (!rowsEl) return;
+  const records = result
+    ? [...(result.permits || []), ...(result.violations || []), ...(result.inspections || [])]
+    : [];
+  if (records.length === 0) {
+    if (countEl) countEl.textContent = "";
+    if (emptyBasis) emptyBasis.textContent = `Basis: ${basisText || "no records on file for this parcel"}`;
+    show(empty, true);
+    show(body, false);
+    rowsEl.replaceChildren();
+    return;
+  }
+  show(empty, false);
+  show(body, true);
+  if (countEl) countEl.textContent = `${records.length} records`;
+  rowsEl.replaceChildren(
+    ...records.map((record) => {
+      const row = document.createElement("tr");
+      row.append(...propertyRecordRow(record));
+      return row;
+    }),
+  );
+}
+
+/**
+ * Single-city-only, stated not assumed -- same refusal composePropertyIntelSummary
+ * itself returns for any cityKey outside its one real ArcGIS-backed pack,
+ * rendered honestly here rather than an empty map that looks broken
+ * (constraint named in this row's dispatch).
+ */
+async function loadPropertyDock(cityKey) {
+  const params = new URLSearchParams({ address: DS_PROPERTY_DOCK_ADDRESS, cityKey: cityKey || "" });
+  let data = null;
+  try {
+    const res = await fetch(`/api/property-map/summary?${params}`);
+    data = res.ok ? await res.json() : null;
+  } catch {
+    data = null;
+  }
+  if (!data || data.status !== "ok" || !data.found || !data.result) {
+    renderPropertyDetail(null);
+    renderPropertyRecords(null, `Not read: ${(data && data.basis) || "property intel did not read for this pack"}`);
+    return;
+  }
+  renderPropertyDetail(data.result);
+  renderPropertyRecords(data.result, null);
+}
+
+/**
+ * The map's own Dock/Expand/Full pill lives inside property-map.js (the
+ * iframe), overlaying the map itself -- see THE LAYERS RULE in this row's
+ * dispatch for why the layers panel has to live there too. It posts its
+ * mode as UI STATE, never map-engine data (no parcel, no click, nothing the
+ * map found), and the shell's only job is to reflow the lens CSS around
+ * whichever anchor is currently showing the map and re-settle the floating
+ * iframe onto its new size -- settle(), not transitionTo(), since this is a
+ * same-anchor resize, not the modal-style open/close FLIP animation max
+ * still uses for Plan review and Files.
+ */
+function bindMapDockMode() {
+  window.addEventListener("message", (event) => {
+    if (event.origin !== window.location.origin) return;
+    if (!event.data || event.data.type !== "sc-map-dock-mode") return;
+    const mode = event.data.mode;
+    if (mode !== "dock" && mode !== "expand" && mode !== "full") return;
+    const mapStage = stages.get("map");
+    const anchor = mapStage ? mapStage.findAnchor() : null;
+    const wrapper = anchor ? anchor.closest(".shell-regions") : null;
+    if (wrapper) wrapper.setAttribute("data-map-mode", mode);
+    requestAnimationFrame(() => {
+      if (mapStage) mapStage.settle();
+    });
+  });
 }
 
 /* ---------------------------------------------------------------- routing */
@@ -3018,6 +3166,7 @@ if (staffMap.cityKey !== DEFAULT_CITY_KEY) {
 
 applyLens(staffLens);
 const resettle = bindStages();
+bindMapDockMode();
 bindCompass();
 bindMenu();
 bindTheme();
@@ -3029,6 +3178,7 @@ composeGoldMap(staffMap.parcelNodeId, staffMap.cityKey);
 wireDsControls();
 loadPipeline(staffMap.cityKey);
 loadDevelopmentServices(staffMap.cityKey);
+loadPropertyDock(staffMap.cityKey);
 loadFleetLens(staffMap.cityKey);
 loadPublicWorksLens(staffMap.cityKey);
 loadPoliceLens(staffMap.cityKey);

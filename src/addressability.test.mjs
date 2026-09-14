@@ -1061,10 +1061,17 @@ describe("G-88 addressability: a screen that renders can also be driven", () => 
      * precedent below - the two cross-lens tiles (Overdue reviews, Permits in
      * flight) carry data-filter on their own metriclink anchor too, so it is
      * genuinely attached in markup rather than a root-only write nothing reads.
+     *
+     * G-128 added data-map-mode: bindMapDockMode() stamps it on whichever
+     * .shell-regions currently holds the visible map anchor, from the mode
+     * the map's own in-iframe Dock/Expand/Full pill posts up. Required, not
+     * excused, on the same basis as data-filter above - web/shell.css reads
+     * it directly (.shell-regions[data-map-mode="expand"/"full"]), so it is
+     * attached in markup and read, not a write nothing sees.
      */
     assert.deepEqual(
       [...HOOKS_WRITTEN].sort(),
-      ["data-atab", "data-city-key", "data-filter", "data-src", "data-surface", "data-tab", "data-theme"],
+      ["data-atab", "data-city-key", "data-filter", "data-map-mode", "data-src", "data-surface", "data-tab", "data-theme"],
     );
 
     /**

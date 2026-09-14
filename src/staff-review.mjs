@@ -52,7 +52,14 @@ export const ALL_LENS_IDS = [...LEAD_LENS_IDS, ...ROSTER_LENS_IDS];
  * at Work -> Plan review (`#anchor-work-review`); this tab is NOT a second
  * door onto those same records; it renders the honest not-built state and
  * points there. Flood study (G-125) is named, not yet scoped. Neither carries
- * a DOMAIN_REGISTRY entry, matching Place.
+ * a DOMAIN_REGISTRY entry.
+ *
+ * `place` LEFT this list at G-128 (OPS-17). The map stops being a tab and
+ * becomes a persistent rail beside every remaining tab, matching Overview
+ * (`_design/smartcity-map-dock/`, superseding the parity design that treated
+ * Place as a tab). The MOUNT is not cut: `#anchor-ds-map` carries
+ * data-stage="map" outside the tab switcher now, so the stage still resolves
+ * an anchor on every tab, not just one.
  *
  * The inline head script in web/index.html carries a SECOND COPY of this list,
  * because a script that imports is a module and a module is deferred, which is
@@ -61,7 +68,6 @@ export const ALL_LENS_IDS = [...LEAD_LENS_IDS, ...ROSTER_LENS_IDS];
  */
 export const DS_TABS = [
   "pipeline",
-  "place",
   "inspections",
   "work-orders",
   "code-enforcement",
@@ -190,7 +196,6 @@ export const LENS_LABELS = {
 
 export const TAB_LABELS = {
   pipeline: "Pipeline",
-  place: "Place",
   inspections: "Inspections",
   "work-orders": "Work orders",
   "code-enforcement": "Code enforcement",

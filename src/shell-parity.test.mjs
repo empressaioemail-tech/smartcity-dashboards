@@ -406,8 +406,26 @@ describe("G-90 class discipline for the new chrome", () => {
      * search+status+reset row on every table), pager/pos (the previous/
      * position/next footer), seg (the List/Map/Performance view-mode
      * control) -- hence 201 rather than 186.
+     *
+     * G-128 (the map dock, three states) added 11 more, none of them for
+     * this dropdown card either. web/shell.css (4): mapdock-row (wraps
+     * whichever trailing rail panels a lens supplies so Dock's stacked flow
+     * needs no override while Expand/Full turn it into a row), mapdock-detail
+     * and mapdock-records (the two panels that row arranges), pdl-row (the
+     * property-detail attribute row -- its label/value/basis spans compose
+     * the existing k/v/basis tokens rather than declaring new ones).
+     * web/property-map.css (7, its own self-contained stylesheet, same
+     * accounting reason G-117's additions above were named rather than
+     * folded in): pm-dockmode/pm-dockmode-btn (the in-iframe Dock/Expand/Full
+     * pill -- THE LAYERS RULE and the reflow both read this page's own mode,
+     * not the shell's), pm-mode-dock/pm-mode-expand/pm-mode-full (that mode,
+     * stamped on body), pm-layers-open (the layers panel's compact-button
+     * vs. open-sheet state in dock/expand), pm-embedded (the sliver-defect
+     * fix -- hides this page's own #pm-panel and header/search chrome when
+     * mounted in the shell's stage, since the shell now renders property
+     * detail and records itself) -- hence 212 rather than 201.
      */
-    assert.equal(defined.size, 201, "the defined class vocabulary moved by something other than the four");
+    assert.equal(defined.size, 212, "the defined class vocabulary moved by something other than the four");
     for (const cls of ["topmenu", "pop", "pop-group", "pop-item"]) {
       assert.ok(defined.has(cls), `${cls} is used but no served stylesheet defines it`);
       assert.ok(html.includes(cls), `${cls} is defined but nothing uses it`);
