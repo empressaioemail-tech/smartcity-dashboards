@@ -800,6 +800,28 @@ function populateSelect(id, options) {
   if ([...select.options].some((o) => o.value === current)) select.value = current;
 }
 
+/**
+ * Consumes the filter an attention-row tile (or, per G-120, an Overview
+ * tile) carried, per that same lane's own mechanism: applyLens writes it
+ * once onto the root as data-filter, and a destination lens that has filter
+ * UI reads it from there rather than re-parsing location.search itself. An
+ * unrecognised value -- a filter naming a status this tab's own vocabulary
+ * does not have, e.g. Pipeline's current "active"/"expiring" -- is a silent
+ * no-op, the same discipline G-120's own author documented for an unbuilt
+ * destination: "a destination that does not recognise the value simply
+ * does not act on it, the same as an unrecognised tab falls back rather
+ * than throwing."
+ */
+function applyPendingDsFilter(prefix, statusSelectId) {
+  const wanted = document.documentElement.getAttribute("data-filter") || "";
+  if (!wanted) return;
+  const select = document.getElementById(statusSelectId);
+  if (!select) return;
+  if (![...select.options].some((o) => o.value === wanted)) return;
+  select.value = wanted;
+  dsStateFor(prefix).status = wanted;
+}
+
 function distinctValues(records, field) {
   return [...new Set(records.map((r) => fieldValue(r, field)).filter(Boolean))].sort();
 }
@@ -1092,6 +1114,7 @@ function renderPipeline(pipeline) {
       label: (statusLabels[id] || { label: id }).label,
     })),
   );
+  applyPendingDsFilter("ds-pipeline", "ds-pipeline-status");
 
   dsLast["ds-pipeline"] = { records, statusLabels };
   dsRerender["ds-pipeline"]();
@@ -1307,6 +1330,7 @@ function renderInspections(payload) {
       "ds-insp-type",
       distinctValues(records, "inspectionType").map((v) => ({ value: v, label: v })),
     );
+    applyPendingDsFilter("ds-insp", "ds-insp-status");
   }
 
   dsLast["ds-insp"] = { records, payload };
@@ -1390,6 +1414,7 @@ function renderWorkOrders(payload) {
       "ds-wo-manager",
       distinctValues(records, "managerRef").map((v) => ({ value: v, label: v })),
     );
+    applyPendingDsFilter("ds-wo", "ds-wo-status");
   }
 
   dsLast["ds-wo"] = { records, payload };
@@ -1505,6 +1530,7 @@ function renderCodeEnforcement(payload) {
       "ds-ce-officer",
       distinctValues(records, "officerRef").map((v) => ({ value: v, label: v })),
     );
+    applyPendingDsFilter("ds-ce", "ds-ce-status");
   }
 
   dsLast["ds-ce"] = { records, payload };
@@ -1571,6 +1597,7 @@ function renderLicences(payload) {
       })),
     );
     populateSelect("ds-lic-type", types.map((v) => ({ value: v, label: v })));
+    applyPendingDsFilter("ds-lic", "ds-lic-status");
   }
 
   dsLast["ds-lic"] = { records };
