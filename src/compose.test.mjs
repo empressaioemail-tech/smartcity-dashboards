@@ -529,6 +529,7 @@ describe("city-manager compose", () => {
       "atoms",
       "cityKey",
       "filesRoom",
+      "floodDrainage",
       "lensId",
       "meetings",
       "parcelNodeId",
@@ -614,5 +615,52 @@ describe("G-117 native property map, conditional map-stage composition", () => {
       }),
     });
     assert.equal(composed.smartsite.url, "/property-map.html?cityKey=bastrop_tx");
+  });
+});
+
+describe("G-129 flood & drainage capability -- rides the SAME map-stage src", () => {
+  it("on a pack with the real SmartSite embed, appends embed=flood-drainage to that SAME url", async () => {
+    const composed = await composeCityManager({
+      parcelNodeId: VALID,
+      cityKey: "template-city",
+      env: envWithMounts(),
+      fetchImpl: mockFetch((url) => {
+        if (url.includes("/atom-chain")) throw new Error("must not call retrieval");
+        return jsonResponse(200, { folders: [] });
+      }),
+    });
+    assert.equal(composed.floodDrainage.available, true);
+    assert.equal(
+      composed.floodDrainage.url,
+      "https://smartsite.cloud/?parcelNodeId=48021%3A34137&embed=flood-drainage",
+    );
+  });
+
+  it("on the G-117 native-property-map pack (bastrop_tx today), is disabled with a stated reason -- never a broken smartsite.cloud url", async () => {
+    const composed = await composeCityManager({
+      parcelNodeId: VALID,
+      cityKey: "bastrop_tx",
+      env: envWithMounts(),
+      nativePropertyMap: true,
+      fetchImpl: mockFetch((url) => {
+        if (url.includes("/atom-chain")) throw new Error("must not call retrieval");
+        return jsonResponse(200, { folders: [] });
+      }),
+    });
+    assert.equal(composed.floodDrainage.available, false);
+    assert.match(composed.floodDrainage.reason, /G-117/);
+  });
+
+  it("with no parcelNodeId resolved at all, is disabled with the smartsite basis as its reason", async () => {
+    const composed = await composeCityManager({
+      cityKey: "template-city",
+      env: envWithMounts(),
+      fetchImpl: mockFetch((url) => {
+        if (url.includes("/atom-chain")) throw new Error("must not call retrieval");
+        return jsonResponse(200, { folders: [] });
+      }),
+    });
+    assert.equal(composed.floodDrainage.available, false);
+    assert.equal(composed.floodDrainage.reason, "missing parcelNodeId");
   });
 });

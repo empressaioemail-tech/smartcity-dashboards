@@ -521,7 +521,79 @@ function closeStages() {
   if (!open) return;
   open.transitionTo("collapsed");
   open.el.classList.remove("is-max");
+  if (open.name === "map") revertMapStageIfFlood();
 }
+
+/* ------------------------------------------------- G-129 flood capability
+ *
+ * The "map" stage already hosts whichever page shows this pack's map (the
+ * real SmartSite/PE embed, or this product's own native-property-map
+ * stopgap per G-117) -- this capability points that SAME stage at the PE
+ * flood-drainage embed instead of building a second map surface: "a view
+ * mode of the map area in Full," per this row's dispatch. Reachable from
+ * Public works, Development services and Fire and EMS -- built once, wired
+ * from the one composeGoldMap() boot call every lens already shares, not
+ * recomputed per lens.
+ */
+let floodDrainageCapability = null; // null until composeGoldMap resolves once
+let defaultMapStageUrl = "";
+let mapStageIsFlood = false;
+
+function floodCapabilityBasis() {
+  if (!floodDrainageCapability) return "Map has not loaded yet for this pack.";
+  if (!floodDrainageCapability.available) return floodDrainageCapability.reason;
+  return "";
+}
+
+/** One id per lens this capability reaches (Development services, Public
+ *  works, Fire and EMS) -- explicit, addressable ids, not a shared attribute
+ *  selector, so the addressability gate can trace each one by name. */
+const FLOOD_CAPABILITY_BASIS_IDS = [
+  "ds-flood-capability-basis",
+  "pw-flood-capability-basis",
+  "fire-flood-capability-basis",
+];
+
+function renderFloodCapability() {
+  const basis = floodCapabilityBasis();
+  const available = Boolean(floodDrainageCapability && floodDrainageCapability.available);
+  document.querySelectorAll("[data-flood-capability]").forEach((btn) => {
+    btn.disabled = !available;
+    btn.title = available ? "" : basis;
+  });
+  for (const id of FLOOD_CAPABILITY_BASIS_IDS) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    el.textContent = basis;
+    show(el, !available);
+  }
+}
+
+function openFloodDrainageCapability() {
+  if (!floodDrainageCapability || !floodDrainageCapability.available) return;
+  const mapStage = stages.get("map");
+  if (!mapStage) return;
+  mapStageIsFlood = true;
+  mapStage.mount(floodDrainageCapability.url);
+  mapStage.transitionTo("max");
+}
+
+/** Closing the capability returns the map stage to whichever page normally
+ *  shows this pack's map -- never leaves a lens's map anchor stuck showing
+ *  the flood report after the staff member is done with it. */
+function revertMapStageIfFlood() {
+  if (!mapStageIsFlood) return;
+  mapStageIsFlood = false;
+  const mapStage = stages.get("map");
+  if (mapStage && defaultMapStageUrl) mapStage.mount(defaultMapStageUrl);
+}
+
+document.addEventListener("click", (event) => {
+  const trigger = event.target.closest("[data-flood-capability]");
+  if (!trigger || trigger.disabled) return;
+  event.preventDefault();
+  openFloodDrainageCapability();
+});
 
 function bindStages() {
   const radius = stageRadius();
@@ -1949,6 +2021,12 @@ async function composeGoldMap(parcelNodeId, cityKey) {
   stages.get("map")?.mount(data.smartsite?.url || "");
   stages.get("review")?.mount(data.planReview?.url || "");
   stages.get("files")?.mount(data.smartFiles?.url || "");
+  // G-129: capture the map stage's own default src so the flood capability
+  // can revert to it on close, and render every lens's capability trigger
+  // from this one composed answer.
+  defaultMapStageUrl = data.smartsite?.url || "";
+  floodDrainageCapability = data.floodDrainage || null;
+  renderFloodCapability();
 
   /**
    * G-120. The right rail's lower panel used to show data.atoms's own

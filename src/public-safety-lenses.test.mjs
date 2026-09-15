@@ -327,10 +327,13 @@ describe("G-97 R2 accessibility is a merge gate in this lane", () => {
     }
   });
 
-  it("adds no control, so there is no unnamed one to find", () => {
+  it("adds no control beyond the G-129 flood-capability trigger, so there is no unnamed one to find", () => {
     for (const [name, section] of Object.entries(SECTIONS)) {
+      const scanned = section
+        .replace(/<button[^>]*data-flood-capability[^>]*>[\s\S]*?<\/button>/g, "")
+        .replace(/<p[^>]*data-flood-capability-basis[^>]*>[\s\S]*?<\/p>/g, "");
       for (const tag of [/<button\b/, /<input\b/, /<select\b/, /<textarea\b/]) {
-        assert.equal(tag.test(section), false, `${name} added an interactive control`);
+        assert.equal(tag.test(scanned), false, `${name} added an interactive control`);
       }
     }
   });

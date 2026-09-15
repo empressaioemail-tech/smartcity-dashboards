@@ -269,6 +269,38 @@ function nativePropertyMapUrl(cityKey) {
   return `/property-map.html?cityKey=${encodeURIComponent(cityKey)}`;
 }
 
+/**
+ * G-129 — the flood & drainage screening capability. It rides the SAME "map"
+ * stage the SmartSite embed already occupies (a view mode of the map area in
+ * Full, not a second map surface) — reachable from Public works, Development
+ * services and Fire and EMS, built once rather than per-lens.
+ *
+ * Honors G-117: a pack on the native-property-map stopgap (bastrop_tx today)
+ * has no PE/MapLibre surface for this capability to point at, so this
+ * returns an honest disabled state with its basis rather than a broken
+ * smartsite.cloud URL for a pack this product deliberately keeps off it.
+ * Reversal: once G-117 lifts for a pack, this needs no change — it derives
+ * from the SAME `smartsite` object the map stage already mounts.
+ */
+function floodDrainageMapSrc(smartsite) {
+  if (!smartsite || !smartsite.url) {
+    return {
+      available: false,
+      reason: smartsite?.basis || "No parcel resolved for this pack yet.",
+    };
+  }
+  if (smartsite.basis === "native property map (G-117)") {
+    return {
+      available: false,
+      reason:
+        "This pack's map runs on the native property lookup page (G-117 stopgap), which has no drainage-study surface. Available once the SmartSite embed is restored for this pack.",
+    };
+  }
+  const url = new URL(smartsite.url);
+  url.searchParams.set("embed", "flood-drainage");
+  return { available: true, url: url.toString() };
+}
+
 export async function composeCityManager({
   parcelNodeId = "",
   cityKey = DEFAULT_CITY_KEY,
@@ -299,6 +331,7 @@ export async function composeCityManager({
     cityKey: city,
     parcelNodeId: id,
     smartsite,
+    floodDrainage: floodDrainageMapSrc(smartsite),
     planReview: { contract: "embed", url: planReviewEmbedUrl(env, city) },
     smartFiles: { contract: "embed", url: smartFilesEmbedUrl(env, city) },
     atoms,

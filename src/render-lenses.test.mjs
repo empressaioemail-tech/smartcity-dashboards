@@ -338,11 +338,14 @@ describe("G-97 accessibility is a merge gate in this lane", () => {
     assert.deepEqual(all.filter((tag) => !/tabindex="0"/.test(tag)), []);
   });
 
-  it("adds no control, so there is no unnamed one to find", () => {
+  it("adds no control beyond the G-129 flood-capability trigger, so there is no unnamed one to find", () => {
     for (const [name, section] of [["fleet", fleet], ["public works", works]]) {
-      assert.equal(/<button/.test(section), false, `${name} adds a button`);
-      assert.equal(/<input/.test(section), false, `${name} adds an input`);
-      assert.equal(/<select/.test(section), false, `${name} adds a select`);
+      const scanned = section
+        .replace(/<button[^>]*data-flood-capability[^>]*>[\s\S]*?<\/button>/g, "")
+        .replace(/<p[^>]*data-flood-capability-basis[^>]*>[\s\S]*?<\/p>/g, "");
+      assert.equal(/<button/.test(scanned), false, `${name} adds a button`);
+      assert.equal(/<input/.test(scanned), false, `${name} adds an input`);
+      assert.equal(/<select/.test(scanned), false, `${name} adds a select`);
     }
   });
 
