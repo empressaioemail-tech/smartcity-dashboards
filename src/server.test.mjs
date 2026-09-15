@@ -976,3 +976,172 @@ describe("static asset validators are derived from content, not from startup", (
     assert.equal(gone.body.toString(), "not found");
   });
 });
+
+describe("G-132: GET /api/people-and-access", () => {
+  let peopleAccessPort;
+  const savedEnv = {};
+  const ENV_KEYS = ["DASHBOARDS_API_KEY", "DATABASE_URL", "SHELL_IDENTITY_PROVIDER", "HAUSKA_TENANT_KEYS", "HAUSKA_MCP_URL"];
+  let originalFetch;
+  const ISSUER = "https://idp.test.example";
+
+  function b64url(input) {
+    return Buffer.from(input).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  }
+
+  async function mintStaffToken(payload) {
+    const crypto = await import("node:crypto");
+    const { publicKey, privateKey } = crypto.generateKeyPairSync("rsa", { modulusLength: 2048 });
+    const jwk = publicKey.export({ format: "jwk" });
+    // A unique kid per minted token, not a shared constant: the JWKS cache in
+    // src/tenancy.mjs's resolveCaller is process-lifetime, module-level (by
+    // design, for production) and server.mjs never injects a per-call cache --
+    // so two tests in this file reusing one issuer+kid would read each other's
+    // STALE cached key. A unique kid forces a cache miss -> one fetch against
+    // THIS test's own mock, every time, regardless of test order.
+    const kid = crypto.randomUUID();
+    jwk.kid = kid;
+    const h = b64url(JSON.stringify({ alg: "RS256", typ: "JWT", kid }));
+    const p = b64url(JSON.stringify(payload));
+    const signingInput = `${h}.${p}`;
+    const sig = crypto.sign("RSA-SHA256", Buffer.from(signingInput), privateKey);
+    const s = sig.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    return { token: `${signingInput}.${s}`, jwk };
+  }
+
+  before(
+    () =>
+      new Promise((resolve) => {
+        for (const k of ENV_KEYS) savedEnv[k] = process.env[k];
+        for (const k of ENV_KEYS) delete process.env[k];
+        server.listen(0, "127.0.0.1", () => {
+          peopleAccessPort = server.address().port;
+          resolve();
+        });
+      }),
+  );
+
+  after(
+    () =>
+      new Promise((resolve, reject) => {
+        for (const k of ENV_KEYS) {
+          if (savedEnv[k] == null) delete process.env[k];
+          else process.env[k] = savedEnv[k];
+        }
+        server.close((err) => (err ? reject(err) : resolve()));
+      }),
+  );
+
+  it("refuses an anonymous caller with a typed 401, never a bare list", async () => {
+    const res = await fetch(`http://127.0.0.1:${peopleAccessPort}/api/people-and-access`);
+    assert.equal(res.status, 401);
+    const body = await res.json();
+    assert.ok(body.error);
+  });
+
+  it("refuses a tenant/service caller (identified, but not a person) with 401 -- never a silent empty roster", async () => {
+    process.env.HAUSKA_TENANT_KEYS = JSON.stringify({ "hauska-fixture": "template-city" });
+    const res = await fetch(`http://127.0.0.1:${peopleAccessPort}/api/people-and-access`, {
+      headers: { "x-hauska-key": "hauska-fixture" },
+    });
+    delete process.env.HAUSKA_TENANT_KEYS;
+    assert.equal(res.status, 401, "a product-key tenant is not a person and must not read the roster");
+  });
+
+  it("verified staff with a non-admin, non-city-manager role is refused 403, typed", async () => {
+    process.env.SHELL_IDENTITY_PROVIDER = ISSUER;
+    const { upsertStaffAccount } = await import("./staff-directory.mjs");
+    await upsertStaffAccount({ sub: "worker-1", tenant: "bastrop_tx", role: "police" });
+    const { token, jwk } = await mintStaffToken({
+      sub: "worker-1",
+      iss: ISSUER,
+      exp: Math.floor(Date.now() / 1000) + 600,
+      role: "police",
+      org_id: "bastrop_tx",
+    });
+    originalFetch = globalThis.fetch;
+    globalThis.fetch = async (url, opts) => {
+      const u = String(url);
+      if (u.endsWith("/.well-known/openid-configuration")) {
+        return { ok: true, json: async () => ({ jwks_uri: `${ISSUER}/.well-known/jwks.json` }) };
+      }
+      if (u.endsWith("/.well-known/jwks.json")) {
+        return { ok: true, json: async () => ({ keys: [jwk] }) };
+      }
+      return originalFetch(url, opts);
+    };
+    try {
+      const res = await fetch(`http://127.0.0.1:${peopleAccessPort}/api/people-and-access`, {
+        headers: { authorization: `Bearer ${token}` },
+      });
+      assert.equal(res.status, 403);
+      const body = await res.json();
+      assert.equal(body.error, "not_admin_or_city_manager");
+    } finally {
+      globalThis.fetch = originalFetch;
+      delete process.env.SHELL_IDENTITY_PROVIDER;
+    }
+  });
+
+  it("an admin reads the roster scoped to a requested cityKey; a city-manager reads only their OWN tenant regardless of the query param", async () => {
+    process.env.SHELL_IDENTITY_PROVIDER = ISSUER;
+    const { upsertStaffAccount, _resetMemoryStoreForTests } = await import("./staff-directory.mjs");
+    _resetMemoryStoreForTests();
+    await upsertStaffAccount({ sub: "admin-1", tenant: "smartcity-internal", role: "admin" });
+    await upsertStaffAccount({ sub: "cm-1", tenant: "bastrop_tx", role: "city-manager" });
+    await upsertStaffAccount({ sub: "staffer-1", tenant: "bastrop_tx", role: "public-works" });
+    await upsertStaffAccount({ sub: "other-city-staffer", tenant: "some-other-city", role: "police" });
+
+    const admin = await mintStaffToken({ sub: "admin-1", iss: ISSUER, exp: Math.floor(Date.now() / 1000) + 600, role: "admin" });
+    const cm = await mintStaffToken({
+      sub: "cm-1",
+      iss: ISSUER,
+      exp: Math.floor(Date.now() / 1000) + 600,
+      role: "city-manager",
+      org_id: "bastrop_tx",
+    });
+
+    originalFetch = globalThis.fetch;
+    const keysByKid = { [admin.jwk.kid]: admin.jwk }; // both tokens share kid "k1" in this helper; jwks below serves either
+    globalThis.fetch = async (url, opts) => {
+      const u = String(url);
+      if (u.endsWith("/.well-known/openid-configuration")) {
+        return { ok: true, json: async () => ({ jwks_uri: `${ISSUER}/.well-known/jwks.json` }) };
+      }
+      if (u.endsWith("/.well-known/jwks.json")) {
+        // Serve whichever key was most recently minted for this test's requests; both admin
+        // and cm tokens are verified in sequence below, each preceded by installing its own key.
+        return { ok: true, json: async () => ({ keys: [globalThis.__testJwk] }) };
+      }
+      return originalFetch(url, opts);
+    };
+    try {
+      globalThis.__testJwk = admin.jwk;
+      const adminRes = await fetch(`http://127.0.0.1:${peopleAccessPort}/api/people-and-access?cityKey=bastrop_tx`, {
+        headers: { authorization: `Bearer ${admin.token}` },
+      });
+      assert.equal(adminRes.status, 200);
+      const adminBody = await adminRes.json();
+      assert.equal(adminBody.tenant, "bastrop_tx");
+      assert.deepEqual(
+        adminBody.accounts.map((a) => a.sub).sort(),
+        ["cm-1", "staffer-1"],
+      );
+
+      globalThis.__testJwk = cm.jwk;
+      const cmRes = await fetch(`http://127.0.0.1:${peopleAccessPort}/api/people-and-access?cityKey=some-other-city`, {
+        headers: { authorization: `Bearer ${cm.token}` },
+      });
+      assert.equal(cmRes.status, 200);
+      const cmBody = await cmRes.json();
+      assert.equal(cmBody.tenant, "bastrop_tx", "a city-manager's OWN tenant claim wins over the query param, always");
+      assert.deepEqual(
+        cmBody.accounts.map((a) => a.sub).sort(),
+        ["cm-1", "staffer-1"],
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+      delete globalThis.__testJwk;
+      delete process.env.SHELL_IDENTITY_PROVIDER;
+    }
+  });
+});

@@ -52,9 +52,9 @@ describe("G-90 the session, and what it refuses to claim", () => {
      * anonymous rather than to a confident wrong sentence. This is the assertion
      * that makes the list a contract instead of a comment.
      */
-    assert.deepEqual(CALLER_KINDS, ["anonymous", "tenant", "service"]);
+    assert.deepEqual(CALLER_KINDS, ["anonymous", "tenant", "service", "staff"]);
     for (const kind of CALLER_KINDS) {
-      const session = shellSession({ kind, tenant: "template-city" });
+      const session = shellSession({ kind, tenant: "template-city", sub: "person-1", role: "development-services" });
       assert.equal(session.kind, kind);
       assert.ok(session.label, `${kind} has no label`);
       assert.ok(session.basis, `${kind} has no basis`);
@@ -65,21 +65,38 @@ describe("G-90 the session, and what it refuses to claim", () => {
     assert.equal(shellSession(undefined).kind, "anonymous");
   });
 
-  it("never calls an identified caller a signed-in person", () => {
+  it("never calls a product-key or service caller a signed-in person; only a verified staff bearer is one", () => {
     /**
-     * THE DISTINCTION THIS FILE EXISTS FOR. G-11 settled that a city pack is the
-     * tenant and that an identified caller is a product key whose
-     * jurisdiction_tenant equals the cityKey - a machine credential naming a
-     * TENANT. Collapsing that into "signed in" would put My profile in front of
-     * a request with no person behind it, which is fabricated presence wearing
-     * an auth costume.
+     * THE DISTINCTION THIS FILE EXISTS FOR, UPDATED FOR G-132 RATHER THAN
+     * RELAXED. G-11 settled that a city pack is the tenant and that a
+     * product-key-identified caller is a machine credential naming a TENANT,
+     * never a person -- that still holds, exercised below for "tenant" and
+     * "service". G-132 adds the one caller kind for which "signed in" is
+     * finally true: a bearer this deployment's own src/staff-identity.mjs
+     * verified against a configured issuer, carrying a real `sub`. The kinds
+     * that must NOT resolve to a person are unchanged; what changed is that
+     * there is now a kind that legitimately does, and this test proves both
+     * sides rather than asserting the old, uniformly-false state alone.
      */
-    for (const kind of CALLER_KINDS) {
+    for (const kind of ["anonymous", "tenant", "service"]) {
       const session = shellSession({ kind, tenant: "template-city" });
       assert.equal(session.staffUser, false, `${kind} must not resolve to a staff user`);
       assert.equal(session.identified, kind !== "anonymous");
       assert.ok(session.staffUserBasis, "the absence of a staff user must carry its basis");
+      assert.equal(session.role, null, `${kind} must carry no role claim`);
     }
+    const staffSession = shellSession({ kind: "staff", sub: "person-1", role: "development-services", tenant: "bastrop_tx" });
+    assert.equal(staffSession.staffUser, true, "a verified staff bearer must resolve to a staff user");
+    assert.equal(staffSession.identified, true);
+    assert.equal(staffSession.role, "development-services");
+    assert.match(staffSession.staffUserBasis, /person-1/);
+
+    // The no-role-yet state (staff-identity.mjs: a provisioned person with no lens role) is
+    // real and distinct from "not staff" -- staffUser stays true, role stays null and readable.
+    const unroledStaff = shellSession({ kind: "staff", sub: "person-2", role: null, tenant: "bastrop_tx" });
+    assert.equal(unroledStaff.staffUser, true);
+    assert.equal(unroledStaff.role, null);
+
     assert.equal(shellSession({ kind: "anonymous" }).identified, false);
   });
 });
