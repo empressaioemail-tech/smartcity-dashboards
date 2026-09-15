@@ -31,7 +31,7 @@ import { packSources } from "./city-identity.mjs";
  * than pattern-matched, so a kind added there and not taught here fails loudly
  * instead of resolving to a confident wrong sentence about who is calling.
  */
-export const CALLER_KINDS = ["anonymous", "tenant", "service"];
+export const CALLER_KINDS = ["anonymous", "tenant", "service", "staff"];
 
 /**
  * The session, and the distinction it exists to keep.
@@ -50,28 +50,36 @@ export const CALLER_KINDS = ["anonymous", "tenant", "service"];
 export function shellSession(caller) {
   const kind = CALLER_KINDS.includes(caller?.kind) ? caller.kind : "anonymous";
   const identified = kind !== "anonymous";
+  const staffUser = kind === "staff";
   const label = {
     anonymous: "Anonymous",
     tenant: "Identified by product key",
     service: "Service caller",
+    staff: caller?.name || caller?.email || "Signed in",
   }[kind];
   const basis = {
     anonymous: "no credential was presented, and anonymous is the default path on this product",
     tenant: "a Hauska product key resolved to a city pack tenant, which identifies a tenant and not a person",
     service: "a service bearer token was presented, which identifies a deployment and not a person",
+    // G-132: a verified staff bearer identifies a PERSON, distinct from the tenant/service kinds
+    // above which never did. This is the one branch where staffUser can be true.
+    staff: "a staff bearer verified against this deployment's configured identity provider, which identifies a person",
   }[kind];
   return {
     kind,
     identified,
+    staffUser,
+    staffUserBasis: staffUser
+      ? `verified staff identity (sub ${caller.sub})`
+      : "this product resolves a caller from a product key or a service bearer and never from a person; staff users arrive with the People and access build",
     /**
-     * Always false today, and that is a statement about the product rather than
-     * about this request. It is a field rather than an omission so a successor
-     * can see the distinction was considered, and so the account capabilities
-     * below have something real to key off once it can be true.
+     * The role claim, exactly as G-132's mission requires it to exist and be
+     * readable -- null is a real, named state (an identity provisioned with
+     * no role assigned yet), never collapsed with "not a staff user at all".
+     * G-132 does not decide what a null role may or may not do; that
+     * enforcement question is G-127's, reading this field.
      */
-    staffUser: false,
-    staffUserBasis:
-      "this product resolves a caller from a product key or a service bearer and never from a person; staff users arrive with the People and access build",
+    role: staffUser ? caller.role ?? null : null,
     label,
     basis,
   };

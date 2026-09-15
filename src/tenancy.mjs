@@ -1,3 +1,6 @@
+import { verifyStaffToken } from "./staff-identity.mjs";
+import { isStaffAccountRevoked } from "./staff-directory.mjs";
+
 const ACCESS_POLICIES = new Set(["public-free", "tenant-private"]);
 
 export function headerValue(req, name) {
@@ -50,11 +53,68 @@ export async function resolveHauskaTenant(req, envMap = process.env, deps = {}) 
   return typeof tenant === "string" && tenant.trim() ? tenant.trim() : null;
 }
 
+/**
+ * G-132. A staff bearer is checked FIRST and, once presented, its outcome is
+ * FINAL -- success returns {kind:"staff",...} immediately without consulting
+ * x-hauska-key at all (a person's own identity is authoritative over a
+ * coarser product-key tenant), and failure refuses immediately without
+ * falling through to x-hauska-key, the service key, or anonymous. That is
+ * the literal mechanism behind "never fall back to the shared persona and
+ * never fall back to tenant-only resolution" -- a caller that attempted to
+ * identify itself as a person does not get quietly re-resolved as something
+ * coarser just because a weaker credential also happens to be present.
+ *
+ * A refusal is carried on an {kind:"anonymous"} shape (not a new caller kind)
+ * so it flows through every existing kind==="anonymous" branch in this file
+ * and in shell-state.mjs unchanged -- refusing tenant-private content and
+ * still serving public-free content, which is correct: an invalid staff
+ * token does not make PUBLIC content any less public. The `refused` field is
+ * what upgrades the response from an indistinguishable-from-plain-anonymous
+ * 401 into a typed one (server.mjs reads it to build the response body).
+ *
+ * A presented bearer that is not JWT-shaped at all (the existing
+ * DASHBOARDS_API_KEY opaque service key) is untouched by this branch:
+ * verifyStaffToken returns null for it, and resolution proceeds exactly as
+ * before.
+ */
 export async function resolveCaller(req, envMap = process.env, deps = {}) {
+  const bearer = headerValue(req, "authorization").replace(/^Bearer\s+/i, "").trim();
+  if (bearer) {
+    // isRevoked defaults to the local staff directory (staff-directory.mjs) so every
+    // production call site -- none of which pass deps explicitly -- still gets a real,
+    // per-request offboarding check without having to be taught about it individually.
+    // A caller wanting a different/injected check (tests, this file's own tests) overrides
+    // it by passing deps.isRevoked.
+    const staffDeps = { ...deps, isRevoked: deps.isRevoked ?? ((sub) => isStaffAccountRevoked(sub, envMap)) };
+    const staff = await verifyStaffToken(bearer, envMap, staffDeps);
+    if (staff) {
+      if (staff.ok) return { kind: "staff", ...staff.identity };
+      return { kind: "anonymous", refused: { error: staff.error, message: staff.message, status: staff.status } };
+    }
+  }
   const tenant = await resolveHauskaTenant(req, envMap, deps);
   if (tenant) return { kind: "tenant", tenant };
   if (isServiceBearer(req, envMap)) return { kind: "service" };
   return { kind: "anonymous" };
+}
+
+/** The typed refusal a staff bearer attempt left on an otherwise-anonymous caller, or null. */
+export function callerRefusal(caller) {
+  return caller?.refused ?? null;
+}
+
+/**
+ * The body for a non-200 pack-content response, typed rather than a bare
+ * "unauthorized"/"forbidden" string. G-132's mission: "A refused request says
+ * it was refused and why. A silent empty response is indistinguishable from
+ * 'no records'." A caller carrying a refused staff-bearer attempt gets that
+ * attempt's own reason; every other 401/403 keeps its existing generic
+ * reason, since only a staff-bearer refusal has a more specific one to give.
+ */
+export function accessRefusalBody(caller, status) {
+  const refusal = callerRefusal(caller);
+  if (refusal) return { error: refusal.error, message: refusal.message };
+  return { error: status === 401 ? "unauthorized" : "forbidden" };
 }
 
 /**
@@ -73,7 +133,14 @@ export async function resolveCaller(req, envMap = process.env, deps = {}) {
 export function callerIsPackSubject(caller, cityKey) {
   const subject = String(cityKey || "").trim();
   if (!subject) return false;
-  return caller?.kind === "tenant" && caller.tenant === subject;
+  if (caller?.kind === "tenant") return caller.tenant === subject;
+  // G-132: a verified staff person is a subject of their own tenant's pack, same as a
+  // product-key tenant caller -- a real person from bastrop_tx must read what a bastrop_tx
+  // product key already could. A staff caller with no tenant claim (see staff-identity.mjs's
+  // "provisioned with no role yet" case, which also applies to tenant) is not a subject of
+  // anything: null !== a real cityKey, so this refuses rather than guessing.
+  if (caller?.kind === "staff") return Boolean(caller.tenant) && caller.tenant === subject;
+  return false;
 }
 
 export function canReadPack(pack, caller, envMap = process.env) {
@@ -84,7 +151,7 @@ export function canReadPack(pack, caller, envMap = process.env) {
   if (policy === "tenant-private") {
     return callerIsPackSubject(caller, pack.cityKey);
   }
-  if (caller?.kind === "tenant" || caller?.kind === "service") return true;
+  if (caller?.kind === "tenant" || caller?.kind === "service" || caller?.kind === "staff") return true;
   const serviceKey = String(envMap.DASHBOARDS_API_KEY || "").trim();
   return !serviceKey;
 }

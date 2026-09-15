@@ -30,7 +30,8 @@ import { runMunicodeCalendar } from "./municode-calendar.mjs";
 import { loadDotenv } from "./load-env.mjs";
 import { pingDb } from "./db.mjs";
 import { MCP_TOOL_NAMES } from "./catalog.mjs";
-import { canReadPack, packContentReadStatus, packReadStatus, resolveCaller, isServiceBearer } from "./tenancy.mjs";
+import { canReadPack, packContentReadStatus, packReadStatus, resolveCaller, isServiceBearer, accessRefusalBody } from "./tenancy.mjs";
+import { listStaffAccounts } from "./staff-directory.mjs";
 
 /**
  * G-116 Phase 2. Every domain with a real (non-fixture) source, and how to
@@ -278,7 +279,7 @@ async function handle(req, res) {
       return;
     }
     if (status !== 200) {
-      json(res, status, { error: status === 401 ? "unauthorized" : "forbidden" });
+      json(res, status, accessRefusalBody(caller, status));
       return;
     }
     const composed = await composeCityManager({
@@ -322,7 +323,7 @@ async function handle(req, res) {
       return;
     }
     if (status !== 200) {
-      json(res, status, { error: status === 401 ? "unauthorized" : "forbidden" });
+      json(res, status, accessRefusalBody(caller, status));
       return;
     }
     const composed = await composePropertyIntelSummary({
@@ -353,7 +354,7 @@ async function handle(req, res) {
       return;
     }
     if (status !== 200) {
-      json(res, status, { error: status === 401 ? "unauthorized" : "forbidden" });
+      json(res, status, accessRefusalBody(caller, status));
       return;
     }
     const composed = await composePropertyIntelLayer({
@@ -384,7 +385,7 @@ async function handle(req, res) {
       return;
     }
     if (status !== 200) {
-      json(res, status, { error: status === 401 ? "unauthorized" : "forbidden" });
+      json(res, status, accessRefusalBody(caller, status));
       return;
     }
     /**
@@ -430,7 +431,7 @@ async function handle(req, res) {
       return;
     }
     if (status !== 200) {
-      json(res, status, { error: status === 401 ? "unauthorized" : "forbidden" });
+      json(res, status, accessRefusalBody(caller, status));
       return;
     }
     const map = composeDomainMap(pack);
@@ -488,7 +489,7 @@ async function handle(req, res) {
       return;
     }
     if (status !== 200) {
-      json(res, status, { error: status === 401 ? "unauthorized" : "forbidden" });
+      json(res, status, accessRefusalBody(caller, status));
       return;
     }
     /**
@@ -540,7 +541,7 @@ async function handle(req, res) {
       return;
     }
     if (status !== 200) {
-      json(res, status, { error: status === 401 ? "unauthorized" : "forbidden" });
+      json(res, status, accessRefusalBody(caller, status));
       return;
     }
     json(res, 200, { identity: cityIdentity(pack) });
@@ -568,10 +569,67 @@ async function handle(req, res) {
       return;
     }
     if (status !== 200) {
-      json(res, status, { error: status === 401 ? "unauthorized" : "forbidden" });
+      json(res, status, accessRefusalBody(caller, status));
       return;
     }
     json(res, 200, shellState({ caller, pack, env: process.env }));
+    return;
+  }
+
+  /**
+   * G-132 / People and access. Ruling 1's reconciliation: Sylvia (the city
+   * manager) can SEE who has access to her city's data at any time, without
+   * being handed anything to manage -- read-only for her, administered by
+   * us. This is the read half only; there is no write route here, on
+   * purpose, because the write path IS the admin-provisioning flow this
+   * lane names as a gap (see close: staff-admin-client.mjs).
+   *
+   * `role==="admin"` (SmartCity's own operators) reads any tenant, passed as
+   * ?cityKey=. `role==="city-manager"` reads only their OWN tenant -- their
+   * token's tenant claim, never a query param, so a city-manager cannot
+   * page through another city's roster by editing the URL. Every other
+   * role, and every non-staff caller, is refused with the SAME typed shape
+   * every other refusal in this file uses -- a silent empty list here would
+   * read as "nobody has access", which is the exact "no records" collapse
+   * DEV_PROCESS 4.3 forbids.
+   */
+  if (req.method === "GET" && url.pathname === "/api/people-and-access") {
+    const caller = await resolveCaller(req);
+    if (caller.kind !== "staff") {
+      const status = caller.refused ? caller.refused.status : 401;
+      json(res, status, accessRefusalBody(caller, status));
+      return;
+    }
+    if (caller.role !== "admin" && caller.role !== "city-manager") {
+      json(res, 403, {
+        error: "not_admin_or_city_manager",
+        message: "People and access is readable by the admin and city-manager roles only.",
+      });
+      return;
+    }
+    const requestedTenant = url.searchParams.get("cityKey") || "";
+    const scopeTenant = caller.role === "admin" ? requestedTenant || null : caller.tenant;
+    if (caller.role === "city-manager" && !caller.tenant) {
+      json(res, 403, {
+        error: "no_tenant_claim",
+        message: "this city-manager identity carries no tenant claim to scope the roster to.",
+      });
+      return;
+    }
+    const accounts = await listStaffAccounts({ tenant: scopeTenant });
+    json(res, 200, {
+      tenant: scopeTenant,
+      accounts: accounts.map((a) => ({
+        sub: a.sub,
+        tenant: a.tenant,
+        role: a.role,
+        email: a.email,
+        name: a.name,
+        status: a.status,
+        provisionedAt: a.provisionedAt,
+        disabledAt: a.disabledAt,
+      })),
+    });
     return;
   }
 
@@ -629,7 +687,7 @@ async function handle(req, res) {
       return;
     }
     if (status !== 200) {
-      json(res, status, { error: status === 401 ? "unauthorized" : "forbidden" });
+      json(res, status, accessRefusalBody(caller, status));
       return;
     }
     json(res, 200, { cityPack: pack });
