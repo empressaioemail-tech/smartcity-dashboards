@@ -661,6 +661,7 @@ describe("HTTP surface", () => {
       "atoms",
       "cityKey",
       "filesRoom",
+      "floodDrainage",
       "lensId",
       "meetings",
       "parcelNodeId",

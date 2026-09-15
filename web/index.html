@@ -480,7 +480,7 @@
                 <a role="tab" aria-selected="false" data-tab="code-enforcement" href="/?lens=development-services&amp;tab=code-enforcement">Code enforcement<span class="n" id="tabcount-code-enforcement"></span></a>
                 <a role="tab" aria-selected="false" data-tab="licenses" href="/?lens=development-services&amp;tab=licenses">Licenses<span class="n" id="tabcount-licenses"></span></a>
                 <a role="tab" aria-selected="false" data-tab="plan-review" href="/?lens=development-services&amp;tab=plan-review">Plan review<span class="pill p-info">Next</span></a>
-                <a role="tab" aria-selected="false" data-tab="flood-study" href="/?lens=development-services&amp;tab=flood-study">Flood study<span class="pill p-info">Next</span></a>
+                <a role="tab" aria-selected="false" data-tab="flood-study" href="/?lens=development-services&amp;tab=flood-study">Flood study</a>
               </div>
               <div class="shell-regions" data-map-mode="dock" id="ds-mapdock-regions">
               <div class="colstack" tabindex="0">
@@ -822,12 +822,12 @@
                 <div class="shell-regions solo">
                   <div class="colstack" tabindex="0">
                   <div class="panel">
-                    <div class="panel-head"><span class="t">Flood study</span><span class="grow"></span><span class="t-caption">Parcel-level flood determination</span></div>
-                    <div class="state">
-                      <span class="st-k">Flood study</span>
-                      <h2>Flood study is named, not scoped.</h2>
-                      <p>This is the parcel-level flood determination (the Smart Site flood study), a different product from the emergency operational flood surface on the Emergency lens. It is a separate row (G-125) and is not built here.</p>
-                      <span class="basis">Basis: named in the strip per this lane's dispatch; not yet scoped as its own row</span>
+                    <div class="panel-head"><span class="t">Flood &amp; drainage screening</span><span class="grow"></span><span class="t-caption">Modeled study, not the regulatory FEMA zone</span></div>
+                    <div class="panel-body">
+                      <p>Model what happens on a property when it rains: the upstream catchment, where water concentrates, modeled ponding at the design storm, and where it exits — drawn on the map. A parcel can sit outside the FEMA zone and still be modeled here to pond badly; that is a different question from the regulatory determination, not a contradiction of it.</p>
+                      <button type="button" class="btn btn-primary" data-flood-capability>Open on the map</button>
+                      <p class="t-caption" id="ds-flood-capability-basis" data-flood-capability-basis hidden></p>
+                      <span class="basis">Mounts the Property Explorer flood &amp; drainage report (G-125) in the map area, in Full. G-129.</span>
                     </div>
                   </div>
                   </div>
@@ -1098,6 +1098,15 @@
                       </div>
                     </div>
                   </div>
+                  <div class="panel">
+                    <div class="panel-head"><span class="t">Flood &amp; drainage screening</span><span class="grow"></span><span class="t-caption">Modeled study, not the regulatory FEMA zone</span></div>
+                    <div class="panel-body">
+                      <p>Model what happens on a property when it rains: the upstream catchment, where water concentrates, modeled ponding at the design storm, and where it exits — for drainage planning, drawn on the map. A parcel can sit outside the FEMA zone and still be modeled here to pond badly; that is a different question from the regulatory determination, not a contradiction of it.</p>
+                      <button type="button" class="btn btn-primary" data-flood-capability>Open on the map</button>
+                      <p class="t-caption" id="pw-flood-capability-basis" data-flood-capability-basis hidden></p>
+                      <span class="basis">Mounts the Property Explorer flood &amp; drainage report (G-125) in the map area, in Full. G-129.</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </section>
@@ -1288,6 +1297,15 @@
                         <span class="basis" id="fire-apparatus-ready-rule">The readiness counting rule has not been read for this pack</span>
                         <span class="basis" id="fire-apparatus-recordsbasis">Basis: generated fixture records</span>
                       </div>
+                    </div>
+                  </div>
+                  <div class="panel">
+                    <div class="panel-head"><span class="t">Flood &amp; drainage screening</span><span class="grow"></span><span class="t-caption">Modeled study, not the regulatory FEMA zone</span></div>
+                    <div class="panel-body">
+                      <p>Model what happens on a property when it rains: the upstream catchment, where water concentrates, modeled ponding at the design storm, and where it exits — for operations, drawn on the map. This is the parcel-level drainage study (a different surface from the live weather/dispatch flood feed below); a parcel can sit outside the FEMA zone and still be modeled here to pond badly, which is a different question from the regulatory determination, not a contradiction of it.</p>
+                      <button type="button" class="btn btn-primary" data-flood-capability>Open on the map</button>
+                      <p class="t-caption" id="fire-flood-capability-basis" data-flood-capability-basis hidden></p>
+                      <span class="basis">Mounts the Property Explorer flood &amp; drainage report (G-125) in the map area, in Full. G-129.</span>
                     </div>
                   </div>
                   <div class="panel">
