@@ -222,6 +222,34 @@ describe("G-132: a staff bearer reaches resolveCaller end to end", () => {
     assert.equal(caller.tenant, "bastrop_tx");
   });
 
+  it("G-134 GAP 5: resolves a staff bearer from the sc_staff_token cookie when there is no Authorization header at all", async () => {
+    const { token, jwk } = makeStaffToken({
+      payload: { sub: "p-1", iss: ISSUER, exp: now + 600, role: "police", org_id: "bastrop_tx" },
+    });
+    const caller = await resolveCaller(
+      { headers: { cookie: `other=1; sc_staff_token=${token}; another=2` } },
+      env,
+      { fetchImpl: staffFetchImpl(jwk), jwksCache: new Map() },
+    );
+    assert.equal(caller.kind, "staff");
+    assert.equal(caller.sub, "p-1");
+  });
+
+  it("G-134 GAP 5: an Authorization header wins over a cookie when both are somehow present", async () => {
+    const { token: headerToken, jwk } = makeStaffToken({
+      payload: { sub: "p-1", iss: ISSUER, exp: now + 600, role: "police", org_id: "bastrop_tx" },
+    });
+    const { token: cookieToken } = makeStaffToken({
+      payload: { sub: "p-3", iss: ISSUER, exp: now + 600, role: "police", org_id: "some-other-city" },
+    });
+    const caller = await resolveCaller(
+      { headers: { authorization: `Bearer ${headerToken}`, cookie: `sc_staff_token=${cookieToken}` } },
+      env,
+      { fetchImpl: staffFetchImpl(jwk), jwksCache: new Map() },
+    );
+    assert.equal(caller.sub, "p-1");
+  });
+
   it("a valid staff person reads their own tenant's tenant-private pack, same as a product key could", async () => {
     const { token, jwk } = makeStaffToken({
       payload: { sub: "p-2", iss: ISSUER, exp: now + 600, role: "fire-ems", org_id: "bastrop_tx" },

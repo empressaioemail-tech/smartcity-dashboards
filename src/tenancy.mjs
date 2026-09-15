@@ -10,6 +10,27 @@ export function headerValue(req, name) {
   return String(Array.isArray(raw) ? raw[0] : raw).trim();
 }
 
+export const STAFF_SESSION_COOKIE = "sc_staff_token";
+
+/**
+ * G-134 GAP 5. A browser signed in via /auth/callback carries its staff
+ * bearer in an HttpOnly cookie, not an Authorization header (a page load has
+ * no chance to set one). This is a narrow, named cookie lookup -- not a
+ * general cookie parser -- so it never becomes a second place request state
+ * quietly grows.
+ */
+export function staffBearerFromCookie(req) {
+  const raw = headerValue(req, "cookie");
+  if (!raw) return "";
+  for (const part of raw.split(";")) {
+    const eq = part.indexOf("=");
+    if (eq === -1) continue;
+    const name = part.slice(0, eq).trim();
+    if (name === STAFF_SESSION_COOKIE) return decodeURIComponent(part.slice(eq + 1).trim());
+  }
+  return "";
+}
+
 export function isServiceBearer(req, envMap = process.env) {
   const key = String(envMap.DASHBOARDS_API_KEY || "").trim();
   if (!key) return false;
@@ -78,7 +99,14 @@ export async function resolveHauskaTenant(req, envMap = process.env, deps = {}) 
  * before.
  */
 export async function resolveCaller(req, envMap = process.env, deps = {}) {
-  const bearer = headerValue(req, "authorization").replace(/^Bearer\s+/i, "").trim();
+  // G-134 GAP 5: a browser sign-in has no Authorization header to set, only the
+  // cookie /auth/callback wrote. The header wins when both are somehow present --
+  // an explicit Authorization header is a more deliberate assertion than a cookie
+  // the browser attaches automatically -- but this is never both at once in
+  // practice (a signed-in browser sends only the cookie; a script/tool sends only
+  // the header).
+  const bearer =
+    headerValue(req, "authorization").replace(/^Bearer\s+/i, "").trim() || staffBearerFromCookie(req);
   if (bearer) {
     // isRevoked defaults to the local staff directory (staff-directory.mjs) so every
     // production call site -- none of which pass deps explicitly -- still gets a real,

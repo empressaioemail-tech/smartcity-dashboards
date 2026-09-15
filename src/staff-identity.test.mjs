@@ -147,6 +147,50 @@ describe("staff-identity: every refusal is exercised on the real failing case, n
     assert.equal(result.error, "expired_token");
   });
 
+  it("refuses a token older than STAFF_TOKEN_MAX_AGE_SECONDS even though exp has not passed (G-134 GAP 3)", async () => {
+    const { privateKey, jwk } = makeKeypair();
+    const now = Math.floor(Date.now() / 1000);
+    const token = signToken(privateKey, { payload: { sub: "u1", iss: ISSUER, iat: now - 1000, exp: now + 600 } });
+    const env = { ...baseEnv(), STAFF_TOKEN_MAX_AGE_SECONDS: "900" };
+    const result = await verifyStaffToken(token, env, { fetchImpl: fakeFetch(jwk), jwksCache: new Map() });
+    assert.equal(result.ok, false);
+    assert.equal(result.error, "token_too_old");
+  });
+
+  it("accepts a token within the default 900s max age with no override configured", async () => {
+    const { privateKey, jwk } = makeKeypair();
+    const now = Math.floor(Date.now() / 1000);
+    const token = signToken(privateKey, { payload: { sub: "u1", iss: ISSUER, iat: now - 100, exp: now + 600 } });
+    const result = await verifyStaffToken(token, baseEnv(), { fetchImpl: fakeFetch(jwk), jwksCache: new Map() });
+    assert.equal(result.ok, true);
+  });
+
+  it("refuses a token older than the default 900s cap when no override is configured", async () => {
+    const { privateKey, jwk } = makeKeypair();
+    const now = Math.floor(Date.now() / 1000);
+    const token = signToken(privateKey, { payload: { sub: "u1", iss: ISSUER, iat: now - 901, exp: now + 600 } });
+    const result = await verifyStaffToken(token, baseEnv(), { fetchImpl: fakeFetch(jwk), jwksCache: new Map() });
+    assert.equal(result.ok, false);
+    assert.equal(result.error, "token_too_old");
+  });
+
+  it("does not refuse on age when STAFF_TOKEN_MAX_AGE_SECONDS is explicitly disabled (0)", async () => {
+    const { privateKey, jwk } = makeKeypair();
+    const now = Math.floor(Date.now() / 1000);
+    const token = signToken(privateKey, { payload: { sub: "u1", iss: ISSUER, iat: now - 100000, exp: now + 600 } });
+    const env = { ...baseEnv(), STAFF_TOKEN_MAX_AGE_SECONDS: "0" };
+    const result = await verifyStaffToken(token, env, { fetchImpl: fakeFetch(jwk), jwksCache: new Map() });
+    assert.equal(result.ok, true);
+  });
+
+  it("does not refuse on age when iat is absent (spec-optional; exp/nbf already bounded it)", async () => {
+    const { privateKey, jwk } = makeKeypair();
+    const now = Math.floor(Date.now() / 1000);
+    const token = signToken(privateKey, { payload: { sub: "u1", iss: ISSUER, exp: now + 600 } });
+    const result = await verifyStaffToken(token, baseEnv(), { fetchImpl: fakeFetch(jwk), jwksCache: new Map() });
+    assert.equal(result.ok, true);
+  });
+
   it("refuses alg:none outright, before any crypto operation runs", async () => {
     const { privateKey, jwk } = makeKeypair();
     const now = Math.floor(Date.now() / 1000);

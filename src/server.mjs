@@ -30,8 +30,9 @@ import { runMunicodeCalendar } from "./municode-calendar.mjs";
 import { loadDotenv } from "./load-env.mjs";
 import { pingDb } from "./db.mjs";
 import { MCP_TOOL_NAMES } from "./catalog.mjs";
-import { canReadPack, packContentReadStatus, packReadStatus, resolveCaller, isServiceBearer, accessRefusalBody } from "./tenancy.mjs";
+import { canReadPack, packContentReadStatus, packReadStatus, resolveCaller, isServiceBearer, accessRefusalBody, headerValue, STAFF_SESSION_COOKIE } from "./tenancy.mjs";
 import { listStaffAccounts } from "./staff-directory.mjs";
+import { generateState, buildAuthorizeUrl, exchangeCodeForToken, serializeCookie, clearCookie, STATE_COOKIE } from "./staff-signin.mjs";
 
 /**
  * G-116 Phase 2. Every domain with a real (non-fixture) source, and how to
@@ -83,6 +84,20 @@ assertNoSupplierMounts();
 
 export function cityPackAuthorized(req, envMap = process.env) {
   return isServiceBearer(req, envMap) || !String(envMap.DASHBOARDS_API_KEY || "").trim();
+}
+
+/** Named-cookie lookup for the sign-in flow's own state cookie -- tenancy.mjs's
+ *  staffBearerFromCookie is the equivalent for the staff session cookie specifically, kept
+ *  separate rather than generalized into a shared parser neither call site actually needs. */
+function readCookie(req, name) {
+  const raw = headerValue(req, "cookie");
+  if (!raw) return "";
+  for (const part of raw.split(";")) {
+    const eq = part.indexOf("=");
+    if (eq === -1) continue;
+    if (part.slice(0, eq).trim() === name) return decodeURIComponent(part.slice(eq + 1).trim());
+  }
+  return "";
 }
 
 function json(res, status, body) {
@@ -593,6 +608,61 @@ async function handle(req, res) {
    * read as "nobody has access", which is the exact "no records" collapse
    * DEV_PROCESS 4.3 forbids.
    */
+  /**
+   * G-134 GAP 5. Sign-in, sign-out, callback. Redirect-based OIDC
+   * authorization-code flow against WorkOS AuthKit -- no password form lives
+   * in this repo (ruling 1: the provider holds credentials). See
+   * staff-signin.mjs's header for the full design and its BUILD NOW, VERIFY
+   * LATER status: unexercised against a real WorkOS organization.
+   */
+  if (req.method === "GET" && url.pathname === "/auth/sign-in") {
+    let authorizeUrl;
+    const state = generateState();
+    try {
+      authorizeUrl = buildAuthorizeUrl(process.env, state);
+    } catch (err) {
+      json(res, 500, { error: "signin_not_configured", message: String(err?.message || err) });
+      return;
+    }
+    res.writeHead(302, { location: authorizeUrl, "set-cookie": serializeCookie(STATE_COOKIE, state, { maxAgeSeconds: 600 }) });
+    res.end();
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/auth/callback") {
+    const code = url.searchParams.get("code") || "";
+    const presentedState = url.searchParams.get("state") || "";
+    const expectedState = readCookie(req, STATE_COOKIE);
+    // Checked BEFORE any WorkOS call: a state mismatch (CSRF, or a stale/replayed
+    // callback URL) never reaches the token exchange at all.
+    if (!code || !presentedState || !expectedState || presentedState !== expectedState) {
+      json(res, 400, {
+        error: "invalid_signin_state",
+        message: "This sign-in attempt could not be verified (missing or mismatched state). Start over at /auth/sign-in.",
+      });
+      return;
+    }
+    let accessToken;
+    try {
+      accessToken = await exchangeCodeForToken(code, process.env, {});
+    } catch (err) {
+      json(res, 502, { error: "signin_exchange_failed", message: String(err?.message || err) });
+      return;
+    }
+    res.writeHead(302, {
+      location: "/",
+      "set-cookie": [serializeCookie(STAFF_SESSION_COOKIE, accessToken), clearCookie(STATE_COOKIE)],
+    });
+    res.end();
+    return;
+  }
+
+  if (req.method === "GET" && url.pathname === "/auth/sign-out") {
+    res.writeHead(302, { location: "/", "set-cookie": clearCookie(STAFF_SESSION_COOKIE) });
+    res.end();
+    return;
+  }
+
   if (req.method === "GET" && url.pathname === "/api/people-and-access") {
     const caller = await resolveCaller(req);
     if (caller.kind !== "staff") {
