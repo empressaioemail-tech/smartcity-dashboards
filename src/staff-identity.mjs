@@ -169,6 +169,23 @@ export async function verifyStaffToken(bearerValue, env = process.env, deps = {}
     return refuse("expired_token", "the token is not yet valid (nbf is in the future).");
   }
 
+  // G-134 GAP 3: plan-review and smart-files have no local revocation store, so a disabled
+  // account there stays live until the token's own exp -- whatever the provider issued it
+  // with, which this deployment does not control. This caps the exposure independently of
+  // that provider setting: default 900s (15 min), overridable per deployment. Missing `iat`
+  // (rare, spec-optional) is not refused here; exp/nbf already bounded validity above.
+  const maxAgeRaw = String(env.STAFF_TOKEN_MAX_AGE_SECONDS ?? "900").trim();
+  const maxAgeSeconds = maxAgeRaw === "" ? 900 : Number(maxAgeRaw);
+  if (Number.isFinite(maxAgeSeconds) && maxAgeSeconds > 0 && typeof payload.iat === "number") {
+    const age = now - payload.iat;
+    if (age > maxAgeSeconds) {
+      return refuse(
+        "token_too_old",
+        `this token was issued ${age}s ago, past this deployment's ${maxAgeSeconds}s cap (STAFF_TOKEN_MAX_AGE_SECONDS) -- with no local revocation store here, a hard age cap stands in for instant offboarding.`,
+      );
+    }
+  }
+
   let keys;
   try {
     keys = await loadJwks(issuer, env, deps);
