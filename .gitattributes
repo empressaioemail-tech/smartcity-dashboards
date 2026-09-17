@@ -1,0 +1,4 @@
+﻿# D-9: preserve the CRLF byte-shape that the GCP original serves for these static assets.
+# GCP serves all 7 files under web/ with CRLF (verified 2026-09-17: CR count == LF count on each).
+# Marked binary (-text) so no checkout on any platform rewrites the line endings.
+web/** -text
