@@ -286,7 +286,7 @@
               <div class="gl">Lenses</div>
               <a class="navitem on" data-lens="city-manager" href="/?lens=city-manager">Overview<span class="grow"></span><span class="badge">Empty</span></a>
               <a class="navitem" data-lens="development-services" href="/?lens=development-services">Development services<span class="grow"></span><span class="badge">Empty</span></a>
-              <a class="navitem" data-lens="finance" href="/?lens=finance">Finance<span class="grow"></span><span class="badge">Empty</span></a>
+              <a class="navitem" data-lens="finance" href="/?lens=finance">Finance<span class="grow"></span><span class="badge">Not read</span></a>
               <a class="navitem" data-lens="citizen" href="/?lens=citizen">Citizen<span class="grow"></span><span class="badge">Preview</span></a>
               <a class="navitem" data-lens="public-works" href="/?lens=public-works">Public works<span class="grow"></span><span class="badge">Not read</span></a>
               <a class="navitem roster" data-lens="parks" href="/?lens=parks">Parks<span class="grow"></span><span class="badge">Not built</span></a>
@@ -894,41 +894,159 @@
                 <div class="crumb"><b data-pack-name>This city</b> <span>/</span> Finance</div>
                 <div class="titlerow">
                   <h1>Finance</h1>
-                  <span class="pill p-quiet">Empty</span>
+                  <span class="pill p-quiet" id="finance-state-chip">Not read</span>
+                  <span class="grow"></span>
+                  <span class="t-caption" id="finance-sources-rule">no finance source count has been read for this pack</span>
                 </div>
-                <p class="lede">No metric strip on this lens. Four zeros in a header would be four false claims.</p>
+                <p class="lede">No metric strip on this lens. Four zeros in a header would be four false claims. The strip below carries four <i>states</i> instead, and every cell this lens will ever hold exists on the page already, because a field that appears only once something writes it is a field no gap analysis can find.</p>
               </header>
               <div class="shell-regions">
                 <div class="colstack" tabindex="0">
-                  <div class="panel">
-                    <div class="state">
-                      <span class="st-k">No source connected</span>
-                      <h2>No finance records for this city yet.</h2>
-                      <p>This lens reads from the city's adopted budget, its fund ledger, permit fee revenue, and department spend. None of the four has been connected as a confirmed ledger, so there is nothing to report. That is not a zero balance.</p>
-                      <span class="basis">Basis: 0 of 4 required sources connected, counted from the source register below. Contact: city finance director. Payments unclaimed.</span>
-                    </div>
+                  <div class="metrics" id="finance-source-metrics">
+                        <div class="metric" data-finance-source="adopted-budget">
+                          <span class="k">Adopted budget</span>
+                          <span class="v word" data-finance-state="adopted-budget">Not read</span>
+                          <span class="n" data-finance-basis="adopted-budget">no pack has been resolved, so this source's grant and its reading have not been read</span>
+                        </div>
+                        <div class="metric" data-finance-source="fund-ledger">
+                          <span class="k">Fund ledger</span>
+                          <span class="v word" data-finance-state="fund-ledger">Not read</span>
+                          <span class="n" data-finance-basis="fund-ledger">no pack has been resolved, so this source's grant and its reading have not been read</span>
+                        </div>
+                        <div class="metric" data-finance-source="permit-fee-revenue">
+                          <span class="k">Permit fee revenue</span>
+                          <span class="v word" data-finance-state="permit-fee-revenue">Not read</span>
+                          <span class="n" data-finance-basis="permit-fee-revenue">no pack has been resolved, so this source's grant and its reading have not been read</span>
+                        </div>
+                        <div class="metric" data-finance-source="department-spend">
+                          <span class="k">Department spend</span>
+                          <span class="v word" data-finance-state="department-spend">Not read</span>
+                          <span class="n" data-finance-basis="department-spend">no pack has been resolved, so this source's grant and its reading have not been read</span>
+                        </div>
                   </div>
                   <div class="panel" id="finance-source-register">
-                    <div class="panel-head"><span class="t">What this lens reads</span><span class="grow"></span><span class="t-caption">Source register</span></div>
+                    <div class="panel-head"><span class="t">What this lens reads</span><span class="grow"></span><span class="t-caption" id="finance-counts-label">no finance source count has been read for this pack</span></div>
                     <div class="panel-body flush">
-                      <div class="srcreg"><i class="rail"></i><span class="nm"><b>Adopted budget</b><span>Appropriations by fund and department for the current year</span></span><span class="pill p-quiet">Not connected</span></div>
-                      <div class="srcreg"><i class="rail"></i><span class="nm"><b>Fund ledger</b><span>Actuals against appropriation, posted by period</span></span><span class="pill p-quiet">Not connected</span></div>
-                      <div class="srcreg partial"><i class="rail"></i><span class="nm"><b>Permit fee revenue</b><span>Fees assessed and collected, joined to the permit record</span></span><span class="pill p-warn">Partial</span></div>
-                      <div class="srcreg"><i class="rail"></i><span class="nm"><b>Department spend</b><span>Purchase and payroll detail by department</span></span><span class="pill p-quiet">Not connected</span></div>
+                        <div class="srcreg" data-finance-row="adopted-budget">
+                          <i class="rail"></i>
+                          <span class="nm"><b>Adopted budget</b><span>Appropriations by fund and department for the current year</span></span>
+                          <span class="pill p-quiet" data-finance-pill="adopted-budget">Not read</span>
+                        </div>
+                        <div class="srcreg" data-finance-row="fund-ledger">
+                          <i class="rail"></i>
+                          <span class="nm"><b>Fund ledger</b><span>Actuals against appropriation, posted by period</span></span>
+                          <span class="pill p-quiet" data-finance-pill="fund-ledger">Not read</span>
+                        </div>
+                        <div class="srcreg" data-finance-row="permit-fee-revenue">
+                          <i class="rail"></i>
+                          <span class="nm"><b>Permit fee revenue</b><span>Fees assessed and collected, joined to the permit record</span></span>
+                          <span class="pill p-quiet" data-finance-pill="permit-fee-revenue">Not read</span>
+                        </div>
+                        <div class="srcreg" data-finance-row="department-spend">
+                          <i class="rail"></i>
+                          <span class="nm"><b>Department spend</b><span>Purchase and payroll detail by department</span></span>
+                          <span class="pill p-quiet" data-finance-pill="department-spend">Not read</span>
+                        </div>
+                    </div>
+                    <div class="panel-body">
+                      <span class="basis" id="finance-counts-rule">Basis: a source reads when a reading exists for it and carries the source and the date it was read; a source is partial when part of its record reads and the split is named; 4 sources are required by this lens</span>
+                    </div>
+                  </div>
+                  <div class="panel" id="finance-appropriation">
+                    <div class="panel-head"><span class="t">Appropriation by fund</span><span class="grow"></span><span class="pill p-quiet">Not read</span></div>
+                    <div class="panel-body">
+                      <p class="t-caption" id="finance-appropriation-note">The four sources this lens requires. No pack has been resolved, so nothing here is counted yet.</p>
+                      <div class="state compact" id="finance-fund-empty">
+                        <span class="st-k" id="finance-fund-empty-kicker">Not read</span>
+                        <h2 id="finance-fund-empty-head">No fund list has been read for this pack.</h2>
+                        <span class="basis" id="finance-fund-basis">Basis: 0 fund rows on this page, because the fund list is the adopted budget feed's own output and no pack has been resolved to read a grant or a reading for it. Contact: city finance director.</span>
+                      </div>
+                      <div id="finance-fund-body" hidden>
+                        <table class="dt">
+                          <caption class="t-caption">The four cells a fund row will carry: fund, appropriation, actuals, variance. The fund list is the adopted budget feed's own output.</caption>
+                          <thead>
+                            <tr>
+                              <th scope="col">Fund</th>
+                              <th scope="col">Appropriation</th>
+                              <th scope="col">Actuals</th>
+                              <th scope="col">Variance</th>
+                            </tr>
+                          </thead>
+                          <tbody id="finance-fund-rows"></tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="panel" id="finance-refusals">
+                    <div class="panel-head"><span class="t">What does not reconcile yet</span><span class="grow"></span><span class="t-caption">Refused, not zero</span></div>
+                    <div class="panel-body">
+                          <div class="finding" data-finance-refusal="variance">
+                            <span class="ftitle">Budget variance <span class="pill p-crit" data-finance-refusal-state="variance">REFUSED</span></span>
+                            <span class="fmeta">needs fund-ledger (Not read)</span>
+                            <p class="f" data-finance-refusal-reason="variance">a variance is a difference between appropriation and actuals and both must be measured before either the figure or its sign is a finding</p>
+                          </div>
+                          <div class="finding" data-finance-refusal="burn">
+                            <span class="ftitle">Percent of budget spent <span class="pill p-crit" data-finance-refusal-state="burn">REFUSED</span></span>
+                            <span class="fmeta">needs fund-ledger (Not read)</span>
+                            <p class="f" data-finance-refusal-reason="burn">burn is a ratio of two measured figures and one of them is derived; it prints only when both sides are read</p>
+                          </div>
+                          <div class="finding" data-finance-refusal="budget-pace">
+                            <span class="ftitle">Budget pace <span class="pill p-crit" data-finance-refusal-state="budget-pace">REFUSED</span></span>
+                            <span class="fmeta">needs fund-ledger (Not read)</span>
+                            <p class="f" data-finance-refusal-reason="budget-pace">v1 reported 94% spent at 94% of fiscal year, +0% against expected. Spent equals budget by construction there and elapsed drives the expectation, so the two track each other necessarily and the variance is always zero. A figure that cannot come out any other way is not a measurement, and it is the most reassuring number on the v1 page.</p>
+                          </div>
+                          <div class="finding" data-finance-refusal="fund-total">
+                            <span class="ftitle">Fund total <span class="pill p-crit" data-finance-refusal-state="fund-total">REFUSED</span></span>
+                            <span class="fmeta">needs adopted-budget (Not read)</span>
+                            <p class="f" data-finance-refusal-reason="fund-total">the lens declines to print a fund total until the two agree or the counting rule is declared. The capture's fifteen fund rows sum to roughly double its own stated total, and a sum that is close to double its total is a counting-rule question rather than a rounding one.</p>
+                          </div>
+                          <div class="finding" data-finance-refusal="collection-rate">
+                            <span class="ftitle">Permit collection rate <span class="pill p-crit" data-finance-refusal-state="collection-rate">REFUSED</span></span>
+                            <span class="fmeta">needs fund-ledger (Not read)</span>
+                            <p class="f" data-finance-refusal-reason="collection-rate">collected cannot exceed charged, so a rate above 100% is not a reachable state at all. The capture prints one in green with a success mark, and it traces to a single unattributed partition rather than to a measurement.</p>
+                          </div>
                     </div>
                   </div>
                 </div>
                 <div class="colstack" tabindex="0">
-                  <div class="panel">
-                    <div class="panel-head"><span class="t">Once connected</span></div>
+                  <div class="panel" id="finance-acquisition">
+                    <div class="panel-head"><span class="t">What has to land</span><span class="grow"></span><span class="t-caption">Named owner per source</span></div>
                     <div class="panel-body">
-                      <p class="t-caption">This lens will show budget against actuals by fund and department, permit revenue joined to the cases that produced it, and department spend over time. Each figure will carry its source and the date it was read. No figures are shown until a source reads.</p>
+                          <div class="finding">
+                            <span class="ftitle">Adopted budget <span class="t-caption">Not read</span></span>
+                            <span class="fmeta">owner: city finance director</span>
+                            <p class="f">connect the OpenGov budget feed. It fills appropriation by fund and department, and the fund list itself. Not done yet because the opengov adapter kind is catalogued but declares no record shape (G-91), so a granted feed could not be mapped onto a cell yet.</p>
+                          </div>
+                          <div class="finding">
+                            <span class="ftitle">Fund ledger <span class="t-caption">Not read</span></span>
+                            <span class="fmeta">owner: city finance director</span>
+                            <p class="f">connect the OpenGov ledger feed, posting actuals by period. It fills actuals by period, variance, burn and budget pace. Not done yet because v1 never had it and said so in its own caution on the department sub-tab.</p>
+                          </div>
+                          <div class="finding">
+                            <span class="ftitle">Permit fee revenue <span class="t-caption">Not read</span></span>
+                            <span class="fmeta">owner: city finance director</span>
+                            <p class="f">confirm collection against the ledger, then join it to the case. It fills collection, and the reconciliation between assessed and collected. Not done yet because the collection half is a ledger fact and the ledger is unaccounted.</p>
+                          </div>
+                          <div class="finding">
+                            <span class="ftitle">Department spend <span class="t-caption">Not read</span></span>
+                            <span class="fmeta">owner: city finance director</span>
+                            <p class="f">connect the OpenGov purchasing and payroll detail. It fills department spend over time. Not done yet because no adapter kind in the catalog carries purchase or payroll detail.</p>
+                          </div>
                     </div>
                   </div>
-                  <div class="panel">
-                    <div class="panel-head"><span class="t">Permit fee revenue</span><span class="grow"></span><span class="pill p-warn">Partial</span></div>
+                  <div class="panel" id="finance-capture">
+                    <div class="panel-head"><span class="t">What the v1 capture showed</span><span class="grow"></span><span class="pill p-quiet" id="finance-capture-pill">Not read</span></div>
                     <div class="panel-body">
-                      <p class="t-caption">Fees are recorded on permit cases, so this one column exists. It is not a finance record until the ledger confirms collection, and it is labelled Partial rather than shown as revenue.</p>
+                      <p class="t-caption" id="finance-capture-absence">The v1 Finance tab capture is a record of one city's screens and is quoted on that city's pack only. No capture has been read for <span data-pack-key>this pack</span>, so nothing from it is shown here and nothing from another city's capture is substituted.</p>
+                      <div id="finance-capture-body"></div>
+                    </div>
+                  </div>
+                  <div class="panel" id="finance-no-metric-strip">
+                    <div class="panel-head"><span class="t">Why there is no metric strip</span><span class="grow"></span><span class="t-caption">and why that is the point</span></div>
+                    <div class="panel-body">
+                      <p>The shipped lens says it in one line and it is the right line: <cite>No metric strip on this lens. Four zeros in a header would be four false claims.</cite></p>
+                      <p>A header of four confident numbers is what v1 does, and three of its four are not measurements. The strip at the top of this lens is four states, not four figures, so the page is readable at a glance without any of it being a claim about money.</p>
+                      <span class="basis">Basis: no finance source count has been read for this pack. Counting rule: a source reads when a reading exists for it and carries the source and the date it was read; a source is partial when part of its record reads and the split is named; 4 sources are required by this lens.</span>
                     </div>
                   </div>
                 </div>

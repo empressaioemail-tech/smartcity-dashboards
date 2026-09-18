@@ -2339,6 +2339,192 @@ async function loadShellState(cityKey) {
   applyShellState(state);
 }
 
+/* ------------------------------------------------------------- finance lens
+
+G-156. THE FINANCE LENS, AND THE ONE WORD THAT IS NOT THE SHELL'S.
+
+The four source states are the design's own vocabulary - MEASURED, UNACCOUNTED,
+REFUSED, CONFLICT, PARTIAL - and they are NOT spliced into LENS_BADGE. That map
+stays the fixture seam's five words and src/lens-claims.test.mjs holds it there
+by name; a real domain is not a seam status. "Preview" is already a lens chip
+word outside that map, so a lens carrying its own state word has precedent here.
+
+The lens chip and the nav badge stay ONE paired value, as they are for every
+other lens, because a header and a nav that disagree in the one place a reader
+looks first is the defect that pairing exists to prevent.
+
+NOTHING BELOW AUTHORS A SENTENCE. Every state word, basis line, refusal reason
+and acquisition path is written in src/finance-lens.mjs and arrives in the
+payload; this file places them and builds nodes, because the repo contains no
+innerHTML anywhere and a lens is no reason to add the first one.
+*/
+
+/** State to pill class. The word is always on the row; colour never carries it alone. */
+const FINANCE_PILL = {
+  MEASURED: "p-ok",
+  PARTIAL: "p-warn",
+  UNACCOUNTED: "p-quiet",
+  REFUSED: "p-crit",
+  CONFLICT: "p-crit",
+};
+
+function setFinancePill(state, element) {
+  if (!element) return;
+  element.textContent = state;
+  element.className = `pill ${FINANCE_PILL[state] || "p-quiet"}`;
+}
+
+function makeEl(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+/**
+ * The v1 capture quotation, built as nodes from the payload.
+ *
+ * It is rendered ONLY when the server sends it, and the server sends it only for
+ * the pack the capture is about. That gate is the reason the shared document
+ * carries no figure: web/index.html ships this panel in its unread state and
+ * names no city, so the captured city's v1 screen contents cannot appear on
+ * another city's page even if this function is called wrongly - the data is not
+ * there to render.
+ */
+function renderFinanceCapture(payload) {
+  const host = document.getElementById("finance-capture-body");
+  const absence = document.getElementById("finance-capture-absence");
+  const pillEl = document.getElementById("finance-capture-pill");
+  if (!host) return;
+  const capture = payload.capture;
+  host.replaceChildren();
+  /**
+   * The two states of the panel, and the reason the shared document can hold it
+   * without holding a figure: the absence line is what ships, and it is hidden
+   * only when the server has sent a quotation for THIS pack.
+   */
+  if (absence) absence.hidden = Boolean(capture);
+  if (pillEl) pillEl.textContent = capture ? "Quotation" : "Not read";
+  if (!capture) return;
+
+  host.append(makeEl("p", "t-caption", payload.captureIntro));
+  for (const row of capture) {
+    const block = makeEl("div", "finding");
+    const title = makeEl("span", "ftitle");
+    row.figures.forEach((figure, i) => {
+      if (i) title.append(makeEl("span", "sep", "|"));
+      /**
+       * ONE FIGURE PER NODE, because that is how the artboards draw them: a
+       * figure in its own cell with nothing glued to it, never a figure written
+       * into a sentence. The first version of this renderer put them in prose,
+       * and this lane's ad-hoc comparison against capture-figures.json read
+       * "$244,119,103.40 " - with the space - and called it untraceable. The
+       * design check's own money() trims each token and would have passed it,
+       * so the near miss was in this lane's instrument and not in the check's;
+       * the drawn shape is what the renderer now matches, and the episode is in
+       * this lane's close rather than buried here.
+       */
+      title.append(makeEl("span", "t-data", figure));
+    });
+    title.append(makeEl("span", "grow"));
+    const pill = makeEl("span", "");
+    setFinancePill(row.state, pill);
+    title.append(pill);
+    block.append(title);
+    block.append(makeEl("span", "fmeta", `v1, capture page ${Array.isArray(row.page) ? row.page.join(" and ") : row.page}`));
+    block.append(makeEl("p", "f", `v1 said: ${row.v1Said}. This lens: ${row.whatThisLensDoes}`));
+    host.append(block);
+  }
+  host.append(makeEl("p", "t-caption", payload.captureCaveat));
+}
+
+function applyFinanceLens(payload) {
+  const finance = payload.finance;
+  if (!finance) return;
+
+  setText("finance-sources-rule", `Counting rule: ${finance.rule}`);
+  setText("finance-counts-label", finance.label);
+  setText("finance-counts-rule", `Basis: ${finance.rule}`);
+  setText("finance-appropriation-note", finance.appropriationNote);
+  setText("finance-fund-basis", finance.fundBasis);
+  /**
+   * THE TABLE AND ITS HONEST-EMPTY SIBLING, mutually hidden and never both.
+   * The a11y gate settled this on the first build of this panel: a table with a
+   * thead and no data rows is an unresolved conformance check, not a pass. The
+   * fund list is the adopted budget feed's own output, so it is empty on every
+   * pack today, and this toggle is what keeps the two states from ever being
+   * visible together.
+   */
+  const fundRows = Array.isArray(finance.funds) ? finance.funds : [];
+  show(document.getElementById("finance-fund-body"), fundRows.length > 0);
+  show(document.getElementById("finance-fund-empty"), fundRows.length === 0);
+  setFinancePill(finance.lens, document.getElementById("finance-state-chip"));
+  /**
+   * The paired half. Same word, written in the same place, so the nav and the
+   * header cannot drift apart.
+   */
+  const badge = document.querySelector('.navitem[data-lens="finance"] .badge');
+  if (badge) badge.textContent = finance.lens;
+
+  for (const source of finance.sources) {
+    const stateEl = document.querySelector(`[data-finance-state="${source.id}"]`);
+    if (stateEl) {
+      /**
+       * A measured source shows its FIGURE and an unmeasured one shows its
+       * state word, and a measured zero shows 0. Printing the word beside a
+       * zero, or printing nothing at all, would blur the one difference this
+       * lens exists to draw.
+       */
+      if (source.value !== undefined) {
+        stateEl.textContent = String(source.value);
+        stateEl.className = "v t-data";
+      } else {
+        stateEl.textContent = source.state;
+        stateEl.className = "v word";
+      }
+    }
+    const basisEl = document.querySelector(`[data-finance-basis="${source.id}"]`);
+    if (basisEl) basisEl.textContent = source.basis;
+    const pillEl = document.querySelector(`[data-finance-pill="${source.id}"]`);
+    if (pillEl) setFinancePill(source.state, pillEl);
+  }
+
+  for (const refusal of payload.refusals || []) {
+    const el = document.querySelector(`[data-finance-refusal-reason="${refusal.id}"]`);
+    if (el) el.textContent = refusal.reason;
+    const state = document.querySelector(`[data-finance-refusal-state="${refusal.id}"]`);
+    if (state) setFinancePill(refusal.state, state);
+  }
+
+  renderFinanceCapture(payload);
+}
+
+async function loadFinanceLens(cityKey) {
+  const key = String(cityKey || "").trim();
+  let payload = null;
+  try {
+    const q = key ? `?cityKey=${encodeURIComponent(key)}` : "";
+    const res = await fetch(`/api/lenses/finance/sources${q}`);
+    payload = res.ok ? await res.json() : null;
+  } catch {
+    payload = null;
+  }
+  /**
+   * An unread state is not an unaccounted one, and the difference is the whole
+   * point of this lens. A failed read leaves the four states saying they were
+   * NOT READ and says so with its cause, rather than leaving four cells that
+   * look acquired and empty.
+   */
+  if (!payload || !payload.finance) {
+    setText(
+      "finance-sources-rule",
+      `Basis: the finance source states did not read for ${key || "the default pack"}, so the four states below are unread and this page claims nothing about them`,
+    );
+    return;
+  }
+  applyFinanceLens(payload);
+}
+
 /* ---------------------------------------------------------------- feedback
 
 `accepted` means DELIVERED. The server is the only thing that can say so, and
@@ -3251,6 +3437,7 @@ bindTheme();
 bindTopMenus();
 bindFeedback();
 loadShellState(staffMap.cityKey);
+loadFinanceLens(staffMap.cityKey);
 loadIdentity(staffMap.cityKey);
 composeGoldMap(staffMap.parcelNodeId, staffMap.cityKey);
 wireDsControls();

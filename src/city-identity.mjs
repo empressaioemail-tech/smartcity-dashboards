@@ -142,14 +142,39 @@ export function packState(pack) {
  * grew, and that property is the whole reason this is a computation and not a
  * string.
  */
-export function packSources(pack, kinds = ADAPTER_KINDS) {
+/**
+ * G-156. THE GRANT-COUNTING RULE, EXTRACTED SO IT HAS ONE IMPLEMENTATION.
+ *
+ * packSources() below has always computed the granted set as "the DISTINCT
+ * adapter kinds named in grantedAdapters, intersected with the catalog" and
+ * then only returned its SIZE. The Finance lens needs the SET, not the count -
+ * which of the four required finance sources has a granted kind behind it -
+ * and the tempting way to get it is to write that same distinct-and-intersect
+ * line a second time in src/finance-lens.mjs.
+ *
+ * That is the CTRL-1 shape this repo keeps paying for: one rule with two
+ * implementations, which agree today and drift on the next edit in silence.
+ * So the rule lives here once, packSources() calls it for its numerator, and
+ * the Finance derivation calls it for its membership. src/finance-lens.test.mjs
+ * holds the two to each other: the size of this set IS packSources().granted.
+ */
+export function grantedKindIds(pack, kinds = ADAPTER_KINDS) {
   const catalog = new Set(kinds.map((k) => k.id));
   const grants = Array.isArray(pack?.grantedAdapters) ? pack.grantedAdapters : [];
   const named = grants.map((g) => String(g?.kind || "").trim()).filter(Boolean);
   const distinct = [...new Set(named)];
-  const granted = distinct.filter((id) => catalog.has(id));
-  const unknownKinds = distinct.filter((id) => !catalog.has(id));
-  const total = catalog.size;
+  return {
+    granted: distinct.filter((id) => catalog.has(id)),
+    unknownKinds: distinct.filter((id) => !catalog.has(id)),
+    /** The RAW count, which travels beside the distinct one so the two stay reconcilable. */
+    grantCount: grants.length,
+    total: catalog.size,
+  };
+}
+
+export function packSources(pack, kinds = ADAPTER_KINDS) {
+  const catalog = new Set(kinds.map((k) => k.id));
+  const { granted, unknownKinds, grantCount, total } = grantedKindIds(pack, kinds);
 
   /**
    * The demonstration axis. Read defensively, gated on the pack actually
@@ -170,7 +195,7 @@ export function packSources(pack, kinds = ADAPTER_KINDS) {
   return {
     granted: granted.length,
     total,
-    grantCount: grants.length,
+    grantCount,
     unknownKinds,
     label: `${granted.length} of ${total} sources granted`,
     rule: `distinct adapter kinds granted on this pack, of ${total} in the catalog`,
