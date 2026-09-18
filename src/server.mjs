@@ -740,8 +740,41 @@ async function handle(req, res) {
    * contents beside another city's name. web/index.html never carries them.
    */
   if (req.method === "GET" && url.pathname === "/api/lenses/finance/sources") {
+    /**
+     * G-159. NO DEFAULT CITY, AND THIS ROUTE WAS THE ONE THAT CARRIED ONE.
+     *
+     * It read `url.searchParams.get("cityKey") || "template-city"`, so a caller
+     * who named no pack was answered with the DEMO pack's finance states and a
+     * 200. That is the preamble's rule 3 defect exactly ("never default a city: a
+     * route that takes cityKey REFUSES when it is missing, because a
+     * `template-city` default silently serves demo data"), and on this route it
+     * lands under the Finance lens, where a state word is meant to be a statement
+     * about a real city's budget.
+     *
+     * The refusal is checked BEFORE the caller is resolved, and that ordering is
+     * deliberate: a request that names no pack is malformed whatever identity
+     * presents it, and refusing it leaks nothing a 401 would have withheld.
+     *
+     * 400 rather than 404, because the pack is not unknown - it is ABSENT. A
+     * named-but-unknown pack still takes the pack path below and still answers
+     * `unknown city pack`, which is a different finding and stays distinguishable
+     * from this one (src/finance-route.test.mjs holds both apart).
+     *
+     * The client already had the honest branch for this: web/app.js fetches with
+     * no query string when no pack is resolved and renders the four states as NOT
+     * READ, which is now the only thing an unnamed request can produce.
+     */
+    const requestedCityKey = (url.searchParams.get("cityKey") || "").trim();
+    if (!requestedCityKey) {
+      json(res, 400, {
+        error: "city_key_required",
+        message:
+          "this route takes a cityKey and refuses without one; answering with the demo pack's finance states would serve demo finance under whatever city the caller meant",
+      });
+      return;
+    }
     const caller = await resolveCaller(req);
-    const cityKey = url.searchParams.get("cityKey") || "template-city";
+    const cityKey = requestedCityKey;
     const pack = await getCityPack(cityKey);
     const status = packContentReadStatus(pack, caller);
     if (status === 404) {
