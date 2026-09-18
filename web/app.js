@@ -1,4 +1,4 @@
-import { DEFAULT_CITY_KEY, resolveStaffMapQuery } from "/staff-map.mjs";
+import { resolveStaffMapQuery } from "/staff-map.mjs";
 import {
   LENS_LABELS,
   TAB_LABELS,
@@ -3397,16 +3397,88 @@ async function loadFireEmsLens(cityKey) {
   setText("fire-ems-region-rule", sourcedRule([payload]));
 }
 
+/**
+ * G-161. THE STATED NO-CITY STATE.
+ *
+ * Reveals the panel web/index.html ships hidden for this branch, and hides every
+ * lens surface, so the two can never be on screen together.
+ *
+ * It hides surfaces with the bare [hidden] attribute rather than with a class of
+ * its own. web/shell.css carries exactly one rule that outranks the lens
+ * show/hide enumeration ([hidden] with !important, added after two components
+ * had each bought a private patch for this), and a second visibility mechanism
+ * for one question is the defect that comment says has already been paid for
+ * twice. The class-based enumeration still runs underneath and still tracks the
+ * address; it just cannot win against a hidden attribute, which is correct,
+ * because hidden means hidden.
+ *
+ * Nothing here is written from a response. The panel's words are the static
+ * ones, so a build whose enumeration returned 401 or never arrived says exactly
+ * what a build that got an empty list says - which is the truth in all three
+ * cases: this surface was not told which city to read.
+ */
+function showNoCityState() {
+  for (const el of document.querySelectorAll(".lens")) show(el, false);
+  show(document.getElementById("no-city-state"), true);
+}
+
 /* ------------------------------------------------------------------- boot */
 
 const staffLens = resolveStaffLensQuery(window.location.search);
 const staffMap = resolveStaffMapQuery(window.location.search);
 
 /**
+ * G-161. THE CITY IS NAMED, IN THIS ORDER, OR THE SURFACE SAYS SO.
+ *
+ * resolveStaffMapQuery() used to end in `cityKey: cityKey || DEFAULT_CITY_KEY`,
+ * so a visit that named no city resolved to the DEMO pack and every loader below
+ * booted against it: one city's name, seal, counts and records rendered for a
+ * visitor who had asked for none of them. The server half of that defect (the
+ * seven keyless route defaults) went in this same lane; this is the half that
+ * made a BARE VISIT land on the demo, and it goes with it.
+ *
+ * The order is the lane's, and it is the only order that never invents a city:
+ *
+ *   1. An EXPLICIT choice. ?cityKey in the address, already resolved into
+ *      staffMap.cityKey by resolveStaffMapQuery above.
+ *   2. Otherwise the CALLER'S OWN RESOLVED TENANT. A Hauska product key or a
+ *      staff sign-in names a city SERVER-side, and this module cannot work that
+ *      out for itself - src/city-identity.test.mjs forbids web/app.js from
+ *      carrying any shipped pack's key as a literal, and it should. So it asks
+ *      GET /api/city-packs, the one route it may call WITHOUT naming a city
+ *      because it is an enumeration, and reads back the tenant the server has
+ *      already resolved. A null there is a real state rather than an error: it
+ *      is a caller who is the subject of nothing (src/tenancy.mjs).
+ *   3. Otherwise NOTHING, and no loader is called at all. showNoCityState()
+ *      reveals the stated no-city panel and hides the lens surfaces, so the boot
+ *      reads no city rather than the wrong one.
+ *
+ * It never falls back to the demo pack, and it never sends an empty cityKey to a
+ * route: a keyless route call is a 400 as of this lane, and a client still
+ * making one would be relying on that refusal to keep working.
+ */
+async function callerTenantCityKey() {
+  try {
+    const res = await fetch("/api/city-packs");
+    if (!res.ok) return "";
+    const body = await res.json();
+    return String((body && body.caller && body.caller.tenant) || "").trim();
+  } catch (err) {
+    /**
+     * An unreachable enumeration is not a licence to guess a city. The surface
+     * falls to the no-city state, which is honest about what it does not know.
+     */
+    return "";
+  }
+}
+
+staffMap.cityKey = staffMap.cityKey || (await callerTenantCityKey());
+
+/**
  * Every nav href shipped in index.html (all 24 of them: every lens, every
  * work item, every tab) is a static /?lens=... or /?work=... link with no
  * cityKey of its own. That was correct by coincidence for the one pack
- * that used to exist -- DEFAULT_CITY_KEY is what staffMap.cityKey falls
+ * that used to exist -- the boot's default is what staffMap.cityKey fell
  * back to with no query at all -- and silently wrong for any other:
  * clicking ANY nav item drops the visitor back onto the default pack,
  * discarding whatever real pack they were actually looking at. The Hauska
@@ -3414,11 +3486,16 @@ const staffMap = resolveStaffMapQuery(window.location.search);
  * bootstrap above); cityKey deliberately does not persist anywhere and is
  * re-read from the URL on every load, so navigation is the one thing that
  * has to carry it forward instead. Threaded through once at boot from the
- * same staffMap.cityKey every loader below already uses. A no-op for the
- * default pack and every other default-pack visitor: nothing here fires
- * unless the resolved cityKey is already non-default.
+ * same staffMap.cityKey every loader below already uses.
+ *
+ * G-161 widened the guard. It used to thread only when the key DIFFERED from
+ * the default, because the default pack's own visitors were already where the
+ * links pointed. There is no default any more, and a pack named explicitly -
+ * including the demo pack - must keep its visitor on that pack, so the guard is
+ * now simply "a city resolved". A no-city visit keeps the static hrefs, which
+ * carry no city, which is exactly right: the next page is a no-city page too.
  */
-if (staffMap.cityKey !== DEFAULT_CITY_KEY) {
+if (staffMap.cityKey) {
   for (const a of document.querySelectorAll('a[href^="/?"]')) {
     const url = new URL(a.getAttribute("href"), window.location.origin);
     if (!url.searchParams.has("cityKey")) {
@@ -3436,16 +3513,35 @@ bindMenu();
 bindTheme();
 bindTopMenus();
 bindFeedback();
-loadShellState(staffMap.cityKey);
-loadFinanceLens(staffMap.cityKey);
-loadIdentity(staffMap.cityKey);
-composeGoldMap(staffMap.parcelNodeId, staffMap.cityKey);
-wireDsControls();
-loadPipeline(staffMap.cityKey);
-loadDevelopmentServices(staffMap.cityKey);
-loadPropertyDock(staffMap.cityKey);
-loadFleetLens(staffMap.cityKey);
-loadPublicWorksLens(staffMap.cityKey);
-loadPoliceLens(staffMap.cityKey);
-loadFireEmsLens(staffMap.cityKey);
+
+/**
+ * G-161. THE LOADERS SIT ON ONE SIDE OF ONE BRANCH, AND THAT IS THE WHOLE FIX.
+ *
+ * Every call below takes the city as its first argument and none of them has a
+ * city to take when the resolution above returned nothing. Calling them anyway
+ * would send an empty cityKey, which the routes now refuse 400 - so the branch
+ * is not tidiness, it is the difference between a surface that reads no city and
+ * a surface that fires twelve failing requests and renders "not read" for each
+ * of them as if the city had answered.
+ *
+ * The chrome's bindings above stay outside the branch on purpose: the menu, the
+ * theme toggle, the compass and the top menus are this PRODUCT's controls rather
+ * than any city's, and a no-city surface must still be operable.
+ */
+if (staffMap.cityKey) {
+  loadShellState(staffMap.cityKey);
+  loadFinanceLens(staffMap.cityKey);
+  loadIdentity(staffMap.cityKey);
+  composeGoldMap(staffMap.parcelNodeId, staffMap.cityKey);
+  wireDsControls();
+  loadPipeline(staffMap.cityKey);
+  loadDevelopmentServices(staffMap.cityKey);
+  loadPropertyDock(staffMap.cityKey);
+  loadFleetLens(staffMap.cityKey);
+  loadPublicWorksLens(staffMap.cityKey);
+  loadPoliceLens(staffMap.cityKey);
+  loadFireEmsLens(staffMap.cityKey);
+} else {
+  showNoCityState();
+}
 if (resettle) resettle();

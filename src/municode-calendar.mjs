@@ -278,13 +278,40 @@ export async function listMeetingsForOverview({
   }
 }
 
+/**
+ * G-161. An explicit city, or a refusal.
+ *
+ * This parameter was `cityKey = "template-city"`, so `runMunicodeCalendar()`
+ * with no argument fetched and WROTE the demo pack's clerk calendar - files
+ * carrying the demo's key, produced by a call that named no city. The caller
+ * that matters (POST /api/adapters/municode/calendar/run) is a WRITE, which is
+ * why this default was the most consequential of the four module-level ones.
+ *
+ * A blank throws rather than returning an empty report, and the distinction is
+ * deliberate: a report says something about a city, and there is no city here to
+ * report on. The route refuses an unnamed request 400 city_key_required before
+ * it reaches this function and the CLI refuses a missing argument before it
+ * starts, so this is a contract guard rather than a production path - it is not
+ * a substitute for either refusal, because only they can answer the caller.
+ */
 export async function runMunicodeCalendar({
-  cityKey = "template-city",
+  cityKey: requestedCityKey,
   env = process.env,
   fetchImpl = globalThis.fetch,
   filesClient = null,
   limit = 5,
 } = {}) {
+  /**
+   * Normalized ONCE, here, so every branch below - the payload's own `cityKey`
+   * field, the files-room scope, the identity-hold test - reads the same key the
+   * caller meant rather than whatever spacing arrived with it.
+   */
+  const cityKey = String(requestedCityKey || "").trim();
+  if (!cityKey) {
+    throw new Error(
+      "runMunicodeCalendar requires an explicit cityKey; it no longer defaults to a city (G-161)",
+    );
+  }
   const pack = await getCityPack(cityKey, env);
   const grant = calendarGrantFor(pack);
   if (!grant) {

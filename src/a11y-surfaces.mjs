@@ -45,7 +45,21 @@ import { cityIdentity } from "./city-identity.mjs";
 
 export { PRODUCT_TITLE };
 
-/** The pack an unqualified URL resolves to. Stated, not assumed. */
+/** The pack the gate NAMES on every surface that does not name one.
+ *
+ *  G-161 corrected this: it used to read "The pack an unqualified URL resolves
+ *  to", which was true while the client carried `cityKey || DEFAULT_CITY_KEY`
+ *  and is false now that the default is gone. An unqualified URL resolves to NO
+ *  pack and renders the stated no-city panel, so a gate that scanned
+ *  `?lens=finance` bare would have measured that panel 23 times instead of the
+ *  23 surfaces it exists to measure - and would have been red on every title,
+ *  because the pack's name is in the title and nothing would have put it there.
+ *  Every lens and work target therefore carries `cityKey` explicitly; see
+ *  target() below, and src/a11y-gate.test.mjs holds it.
+ *
+ *  The pack itself is unchanged, and so are the rendered surfaces: naming it is
+ *  what the product does when someone clicks a nav item on it, and it is what the
+ *  pre-G-161 bare URL resolved to by default. The figures stay comparable. */
 export const DEFAULT_PACK = TEMPLATE_CITY;
 
 /** Scanned as its own surface: the honest-empty pack, which is the regression
@@ -58,10 +72,29 @@ export const EXCLUDED_PACKS = [
   { cityKey: FIXTURE_CITY.cityKey, basis: "tenant-private; an anonymous scan measures the tenancy refusal, not the surface" },
 ];
 
+/**
+ * G-161. Every pack this file must be able to compose a title for: the two the
+ * gate scans, and the one it excludes by name. A FOURTH pack added to
+ * src/city-pack.mjs and scanned without being added here throws in
+ * expectedTitle() rather than quietly returning a title with no pack in it.
+ */
+const PACKS_BY_KEY = new Map([TEMPLATE_CITY, EMPTY_CITY, FIXTURE_CITY].map((p) => [p.cityKey, p]));
+
+/**
+ * G-161. A target NAMES its pack, and the caller may not omit it.
+ *
+ * The pack is defaulted here rather than at each call site so that a target
+ * added later cannot forget it, and so that a lens target that wants a different
+ * pack can still say so (`packTargets()` passes empty-city and overrides this
+ * default). Before G-161 a lens target deliberately carried no `cityKey`: the
+ * client resolved one, and the URL was shorter. That is no longer a real URL -
+ * it renders the no-city panel - so a target without a pack would be scanning a
+ * surface nobody meant to name.
+ */
 function target(surface, params) {
-  const query = new URLSearchParams(params);
+  const query = new URLSearchParams({ cityKey: DEFAULT_PACK.cityKey, ...params });
   const search = `?${query}`;
-  return { surface, url: `/${search}`, search, params: { ...params } };
+  return { surface, url: `/${search}`, search, params: { cityKey: DEFAULT_PACK.cityKey, ...params } };
 }
 
 /**
@@ -124,7 +157,17 @@ export const BASELINE_SURFACES = [
  */
 export function expectedTitle(t) {
   const key = t.params.cityKey;
-  const pack = key ? SCANNED_PACKS.find((p) => p.cityKey === key) : DEFAULT_PACK;
+  const pack = key ? PACKS_BY_KEY.get(key) : DEFAULT_PACK;
+  /**
+   * G-161. The lookup searches EVERY pack this file knows, not SCANNED_PACKS.
+   * It used to be `SCANNED_PACKS.find(...)`, which was fine while only the pack
+   * targets carried a cityKey - now every target does, and the default pack is
+   * not a scanned pack, so the old lookup would have dropped the pack's name out
+   * of the expected title for 23 of the 24 surfaces while looking like a
+   * deliberate answer. An unknown key throws rather than returning a title for a
+   * pack nobody can name.
+   */
+  if (key && !pack) throw new Error(`an accessibility target names the pack ${key}, which this file has no pack for`);
   const model = resolveStaffLensQuery(t.search);
   if (!pack) return surfaceTitle(model);
   return surfaceTitle(model, cityIdentity(pack).documentTitle);

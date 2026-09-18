@@ -723,15 +723,34 @@ describe("HTTP surface", () => {
       /**
        * AND THE GATE IS NOT SHUT ON EVERYTHING, which is the failure mode a
        * copy of the pipeline check could quietly introduce. A public-free pack
-       * still composes for an anonymous visitor with the key set, and so does
-       * the no-cityKey default, which is what the browser sends.
+       * still composes for an anonymous visitor with the key set.
+       *
+       * G-161 replaced the arm that sat here. It asserted that a keyless compose
+       * answered 200 with the demo pack - and that WAS the defect: the browser
+       * sent no cityKey, the route invented one, and the demo pack's parcel
+       * composed under a name nobody chose. The refusal is the contract now, and
+       * it is asserted BESIDE the 200 above so the pair measures the distinction
+       * rather than a single arm: "named the demo" still works, "named nothing"
+       * does not.
        */
       const anonPublic = await compose("cityKey=template-city");
       assert.equal(anonPublic.status, 200);
       assert.equal((await anonPublic.json()).cityKey, "template-city");
-      const defaulted = await compose("parcelNodeId=48021:34137");
-      assert.equal(defaulted.status, 200);
-      assert.equal((await defaulted.json()).cityKey, "template-city");
+
+      const unnamed = await compose("parcelNodeId=48021:34137");
+      assert.equal(unnamed.status, 400);
+      assert.equal((await unnamed.json()).error, "city_key_required");
+
+      /**
+       * An empty or whitespace-only value names nothing either, so it takes the
+       * same refusal rather than the 404 "unknown city pack". ABSENT is not the
+       * same finding as UNKNOWN and the two stay distinguishable.
+       */
+      for (const blank of ["cityKey=", "cityKey=%20"]) {
+        const blanked = await compose(`parcelNodeId=48021:34137&${blank}`);
+        assert.equal(blanked.status, 400, blank);
+        assert.equal((await blanked.json()).error, "city_key_required", blank);
+      }
     } finally {
       delete process.env.DASHBOARDS_API_KEY;
       delete process.env.HAUSKA_TENANT_KEYS;
