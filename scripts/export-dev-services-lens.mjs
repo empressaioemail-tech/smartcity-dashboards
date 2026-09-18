@@ -56,9 +56,32 @@ const args = process.argv.slice(2);
 const outDir = args[0];
 const baseFlag = args.indexOf("--base");
 const remoteBase = baseFlag >= 0 ? args[baseFlag + 1] : null;
-const cityKey = args.slice(1).find((a) => !a.startsWith("--") && a !== remoteBase) || "template-city";
+/**
+ * `--key-file <path>` is how a TENANT-PRIVATE pack is read at all. `bastrop_tx`
+ * is tenant-private, so without a Hauska product key scoped to it every region
+ * renders its own stated absence and the export carries zero rows - which is
+ * exactly what the first bastrop_tx run produced, and it looked like a data
+ * problem rather than a missing credential.
+ *
+ * THE KEY IS SEEDED INTO localStorage BY AN INIT SCRIPT, DELIBERATELY NOT BY
+ * `?hauskaKey=`. The product's own URL mechanism would work, but this script
+ * writes every visited URL into the manifest it emits, so a key in the query
+ * string would be copied verbatim into a proof artifact. Provenance must not
+ * carry a secret. The init script reaches the same `hauska_key` storage key the
+ * product's own bootstrap writes, so the same `window.fetch` wrapper attaches
+ * the header to same-origin `/api/` calls.
+ *
+ * The key VALUE is never printed, never written to the output directory, and
+ * never recorded in the manifest; `manifest.auth` records only that a key was
+ * used, which is provenance without the secret.
+ */
+const keyFileFlag = args.indexOf("--key-file");
+const keyFilePath = keyFileFlag >= 0 ? args[keyFileFlag + 1] : null;
+const hauskaKey = keyFilePath ? fs.readFileSync(keyFilePath, "utf8").trim() : "";
+const cityKey =
+  args.slice(1).find((a) => !a.startsWith("--") && a !== remoteBase && a !== keyFilePath) || "template-city";
 if (!outDir) {
-  console.error("usage: node scripts/export-dev-services-lens.mjs <outDir> [cityKey] [--base <url>]");
+  console.error("usage: node scripts/export-dev-services-lens.mjs <outDir> [cityKey] [--base <url>] [--key-file <path>]");
   process.exit(2);
 }
 if (baseFlag >= 0 && (!remoteBase || remoteBase.startsWith("--"))) {
@@ -137,12 +160,32 @@ const manifest = {
   cityKey,
   base,
   mode: remoteBase ? (loopbackBase ? "external-loopback" : "deployed") : "in-process",
+  /**
+   * Provenance without the secret: that a tenant credential was presented, and
+   * from where. A reader can tell a key-authenticated read from an anonymous one
+   * without the artifact ever carrying the key itself.
+   */
+  auth: hauskaKey ? "hauska-key (x-hauska-key, seeded into localStorage)" : "none (anonymous caller)",
   tabs: [],
   generatedAt: new Date().toISOString(),
 };
 
 try {
   const ctx = await browser.newContext();
+  /**
+   * Seeded before any page script runs, on every navigation in this context, so
+   * the product's own fetch wrapper finds the key from the very first `/api/`
+   * call. A tenant-private pack composes no records without it.
+   */
+  if (hauskaKey) {
+    await ctx.addInitScript((k) => {
+      try {
+        window.localStorage.setItem("hauska_key", k);
+      } catch {
+        /* localStorage unavailable; the pack will read as its stated absence */
+      }
+    }, hauskaKey);
+  }
   const page = await ctx.newPage();
   let settled = {};
   /**
@@ -181,8 +224,23 @@ try {
     /**
      * A deployed read crosses the network to upstreams this machine does not
      * control, so the same bound that is generous in-process is tight there.
+     *
+     * THE POLL WAITS ON THIS TAB'S OWN QUEUE, AND THAT IS A FIX, NOT A TIDY-UP.
+     * It waited on the SUM across every queue until 2026-09-18, and every queue
+     * renders into the document at load, so the Pipeline queue being populated
+     * satisfied the condition the instant the first snapshot was taken - for
+     * EVERY tab. The bastrop_tx run therefore reported "settled" for six tabs it
+     * had never waited on, recorded 0 rows for the Licences queue, and the
+     * design check then refused a verdict because the roll-order rule had no
+     * input. The live app serves 73 business licences for bastrop_tx. The
+     * instrument was reading its own impatience and calling it an absence.
+     *
+     * A tab with no rows container (plan-review, flood-study) has nothing to wait
+     * for and settles immediately, which is why a null is a break and not a poll.
      */
-    const deadline = Date.now() + (remoteBase ? 90000 : 30000);
+    const panelKey = `tab-${tab}`;
+    const deadline = Date.now() + (remoteBase ? 60000 : 30000);
+    let own = null;
     for (;;) {
       const snapped = await snapshot(page);
       if (!snapped) {
@@ -190,14 +248,61 @@ try {
         process.exit(2);
       }
       settled = snapped.settled;
-      total = Object.values(settled).reduce((sum, n) => sum + (n || 0), 0);
-      if (total > 0 || Date.now() > deadline) break;
+      own = panelKey in settled ? settled[panelKey] : null;
+      if (own === null || own > 0 || Date.now() > deadline) break;
       await page.waitForTimeout(250);
     }
+    total = own ?? 0;
     manifest.tabs.push({ tab, url, rows: total });
-    console.log(`visited ${tab.padEnd(17)} ${total} row(s) in the lens' queues`);
+    console.log(`visited ${tab.padEnd(17)} ${total} row(s) in its own queue`);
   }
 
+  /**
+   * THE WRITTEN FILE IS ONE SNAPSHOT AND MUST CARRY EVERY QUEUE, so it is taken
+   * from a tab that actually holds them.
+   *
+   * THE LAST VISITED TAB IS THE WRONG PLACE TO TAKE IT, and bastrop_tx is what
+   * showed that. The premise of the single-file design was "the lens renders all
+   * five region queues into the document at load". Measured on the live surface:
+   * a Development services tab renders all five queues into the document, but the
+   * two non-domain tabs (plan-review, flood-study) leave them EMPTY. The sweep
+   * ends on flood-study, so the snapshot taken there carried zero rows in every
+   * queue - a 33KB file - and the design check correctly refused a verdict,
+   * because a document with no rows is a document with nothing to check. The
+   * live app serves 2041 inspections and 73 licences for bastrop_tx.
+   *
+   * So the sweep is followed by a return to a domain tab, and the file is written
+   * from there. Every queue is populated on it (the sweep is what primes the
+   * regions), which is what the check's cross-queue rules need: the refused-column
+   * rule reads all four refused columns and the order rule reads the licence roll.
+   */
+  const settleTab = DS_TABS[0];
+  await page.goto(
+    base + `/?lens=development-services&tab=${encodeURIComponent(settleTab)}&cityKey=${encodeURIComponent(cityKey)}`,
+    { waitUntil: "domcontentloaded", timeout: 90000 },
+  );
+  await page.waitForSelector(`#${LENS_ID}`, { timeout: 60000 });
+  {
+    const deadline = Date.now() + (remoteBase ? 60000 : 20000);
+    /**
+     * POPULATED *THEN* STABLE, and the order matters. A plain "unchanged across
+     * two polls" is satisfied by two consecutive zeros, which is exactly what
+     * happened on the first attempt at this: the queues had not filled yet, so
+     * the loop broke immediately and wrote an empty document. Zero is not a
+     * settled surface, it is an unread one.
+     */
+    let prev = -1;
+    for (;;) {
+      const s = await snapshot(page);
+      const counts = Object.values(s?.settled || {}).filter((n) => n !== null);
+      const sum = counts.reduce((a, b) => a + b, 0);
+      settled = s?.settled ?? settled;
+      if (sum > 0 && sum === prev) break;
+      if (Date.now() > deadline) break;
+      prev = sum;
+      await page.waitForTimeout(500);
+    }
+  }
   const snapped = await snapshot(page);
   const file = path.join(outDir, "dev-services-lens.dc.html");
   fs.writeFileSync(file, snapped.html);
@@ -218,6 +323,9 @@ if (manifest.matchedRows === 0) {
   console.error(
     "\nThe export carries no rendered rows, so nothing in it can be checked. That is a stated\n" +
       "absence on a pack whose feeds this machine cannot read, not a pass - the check will\n" +
-      "REFUSE A VERDICT on an empty surface, by design.",
+      "REFUSE A VERDICT on an empty surface, by design.\n" +
+      (hauskaKey
+        ? "A key WAS presented, so the refusal is about the pack's own feeds, not the gate.\n"
+        : "NO key was presented. If this pack is tenant-private, that alone explains it: pass --key-file.\n"),
   );
 }
