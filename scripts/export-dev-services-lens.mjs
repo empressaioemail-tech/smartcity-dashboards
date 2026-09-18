@@ -46,6 +46,11 @@ import { DS_TABS } from "../src/staff-review.mjs";
  * exists on the deployed app and not on this machine, so a local bastrop_tx
  * export is a stated absence and the proving run has to happen against the
  * deployed surface (OPS-17 A-146 rule 1).
+ *
+ * `--base` is also how a DIFFERENT local revision is read: point it at another
+ * worktree's server and the export is that revision's surface. The manifest
+ * then reports `mode: "external-loopback"` rather than "deployed", because the
+ * artifact a close cites must not claim a deployment it did not touch.
  */
 const args = process.argv.slice(2);
 const outDir = args[0];
@@ -60,6 +65,16 @@ if (baseFlag >= 0 && (!remoteBase || remoteBase.startsWith("--"))) {
   console.error("--base needs a URL, e.g. --base https://d12-main-uat.ondigitalocean.app");
   process.exit(2);
 }
+
+/**
+ * `mode` is a PROVENANCE field on the artifact a close cites, so it says where
+ * the surface actually came from rather than what flag was passed. The first
+ * draft wrote "deployed" for any `--base`, which labelled the pre-lane
+ * fd8562c export as deployed when its base was http://127.0.0.1:8123 - a local
+ * server a few directories away. A wrong provenance field on a proof artifact is
+ * the silent-fallback class this program hunts, so loopback bases say so.
+ */
+const loopbackBase = Boolean(remoteBase) && /^https?:\/\/(127\.0\.0\.1|localhost|\[::1\])(?::|\/|$)/.test(remoteBase);
 
 /** A missing browser is a HARD FAILURE with an instruction, never a skip. */
 async function launchChromium() {
@@ -121,7 +136,7 @@ const browser = await launchChromium();
 const manifest = {
   cityKey,
   base,
-  mode: remoteBase ? "deployed" : "in-process",
+  mode: remoteBase ? (loopbackBase ? "external-loopback" : "deployed") : "in-process",
   tabs: [],
   generatedAt: new Date().toISOString(),
 };
@@ -141,15 +156,33 @@ try {
    */
   for (const tab of DS_TABS) {
     const url = `/?lens=development-services&tab=${encodeURIComponent(tab)}&cityKey=${encodeURIComponent(cityKey)}`;
-    await page.goto(base + url, { waitUntil: "networkidle", timeout: 90000 });
     /**
-     * The rows arrive on a fetch the page fires after load, and `networkidle`
-     * is a heuristic rather than a signal. So the loop below is a BOUNDED poll
-     * on the thing being read - the five region queues going non-empty - and it
-     * reports what it settled at rather than assuming the fetches landed.
+     * THE NAVIGATION WAITS FOR THE DOCUMENT, NOT FOR A QUIET WIRE, AND THE
+     * DEPLOYED SURFACE IS WHY. In-process the wire goes quiet and `networkidle`
+     * fires. Against the deployed app it did not: on the bastrop_tx run the
+     * export produced nothing at all and was killed at 678s, which is seven
+     * tabs' worth of the 90s timeout plus startup, with the page already
+     * painted. A quiet wire is a heuristic this instrument cannot verify, so
+     * navigation waits on the DOM instead, and the thing actually being read -
+     * the five region queues going non-empty - is waited on by the bounded poll
+     * below, which reports what it settled at rather than assuming the fetches
+     * landed.
+     *
+     * WHY THE WIRE NEVER WENT QUIET IS NOT MEASURED HERE AND IS NOT CLAIMED.
+     * Candidates are the mounted surfaces this lens carries (the plan-review
+     * stage, the map dock) and the live upstream reads behind the region
+     * queues. The fix does not depend on which it was: the poll is a signal,
+     * and `networkidle` was a guess that cost a full run.
      */
+    await page.goto(base + url, { waitUntil: "domcontentloaded", timeout: 90000 });
+    /** The lens is rendered by app.js after the document lands, so wait for it. */
+    await page.waitForSelector(`#${LENS_ID}`, { timeout: 60000 });
     let total = 0;
-    const deadline = Date.now() + 30000;
+    /**
+     * A deployed read crosses the network to upstreams this machine does not
+     * control, so the same bound that is generous in-process is tight there.
+     */
+    const deadline = Date.now() + (remoteBase ? 90000 : 30000);
     for (;;) {
       const snapped = await snapshot(page);
       if (!snapped) {
