@@ -2518,7 +2518,7 @@ async function loadFinanceLens(cityKey) {
   if (!payload || !payload.finance) {
     setText(
       "finance-sources-rule",
-      `Basis: the finance source states did not read for ${key || "the default pack"}, so the four states below are unread and this page claims nothing about them`,
+      `Basis: the finance source states did not read for ${key || "an unnamed pack"}, so the four states below are unread and this page claims nothing about them`,
     );
     return;
   }

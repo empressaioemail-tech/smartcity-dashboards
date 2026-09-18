@@ -363,7 +363,105 @@ export const RECORD_SHAPES = {
       { name: "operatorRef", type: "text", required: true },
     ],
   },
-  opengov: { declared: false, basis: "budget record shape is not declared on G-91" },
+  /**
+   * G-159. THE BUDGET RECORD, DECLARED AGAINST THE LIVE RECORD AND NOT A FIXTURE.
+   *
+   * `declared: false` here used to read "budget record shape is not declared on
+   * G-91", and the finance lens could not map a granted OpenGov feed onto a cell
+   * because of it -- the adopter of this shape was named, the shape was not.
+   *
+   * The fields below are read off authenticated reads of the real vendor made on
+   * 2026-09-18 and filed verbatim as CP1
+   * (`_inbox/2026-09-18_g159-finance-bridge_cp1.json`): a JSON:API budget list at
+   * `api.bnp.opengov.com/api/v1/budgets?filter[entityId]=<bastrop>` (12 records,
+   * attributes name/entityId/coaId/budgetPeriods/workforceId/createdAt/
+   * updatedAt) and `/budgets/130231/amounts-summary` (expenses and revenues, each
+   * baseAmount/adjustmentAmount/proposedAmount). The names here are the field
+   * names of the v1 platform route that serves them
+   * (`/api/platform/opengov/budgets`, `.../budgets/:id/amounts-summary`), so the
+   * record a future grant maps and the route it reads cannot drift apart
+   * silently.
+   *
+   * EVERY AMOUNT IS WHOLE DOLLARS, AND A FRACTIONAL ONE IS REFUSED RATHER THAN
+   * ROUNDED. The live record returns integral JSON numbers (74349204.0). Rounding
+   * a ledger figure to fit a type is how a reading stops being a reading, so a
+   * fractional amount fails this shape and the caller must handle that rather
+   * than this table rounding it away.
+   *
+   * TWO FIELDS THIS SHAPE NAMES AND REFUSES TO CARRY, both with their basis
+   * below, because both are fields a reader of a budget row would expect and the
+   * live record does not publish them as fields. Neither is parsed out of
+   * display text and neither is derived here; the amounts-summary carries the
+   * parts and the consumer derives.
+   */
+  opengov: {
+    declared: true,
+    recordType: "budget",
+    writesTo: "files",
+    /**
+     * FEED-ONLY, and G-159 is the first shape in this table that needed the
+     * distinction stated. Every other declared shape belongs to a registered
+     * domain that GENERATES records for a fixture pack, and
+     * src/fixtures.test.mjs holds the registry and this table to each other in
+     * both directions. A budget record has no generating domain ON PURPOSE: a
+     * domain that invented appropriations for `template-city` would put money
+     * beside a city name that never appropriated it, which is the defect class
+     * the finance lens exists to refuse. So this shape is reachable from a real
+     * grant only, and the divergence test carries a feed arm so the rule still
+     * catches a shape declared for nobody at all.
+     */
+    feedOnly: true,
+    feedSource:
+      "smartcity-os /api/platform/opengov/budgets + /api/platform/opengov/budgets/:budgetId/amounts-summary, behind requirePlatformInternalKey",
+    /**
+     * A budget is a static appropriation document, not a thing with an in-flight
+     * state, so this shape declares no status vocabulary -- the same stance
+     * `goto` takes, for the same reason.
+     */
+    statusValues: null,
+    statusValuesBasis:
+      "a budget record is an adopted appropriation and has no in-flight status to report; inventing a lifecycle band for one would put a severity on a document that carries none",
+    fields: [
+      {
+        name: "name",
+        type: "text",
+        required: true,
+        basis: "the vendor's own budget name, e.g. 'FY2026 Operating Budget' -- the city's label, never one this product composed",
+      },
+      {
+        name: "entityId",
+        type: "text",
+        required: true,
+        basis: "the OpenGov entity the budget belongs to; every one of the 12 live records carries Bastrop's entity id, which is what makes this feed Bastrop's",
+      },
+      {
+        name: "coaId",
+        type: "text",
+        required: true,
+        basis: "the chart of accounts the budget's account numbers are drawn from; the live budget points at the 5-segment COA (Funds/Departments/Project/Division/Object)",
+      },
+      { name: "expensesBaseAmount", type: "integer", required: true },
+      { name: "expensesAdjustmentAmount", type: "integer", required: true },
+      { name: "expensesProposedAmount", type: "integer", required: true },
+      { name: "revenuesBaseAmount", type: "integer", required: true },
+      { name: "revenuesAdjustmentAmount", type: "integer", required: true },
+      { name: "revenuesProposedAmount", type: "integer", required: true },
+      {
+        name: "fiscalYear",
+        type: "integer",
+        required: false,
+        basis:
+          "the live budget record publishes no numeric fiscal year: the year appears only inside the budget NAME text ('FY2027 Operating Budget (WORKING)') and as a numeric field on the separate budget-amounts resource. A mapped record therefore carries none rather than parsing a year out of a display name and presenting a guess as a field",
+      },
+      {
+        name: "netPosition",
+        type: "integer",
+        required: false,
+        basis:
+          "derivable as revenuesProposedAmount minus expensesProposedAmount (the operator capture's $5.0M), and deliberately not carried: the bridge publishes it under `derived` with its own 'never consumed as measured' note, and a mapped record leaves it absent rather than promoting a derived number into a column that reads like a reading",
+      },
+    ],
+  },
   esri: { declared: false, basis: "place geometry record shape is not declared on G-91" },
   municode: {
     declared: false,

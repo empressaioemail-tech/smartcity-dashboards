@@ -59,13 +59,52 @@ describe("adapter record shapes", () => {
      *
      * It becomes a DIVERGENCE test in both directions (DEV_PROCESS 2.4): every
      * registered domain must resolve to a declared shape, and every declared
-     * shape must be reachable from a registered domain. A shape declared for
-     * nobody and a domain generating an undeclared type are both findings, and
-     * the literal could see neither.
+     * shape must be reachable either from a registered domain or from a declared
+     * feed (G-159's arm; see the `unreachable` helper below, which is proven
+     * able to fire against a planted shape). A shape declared for nobody and a
+     * domain generating an undeclared type are both findings, and the literal
+     * could see neither.
      */
     const fromRegistry = DOMAIN_REGISTRY.map((d) => `${d.gatedBy}:${d.recordType}`).sort();
     const fromShapes = declaredRecordShapes().map((d) => `${d.kind}:${d.recordType}`).sort();
-    assert.deepEqual(fromRegistry, fromShapes);
+
+    /**
+     * G-159, AND THE FIRST SHAPE THAT NEEDED THIS ARM. `opengov:budget` is
+     * declared and has NO registered domain, on purpose: a domain would generate
+     * appropriations for the fixture pack, and money beside a city name that
+     * never appropriated it is the defect the finance lens exists to refuse. So
+     * the rule gains a second legitimate reachability -- a real feed, named on
+     * the shape itself -- and keeps its teeth by being exercised below against a
+     * shape that is on neither arm.
+     */
+    const feedOnly = declaredRecordShapes()
+      .filter((d) => recordShapeFor(d.kind, d.recordType)?.feedOnly)
+      .map((d) => `${d.kind}:${d.recordType}`)
+      .sort();
+    const unreachable = (shapes, registry, feeds) =>
+      shapes.filter((key) => !registry.includes(key) && !feeds.includes(key));
+
+    assert.deepEqual(unreachable(fromShapes, fromRegistry, feedOnly), []);
+    assert.deepEqual(
+      unreachable([...fromShapes, "planted:record"], fromRegistry, feedOnly),
+      ["planted:record"],
+      "the rule must still fire on a shape that is neither a registered domain nor a declared feed",
+    );
+    assert.deepEqual(
+      feedOnly,
+      ["opengov:budget"],
+      "the feed arm is pinned rather than derived: a shape must not move between arms unnoticed",
+    );
+    for (const entry of declaredRecordShapes()) {
+      const shape = recordShapeFor(entry.kind, entry.recordType);
+      if (!shape?.feedOnly) continue;
+      assert.match(shape.feedSource, /\S/, `${entry.kind}:${entry.recordType} must name the route it is read from`);
+      assert.equal(
+        fromRegistry.includes(`${entry.kind}:${entry.recordType}`),
+        false,
+        `${entry.kind}:${entry.recordType} is feed-only and must not also claim a registered domain`,
+      );
+    }
     /**
      * RE-SCOPED AT G-92, four to eleven across two concurrent lanes. Seven of
      * the additions are department domains and three are mygov variants,
@@ -83,6 +122,7 @@ describe("adapter record shapes", () => {
       "mygov:inspection",
       "mygov:permit-case",
       "mygov:work-order",
+      "opengov:budget",
       "powerbi:capital-project",
       "samsara:fleet-vehicle",
       "spireon:patrol-vehicle",

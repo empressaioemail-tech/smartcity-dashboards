@@ -132,12 +132,21 @@ describe("G-156 finance lens: states", () => {
 
   it("does not source the fund ledger even when the kind it names is granted", () => {
     /**
-     * THE VIOLATION DIRECTION for "the fund ledger stays UNACCOUNTED". The
-     * tempting way to fill it is to grant the kind the ledger names and let the
-     * grant become a source. Granting it must NOT do that: opengov's own record
-     * shape is undeclared (G-91), and a grant is not a mapping, so the ledger
-     * stays unaccounted and the basis has to say why. Written as a falsifier
-     * rather than as a promise.
+     * THE VIOLATION DIRECTION for "the fund ledger stays UNACCOUNTED", AND G-159
+     * MOVED ITS REASON WITHOUT MOVING ITS VERDICT.
+     *
+     * G-156 wrote this as a falsifier against a grant becoming a source: the
+     * tempting way to fill the ledger is to grant the kind it names, and at the
+     * time the shape that would have made a mapping possible was undeclared, so
+     * the row landed in the UNMAPPABLE branch with the basis "not declared on
+     * G-91". G-159 DECLARED that shape against the live vendor record, so the
+     * same pack now lands one branch lower: granted and mappable, nothing read.
+     *
+     * The verdict is unchanged and that is the point - the ledger still prints no
+     * figure and a grant still is not a reading. What moved is the sentence, and
+     * this asserts the NEW sentence while pinning the reason the ledger is still
+     * unaccounted: the one record type opengov now declares is a BUDGET, and a
+     * budget is not a ledger.
      */
     const granted = financeLensState({
       cityKey: "granted-pack",
@@ -146,8 +155,15 @@ describe("G-156 finance lens: states", () => {
     const ledger = granted.sources.find((s) => s.id === "fund-ledger");
     assert.equal(ledger.state, "UNACCOUNTED");
     assert.equal(ledger.value, undefined);
-    assert.match(ledger.basis, /not declared on G-91/);
+    assert.match(ledger.basis, /granted and mappable, and no record from it has been read/);
+    assert.equal(/\$/.test(ledger.basis), false, "an unaccounted row quotes no money");
     assert.equal(granted.read, 0, "a grant is not a reading");
+    /**
+     * Pinned so a later lane that declares a LEDGER record type sees this test
+     * change rather than discovering the coupling after a grant lands.
+     */
+    assert.equal(RECORD_SHAPES.opengov.declared, true);
+    assert.equal(RECORD_SHAPES.opengov.recordType, "budget");
   });
 
   it("holds the Finance derivation to the grant-counting rule's own numerator", () => {
@@ -205,23 +221,23 @@ describe("G-156 finance lens: absent, zero and unaccounted on one surface", () =
      * HOLDING A LIVE ZERO.
      *
      * Writing `value: 0` into the granted-but-unread branch of resolveSource
-     * failed NO test. The branch is not reachable off today's catalog: every
-     * finance source names opengov, whose record shape is undeclared on G-91, so
-     * a granted opengov resolves down the UNMAPPABLE branch above it, and the
-     * one declared finance kind (mygov) belongs to the source that carries a
-     * partial split, which returns PARTIAL before this line is reached. The
-     * module's own docstring claims every branch is reachable and exercised.
-     * That claim was false, and the thing it was not exercising is the one place
-     * a figure could appear on a row that measured nothing.
+     * failed NO test when G-156 wrote it. The branch was not reachable off that
+     * day's catalog: every finance source names opengov, whose record shape was
+     * undeclared on G-91, so a granted opengov resolved down the UNMAPPABLE
+     * branch above it, and the one declared finance kind (mygov) belongs to the
+     * source that carries a partial split, which returns PARTIAL before this line
+     * is reached. The module's own docstring claimed every branch was reachable
+     * and exercised. That claim was false, and the thing it was not exercising is
+     * the one place a figure could appear on a row that measured nothing.
      *
-     * The branch is load-bearing the day opengov's shape is declared: connect
-     * the feed, nothing has landed, and the lens has to say connected-but-unread
-     * rather than 0. So it gets its own surface here by declaring the shape for
-     * the test - the reader takes `shapes` as an argument for exactly this -
-     * instead of leaving it dead and trusting it.
+     * G-159 DECLARED THE SHAPE, so the branch is now reachable off the shipped
+     * catalog rather than only through the injected `shapes` argument this test
+     * used to supply. Both arms are asserted below: the real catalog (which is
+     * what the next granted pack will actually hit) and the injected one (which
+     * keeps the reader's `shapes` seam covered).
      */
-    const declared = { ...RECORD_SHAPES, opengov: { ...RECORD_SHAPES.opengov, declared: true } };
     const connectUnread = { cityKey: "connected-not-read", grantedAdapters: [{ kind: "opengov" }] };
+    const declared = { ...RECORD_SHAPES, opengov: { ...RECORD_SHAPES.opengov, declared: true } };
     const state = financeLensState(connectUnread, { shapes: declared });
     const surface = renderFinanceLens(connectUnread, { shapes: declared });
     for (const id of ["adopted-budget", "fund-ledger", "department-spend"]) {
@@ -235,6 +251,24 @@ describe("G-156 finance lens: absent, zero and unaccounted on one surface", () =
     }
     assert.equal(/>0</.test(surface), false, "an unread connector never renders as a figure");
     assert.deepEqual(money(surface), [], "and its surface carries no money token");
+
+    /**
+     * THE SAME PACK AGAINST THE SHIPPED CATALOG, no override supplied. This is
+     * the arm that could not be written before G-159, and it is the one that
+     * proves the declaration in src/adapters.mjs is doing what the injected
+     * object used to simulate. If the shape is ever un-declared, this fails while
+     * the arm above still passes - which is exactly the divergence worth
+     * catching.
+     */
+    assert.equal(RECORD_SHAPES.opengov.declared, true, "if this changes, the override above is a no-op again");
+    const realCatalog = financeLensState(connectUnread);
+    for (const id of ["adopted-budget", "fund-ledger", "department-spend"]) {
+      const source = realCatalog.sources.find((s) => s.id === id);
+      assert.equal(source.state, "UNACCOUNTED", id);
+      assert.equal(source.value, undefined, `${id} must carry no figure on the real catalog either`);
+      assert.match(source.basis, /granted and mappable, and no record from it has been read/, id);
+    }
+    assert.equal(realCatalog.read, 0);
   });
 
   it("keeps the three renderings distinguishable from each other", () => {

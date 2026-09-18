@@ -27,15 +27,26 @@
  * THE ONE THING THAT CHANGED, AND IT WAS THE OPERATOR'S CALL, NOT THIS LANE'S.
  * The ratified design's "lens today" state was drawn from the v1 capture rather
  * than from the v2 product: it shows the adopted budget MEASURED at $69.6M from
- * an OpenGov ERP connection. Five independent product registers deny that
- * connection - no OpenGov grant exists for any pack, the adapter kind is
- * catalogued with `declared: false` because its budget record shape is not
- * declared on G-91, the function-homes register dispositions OpenGov "Not
- * connected", the shipped Connections register says the same, and the design's
- * own nav footer asserts a runtime figure the runtime cannot produce. Building
- * it as drawn would put a source-looking money figure under a MEASURED badge on
- * a customer surface, which is the exact defect class this lens exists to
- * refuse.
+ * an OpenGov ERP connection. Five independent product registers denied that
+ * connection - no OpenGov grant exists for any pack, the adapter kind was
+ * catalogued `declared: false` because its budget record shape was not declared
+ * on G-91, the function-homes register dispositions OpenGov "Not connected", the
+ * shipped Connections register says the same, and the design's own nav footer
+ * asserts a runtime figure the runtime cannot produce. Building it as drawn
+ * would put a source-looking money figure under a MEASURED badge on a customer
+ * surface, which is the exact defect class this lens exists to refuse.
+ *
+ * ONE OF THOSE FIVE REGISTERS HAS SINCE MOVED, AND THIS PARAGRAPH IS UPDATED
+ * RATHER THAN LEFT STANDING. G-159 DECLARED the budget record shape
+ * (`RECORD_SHAPES.opengov`, src/adapters.mjs, validated against the live vendor
+ * record captured in that row's CP1), so the catalog no longer denies the
+ * connection and this docstring must not keep saying it does. The four that
+ * remain are the ones that still bind: no pack carries an opengov grant (G-159
+ * deliberately did not add one), the function-homes and Connections registers
+ * still disposition it "Not connected", and the route the grant would read is
+ * unreachable from this deployment until OPS-25 D-13 and D-14 land. So the
+ * adopted budget is still UNACCOUNTED on every shipped pack, and the reason has
+ * moved from "no shape to map" to "no grant, and nothing read".
  *
  * Filed as CP1 (2026-09-18_g156-finance-lens-build_cp1.json) and ruled by the
  * operator on 2026-09-18: BUILD THE HONEST FULL SHAPE. The layout, badges,
@@ -89,8 +100,16 @@ export const FINANCE_REQUIRED_SOURCES = [
     acquisition: {
       owner: "city finance director",
       step: "connect the OpenGov budget feed",
+      /**
+       * G-159 MOVED THIS SENTENCE, and leaving the old one would have made this
+       * line a stale claim the day the shape landed. It used to read "the
+       * opengov adapter kind is catalogued but declares no record shape (G-91),
+       * so a granted feed could not be mapped onto a cell yet". The shape IS
+       * declared now; what is missing is a grant, and a route this deployment
+       * can reach.
+       */
       blocked:
-        "the opengov adapter kind is catalogued but declares no record shape (G-91), so a granted feed could not be mapped onto a cell yet",
+        "the budget record shape is declared but no pack carries an opengov grant yet, and the v1 platform route that grant would read is unreachable from this deployment until OPS-25 D-13 and D-14 land",
       fills: "appropriation by fund and department, and the fund list itself",
     },
   },
@@ -181,13 +200,20 @@ function resolveSource(source, { grantedIds, shapes, readings, packLabel, grants
   /**
    * A grant is not the same thing as a mappable record. `declared` is the
    * adapter catalog's own answer, in RECORD_SHAPES, to whether this kind has a
-   * record shape a cell could be mapped onto - and for the kind that carries
-   * every finance source on this lens it is FALSE, with the catalog's own words
-   * as the basis: "budget record shape is not declared on G-91". Reading this
-   * off the kind entry rather than off RECORD_SHAPES is the mistake this line
-   * exists to prevent: every kind in ADAPTER_KINDS carries no declared field,
-   * so that read makes the mappable set empty for every pack and the lens
-   * reports "no grant" for a source it in fact has a grant for.
+   * record shape a cell could be mapped onto. Reading this off the kind entry
+   * rather than off RECORD_SHAPES is the mistake this line exists to prevent:
+   * every kind in ADAPTER_KINDS carries no declared field, so that read makes
+   * the mappable set empty for every pack and the lens reports "no grant" for a
+   * source it in fact has a grant for.
+   *
+   * G-159 changed what this line finds, and the comment moved with it. The kind
+   * that carries every finance source here is opengov, which read
+   * `declared: false` with the basis "budget record shape is not declared on
+   * G-91" until G-159 declared it against the live vendor record. So on a pack
+   * that grants opengov these sources now resolve BELOW this line - to the
+   * granted-and-mappable branch - rather than to the unmappable one. No shipped
+   * pack grants opengov, so nothing on a customer surface moved; what moved is
+   * which branch the next pack to be granted will land in.
    */
   const mappable = grantedForSource.filter((id) => shapes[id]?.declared === true);
   const unmappable = grantedForSource.filter((id) => shapes[id]?.declared !== true);
@@ -260,13 +286,27 @@ function resolveSource(source, { grantedIds, shapes, readings, packLabel, grants
    * GRANTED, MAPPABLE, AND NOTHING READ YET: the state a city is in the week the
    * feed is connected and before the first record lands. The cell is a WORD, not
    * a 0, because nothing has been measured - and this is the branch where a
-   * fabricated zero would sit unnoticed if anyone ever wrote one, which is why
-   * src/finance-lens.test.mjs declares the shape for the test and renders it.
+   * fabricated zero would sit unnoticed if anyone ever wrote one.
    *
-   * On today's catalog no pack reaches this line: every finance source names
-   * opengov, whose shape is undeclared on G-91, and the one declared finance
-   * kind (mygov) belongs to the source with a partial split. It is live the day
-   * that shape is declared.
+   * THIS BRANCH WAS DEAD WHEN G-156 WROTE IT, AND G-159 MADE IT LIVE. G-156's
+   * comment here said "on today's catalog no pack reaches this line: every
+   * finance source names opengov, whose shape is undeclared on G-91", and it got
+   * its own surface only by declaring the shape inside the test. G-159 then
+   * declared that shape for real, so on any pack that grants opengov these rows
+   * now arrive here for genuine rather than for injected reasons. Nothing ships
+   * in that state yet - no pack carries an opengov grant - which is why the test
+   * still supplies both the pack and the reading.
+   *
+   * ONE THING THIS BRANCH NOW OVERSTATES, recorded here because the next lane
+   * must not have to rediscover it: the check above is KIND-level, so declaring
+   * ONE opengov record type (`budget`) makes every finance source naming
+   * opengov - including the fund ledger, whose actuals come back HTTP 500 from
+   * the vendor, and department spend, which needs purchase and payroll detail no
+   * record type here carries - read as "granted and mappable". The state is
+   * still UNACCOUNTED and still prints no figure, so nothing false reaches a
+   * screen; the BASIS sentence is the part that would be imprecise. The fix is
+   * to let a source name its recordType and match on it, and it belongs to
+   * whoever lands the grant after OPS-25 D-13 and D-14, not to G-159.
    */
   if (grantedForSource.length > 0) {
     return {
