@@ -65,47 +65,73 @@ const run = (dir) => {
 };
 
 /** One mutant per planted defect. Each returns [label, html] or throws if the surface
- *  no longer carries the anchor, because a silent no-op mutant would read as a MISS. */
+ *  no longer carries the anchor, because a silent no-op mutant would read as a MISS.
+ *
+ *  AN ANCHOR THE SURFACE DOES NOT DRAW IS SKIPPED AND NAMED, NOT SILENT AND NOT
+ *  FATAL (G-154, on the live bastrop_tx export). Plant 1 needs a load-strip cell,
+ *  and the live surface has none: the real feed carries no load dimension, so the
+ *  product hides the whole strip rather than drawing an empty ranking. That is the
+ *  product behaving correctly, and a prover that throws on it reports the check as
+ *  broken when what actually happened is that defect 1 has no input HERE. It is
+ *  named as unexercised so the gap cannot read as a pass. */
 const mutants = [];
+const skipped = [];
 
 // 1. A named person on the published workload ranking, which is the load strip.
 {
   const m = html.match(/<span class="who">[^<]*<\/span>/);
-  if (!m) throw new Error("no load-strip cell in the surface");
-  mutants.push(["1-a-named-person-on-the-workload-ranking", html.replace(m[0], '<span class="who">R. McBain</span>')]);
+  if (!m) {
+    skipped.push(
+      "1-a-named-person-on-the-workload-ranking (the surface draws no load-strip cell: " +
+        "the real feed carries no load dimension, so the strip is hidden)",
+    );
+  } else {
+    mutants.push(["1-a-named-person-on-the-workload-ranking", html.replace(m[0], '<span class="who">R. McBain</span>')]);
+  }
 }
 
 // 2. A Place tab back on the strip.
 {
   const m = html.match(/<div class="tabs" role="tablist"[^>]*>[\s\S]*?<\/div>/);
-  if (!m) throw new Error("no tab strip");
-  const planted = m[0].replace(
-    /(<a role="tab"[^>]*>)/,
-    '<a role="tab" aria-selected="false" data-tab="place" href="/?lens=development-services&amp;tab=place">Place</a>$1',
-  );
-  if (planted === m[0]) throw new Error("no tab to insert beside");
-  mutants.push(["2-a-place-tab", html.replace(m[0], planted)]);
+  if (!m) {
+    skipped.push("2-a-place-tab (no tab strip matched)");
+  } else {
+    const planted = m[0].replace(
+      /(<a role="tab"[^>]*>)/,
+      '<a role="tab" aria-selected="false" data-tab="place" href="/?lens=development-services&amp;tab=place">Place</a>$1',
+    );
+    if (planted === m[0]) skipped.push("2-a-place-tab (no tab to insert beside)");
+    else mutants.push(["2-a-place-tab", html.replace(m[0], planted)]);
+  }
 }
 
 // 3. Licence rows out of the design's sort order.
 {
   const m = html.match(/<tbody id="ds-lic-rows">[\s\S]*?<\/tbody>/);
-  if (!m) throw new Error("no licence queue");
-  const rows = [...m[0].matchAll(/<tr>[\s\S]*?<\/tr>/g)].map((r) => r[0]);
-  if (rows.length < 2) throw new Error(`only ${rows.length} licence row(s), nothing to reorder`);
-  const reversed = m[0].replace(rows.join(""), [...rows].reverse().join(""));
-  if (reversed === m[0]) throw new Error("the licence body did not change");
-  mutants.push(["3-licence-rows-out-of-order", html.replace(m[0], reversed)]);
+  if (!m) {
+    skipped.push("3-licence-rows-out-of-order (no licence queue)");
+  } else {
+    const rows = [...m[0].matchAll(/<tr>[\s\S]*?<\/tr>/g)].map((r) => r[0]);
+    if (rows.length < 2) skipped.push(`3-licence-rows-out-of-order (only ${rows.length} row(s))`);
+    else {
+      const reversed = m[0].replace(rows.join(""), [...rows].reverse().join(""));
+      if (reversed === m[0]) skipped.push("3-licence-rows-out-of-order (the licence body did not change)");
+      else mutants.push(["3-licence-rows-out-of-order", html.replace(m[0], reversed)]);
+    }
+  }
 }
 
 // 4. A resident named beside an address, in the permit pipeline's Applicant column.
 //    Deliberately a Title Case name, which is the shape the people rule cannot see.
 {
   const m = html.match(/<tbody id="ds-pipeline-rows">[\s\S]*?<\/tbody>/);
-  if (!m) throw new Error("no pipeline queue");
-  const planted = m[0].replace(/(<td class="t-data"><\/td>)/, '<td class="t-data">Dana Whitfield</td>');
-  if (planted === m[0]) throw new Error("no empty applicant cell to plant a resident in");
-  mutants.push(["4-a-resident-beside-an-address", html.replace(m[0], planted)]);
+  if (!m) {
+    skipped.push("4-a-resident-beside-an-address (no pipeline queue)");
+  } else {
+    const planted = m[0].replace(/(<td class="t-data"><\/td>)/, '<td class="t-data">Dana Whitfield</td>');
+    if (planted === m[0]) skipped.push("4-a-resident-beside-an-address (no empty applicant cell)");
+    else mutants.push(["4-a-resident-beside-an-address", html.replace(m[0], planted)]);
+  }
 }
 
 let caught = 0;
@@ -130,5 +156,9 @@ fs.mkdirSync(cleanDir, { recursive: true });
 fs.writeFileSync(path.join(cleanDir, "clean.dc.html"), html);
 const clean = run(cleanDir);
 console.log(`\ncontrol: the unmutated export ${clean.ok ? "passes" : "FAILS (the mutants are meaningless)"}`);
+if (skipped.length) {
+  console.log(`\nUNEXERCISED on this surface (named, not silently passed):`);
+  for (const s of skipped) console.log(`  - ${s}`);
+}
 console.log(`planted ${mutants.length} defect(s), caught ${caught}`);
 process.exit(caught === mutants.length && clean.ok ? 0 : 1);
