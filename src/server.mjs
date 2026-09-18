@@ -27,6 +27,8 @@ import { composePipeline } from "./fixtures.mjs";
 import { composeDomainById, composeDomainMap, getDomain } from "./domains.mjs";
 import { cityIdentity } from "./city-identity.mjs";
 import { financeLensPayload } from "./finance-lens.mjs";
+import { publicWorksLensPayload, renderPublicWorksSurface } from "./public-works-lens.mjs";
+import { fireEmsLensPayload, renderFireEmsSurface } from "./fire-ems-lens.mjs";
 import { runMunicodeCalendar } from "./municode-calendar.mjs";
 import { loadDotenv } from "./load-env.mjs";
 import { pingDb } from "./db.mjs";
@@ -108,6 +110,22 @@ function json(res, status, body) {
     "cache-control": "no-store",
   });
   res.end(data);
+}
+
+/**
+ * A RENDERED PAGE, WHICH IS NOT A FILE. The two lens surfaces are built from a
+ * pack at request time rather than read off disk, and they are the ONLY html
+ * this server writes itself: everything else under web/ is served by sendFile,
+ * with its own bytes and its own CRLF. no-store for the same reason the json
+ * helper carries it - the page is a reading of a pack, and a cached copy of a
+ * reading is a copy of a different moment.
+ */
+function html(res, status, body) {
+  res.writeHead(status, {
+    "content-type": "text/html; charset=utf-8",
+    "cache-control": "no-store",
+  });
+  res.end(body);
 }
 
 /* ---------------------------------------------------------------------------
@@ -901,6 +919,101 @@ async function handle(req, res) {
       return;
     }
     json(res, 200, financeLensPayload(pack));
+    return;
+  }
+
+  /**
+   * G-152. THE TWO LENS SURFACES, SERVED RATHER THAN BAKED.
+   *
+   * The Public works and Fire and EMS designs each draw a whole page: a header,
+   * two regions of different units, a phase-by-status matrix, a reconciled call
+   * grid, per-station multiples, blocked boards and provenance feet. web/index.html
+   * is ONE document served for every pack, so the ratified markup it carries is
+   * the UNREAD rendering and nothing else (the bake asserts that, as a fixed
+   * point, in src/*-lens.test.mjs).
+   *
+   * A pack's own rendering therefore has to come from somewhere, and these four
+   * routes are that somewhere: the JSON surface the browser painter consumes, and
+   * the finished page a reader (or a check, or a probe) can open directly. Both
+   * read ONE derivation in src/public-works-lens.mjs / src/fire-ems-lens.mjs, and
+   * the page is the same artifact the design's own check.mjs reads when it is
+   * exported to disk -- so the thing that passes the instrument and the thing the
+   * server serves cannot be two different documents.
+   *
+   * WHY THE PAGE IS SERVED RATHER THAN PAINTED IN THE SHELL YET, stated here
+   * rather than discovered later: the browser painter that would rebuild these
+   * bodies from the payload does not exist, and shipping the baked unread markup
+   * over a pack whose regions ARE read would print "has not been read for this
+   * pack" over data the server has. That is the one failure this product refuses
+   * above all others, so the shell keeps its existing rendering until the painter
+   * lands, and this route is what makes the design reachable and probeable until
+   * then. Named as the remaining clause in this lane's close.
+   *
+   * GATED AS PACK CONTENT, exactly as /api/lenses/finance/sources is: the states
+   * and the counts both come off the pack's grants.
+   */
+  const LENS_SURFACES = {
+    "/api/lenses/public-works/dashboard": {
+      stake: "answering with the demo pack's capital projects and call buckets would serve demo records under whatever city the caller meant",
+      payload: publicWorksLensPayload,
+    },
+    "/api/lenses/fire-ems/dashboard": {
+      stake: "answering with the demo pack's apparatus and stations would serve demo readiness under whatever city the caller meant",
+      payload: fireEmsLensPayload,
+    },
+  };
+  const lensSurface = LENS_SURFACES[url.pathname];
+  if (req.method === "GET" && lensSurface) {
+    const cityKey = requiredCityKey(res, url, lensSurface.stake);
+    if (!cityKey) return;
+    const caller = await resolveCaller(req);
+    const pack = await getCityPack(cityKey);
+    const status = packContentReadStatus(pack, caller);
+    if (status === 404) {
+      json(res, 404, { error: "unknown city pack" });
+      return;
+    }
+    if (status !== 200) {
+      json(res, status, accessRefusalBody(caller, status));
+      return;
+    }
+    json(res, 200, lensSurface.payload(pack));
+    return;
+  }
+
+  /**
+   * The rendered page of the same two lenses. `assetBase: ""` makes the two kit
+   * stylesheets absolute, because this path is nested (/lens/public-works) and a
+   * relative link would resolve to /lens/sc-kit.css. It is the ONLY difference
+   * between this document and what scripts/export-*-lens.mjs writes for the
+   * design's check to read.
+   */
+  const LENS_PAGES = {
+    "/lens/public-works": {
+      stake: "serving the demo pack's public works page to a caller who named no city would render demo records under their own header",
+      page: renderPublicWorksSurface,
+    },
+    "/lens/fire-ems": {
+      stake: "serving the demo pack's fire and EMS page to a caller who named no city would render demo readiness under their own header",
+      page: renderFireEmsSurface,
+    },
+  };
+  const lensPage = LENS_PAGES[url.pathname];
+  if (req.method === "GET" && lensPage) {
+    const cityKey = requiredCityKey(res, url, lensPage.stake);
+    if (!cityKey) return;
+    const caller = await resolveCaller(req);
+    const pack = await getCityPack(cityKey);
+    const status = packContentReadStatus(pack, caller);
+    if (status === 404) {
+      html(res, 404, "<!doctype html>\n<title>Unknown city pack</title>\n<p>unknown city pack\n");
+      return;
+    }
+    if (status !== 200) {
+      html(res, status, "<!doctype html>\n<title>Not authorized</title>\n<p>not authorized for this pack\n");
+      return;
+    }
+    html(res, 200, lensPage.page(pack, { assetBase: "" }));
     return;
   }
 

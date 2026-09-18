@@ -424,8 +424,35 @@ describe("G-90 class discipline for the new chrome", () => {
      * fix -- hides this page's own #pm-panel and header/search chrome when
      * mounted in the shell's stage, since the shell now renders property
      * detail and records itself) -- hence 212 rather than 201.
+     *
+     * G-152 (the Public works and Fire and EMS lenses, web/shell.css only)
+     * added 39 more, none of them for this dropdown card either. These are the
+     * three shapes the lenses' ratified boards draw and this shell had no class
+     * for, plus the one element a blocked region needs. The four states of the
+     * capital-projects matrix, held apart on purpose and never collapsed:
+     * mtx/mtx-table/mtx-c/mtx-n/mtx-counted/mtx-zero-cell/mtx-unread-cell/
+     * mtx-unread/mtx-hatch-cell/mtx-hatch/mtx-total/mtx-legend/mtx-swatch/
+     * mtx-swatch-zero/mtx-swatch-unread/mtx-swatch-hatch (16). The calls grid
+     * whose row and column margins must visibly agree: ht/ht-table/ht-c/
+     * ht-total (4). One card per station instead of a rollup:
+     * sm/sm-wrap/sm-card/sm-head/sm-label/sm-ready/sm-ready-n/sm-ready-d/
+     * sm-bars/sm-bar/sm-table/sm-n/sm-zero (13). The blocked region, which
+     * states its state, its basis, what kind of thing would move it and when it
+     * was last read, and offers no retry: blocked/blocked-head/blocked-facts
+     * and stchip, the state token in its head (4). And two general ones the
+     * lenses needed: chip, the band/status chip as a distinct element from
+     * .pill whose tones are the c-* set -- bound to the SAME tokens p-* uses,
+     * but a separate class family, because a chip is read from the payload and
+     * a pill is not and the design's built-form reader tells them apart by
+     * class alone (a payload's status word must not land in the closed pill
+     * vocabulary the design's check scans), and
+     * sr-only, the hatch and the washes said in words for an assistive read
+     * (2). Plus the chip's five tone classes c-ok/c-info/c-warn/c-crit/c-quiet
+     * (5), and the two unread-state hooks the board draws but the first pass
+     * named without defining, mtx-absent and ht-unread (2). No token value
+     * moved and web/sc-kit.css is untouched -- hence 258 rather than 212.
      */
-    assert.equal(defined.size, 212, "the defined class vocabulary moved by something other than the four");
+    assert.equal(defined.size, 258, "the defined class vocabulary moved by something other than the four");
     for (const cls of ["topmenu", "pop", "pop-group", "pop-item"]) {
       assert.ok(defined.has(cls), `${cls} is used but no served stylesheet defines it`);
       assert.ok(html.includes(cls), `${cls} is defined but nothing uses it`);
