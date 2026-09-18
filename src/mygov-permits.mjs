@@ -30,6 +30,7 @@ mygov's enum in adapters.mjs) does not apply to them and is not forced to.
 This is a named, deliberate residual, not an oversight -- see G-116's
 close artifact for the honest coverage picture.
 */
+import { opaqueRefs, refusalBasis } from "./record-identity.mjs";
 
 /**
  * G-126 defect 2. smartcity-os's platform route (server/routes/mygov.ts,
@@ -62,7 +63,6 @@ close artifact for the honest coverage picture.
  * tenant, not just the feed's known-good default.
  */
 export const VERIFIED_MYGOV_PERMITS_TENANT = "bastrop_tx";
-
 export function assertVerifiedMygovTenant(cityKey) {
   if (cityKey !== VERIFIED_MYGOV_PERMITS_TENANT) {
     throw new Error(
@@ -123,8 +123,29 @@ export function mapRealPermitRecord(row, cityKey, accessPolicy) {
     // MyGov fee reports (see that file's own DATA ACCURACY CONTRACT header:
     // "FEES: mygov_fees table"). Not previously read here even though the
     // platform route already returned them.
-    applicant: row.applicant || null,
+    //
+    // G-154. `applicant` IS NOT THE VENDOR'S STRING ANY MORE, and the Pipeline
+    // table is why: it renders this field in its own column, immediately beside
+    // the permit's address, and for a residential permit the applicant is the
+    // homeowner. It used to be `row.applicant || null` and reached the cell
+    // verbatim. composeRealPermits now writes a deterministic `APP-01`
+    // reference in its place - the same value the design folder's Pipeline
+    // artboard draws in that cell - and the refusal is a refusal rather than a
+    // test because "Hill Country Homes" and "Deborah Ann Moore" have one shape.
+    // See src/record-identity.mjs.
+    applicant: null,
     contractor: row.contractor || null,
+    /**
+     * LEFT AS READ, DELIBERATELY, AND IT IS NOT THE APPLICANT. The first pass at
+     * this lane cleared `ownerName` on the theory that it is the same human as
+     * the applicant; the real row disproves it - the feature's own sample row
+     * (src/mygov-permits.test.mjs) has applicant "Redwood Development LLC" and
+     * ownerName "Bastrop County", two different entities, one of them not a
+     * person at all. Measured, `record.ownerName` has zero reads in web/, so it
+     * backs no cell and there is nothing to refuse. Refusing it on a guess about
+     * its content would be a change no later reader could audit. Its content
+     * population is recorded as OPEN in this lane's close instead.
+     */
     ownerName: row.ownerName || null,
     fees: Array.isArray(row.fees) ? row.fees : [],
     submittedDate: row.submittedDate || null,
@@ -218,6 +239,26 @@ export async function composeRealPermits(pack, domain, grant, { env = process.en
     };
   }
   const records = fetched.records.map((row) => mapRealPermitRecord(row, pack.cityKey, grant.accessPolicy));
+  /**
+   * G-154. The applicant refusal, written back onto the field the Pipeline row
+   * builder already renders (`record.applicant`) rather than onto a new one:
+   * web/app.js is shared rendering and this lane does not edit it, and the
+   * artboard draws the reference in that same cell, so the surface does not
+   * need to learn a second field name.
+   */
+  const applicantRefs = opaqueRefs(
+    "applicant",
+    fetched.records.map((row) => row && row.applicant),
+  );
+  const applicantBasis = applicantRefs.size
+    ? `${refusalBasis("applicant", "row.applicant")}; ${applicantRefs.size} distinct applicant name(s) refused on this read`
+    : "the source named no applicant on this read";
+  for (let i = 0; i < records.length; i += 1) {
+    const name = fetched.records[i] ? fetched.records[i].applicant : null;
+    records[i].applicant =
+      typeof name === "string" && applicantRefs.has(name) ? applicantRefs.get(name) : null;
+    records[i].applicantBasis = applicantBasis;
+  }
   if (records.length === 0) {
     return {
       ...base,

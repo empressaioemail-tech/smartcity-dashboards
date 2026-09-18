@@ -129,6 +129,37 @@ function severityRank(statusId) {
   return ["crit", "warn", "info", "ok", "quiet"].indexOf(value?.severity || "quiet");
 }
 
+/**
+ * THE ROLL'S ORDER, named and exported because there are now TWO callers: the
+ * fixture generator below, and the live compose in src/mygov-live.mjs. Until
+ * G-154 the live one had no order of its own and rendered whatever order the
+ * vendor's list arrived in, which is the defect G-154 exists to close - "the
+ * licence rows are in the design's sort order". Two careful copies of this
+ * comparator would drift; one exported rule cannot.
+ *
+ * Rule, unchanged from the generator's own (the design folder's artboards and
+ * fixture-rows.json are both in it, so this is a refactor and not a re-sort):
+ *   status severity first  - an expired licence is more urgent than an active one
+ *   then the expiry offset - ascending, most urgent first
+ *   then the record id     - so the order is total and stable
+ *
+ * A record whose expiry offset could not be read sorts LAST rather than first.
+ * An unreadable date presented at the top of the roll would be the most urgent
+ * row on the screen on the strength of nothing.
+ */
+export function compareLicenseRoll(a, b) {
+  const rank = severityRank(a.status) - severityRank(b.status);
+  if (rank !== 0) return rank;
+  const left = Number.isInteger(a.expiryOffsetDays) ? a.expiryOffsetDays : null;
+  const right = Number.isInteger(b.expiryOffsetDays) ? b.expiryOffsetDays : null;
+  if (left !== right) {
+    if (left === null) return 1;
+    if (right === null) return -1;
+    return left - right;
+  }
+  return String(a.recordId).localeCompare(String(b.recordId));
+}
+
 /** The roll. Every extra below counts THIS array. */
 export function generateBusinessLicenseRecords({
   cityKey,
@@ -182,12 +213,7 @@ export function generateBusinessLicenseRecords({
       });
     }
   }
-  records.sort((a, b) => {
-    const rank = severityRank(a.status) - severityRank(b.status);
-    if (rank !== 0) return rank;
-    if (a.expiryOffsetDays !== b.expiryOffsetDays) return a.expiryOffsetDays - b.expiryOffsetDays;
-    return a.recordId.localeCompare(b.recordId);
-  });
+  records.sort(compareLicenseRoll);
   return records;
 }
 

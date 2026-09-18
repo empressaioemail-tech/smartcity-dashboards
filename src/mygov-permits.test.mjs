@@ -53,9 +53,16 @@ describe("mygov-permits (G-116 Phase 2 live feed)", () => {
     assert.ok(record.provenance.readAt);
   });
 
-  it("maps applicant, contractor, owner and the itemized fees array off dbPermitToApi's own real fields", () => {
+  it("REFUSES the applicant name at the mapper (G-154) and still maps contractor, owner and the itemized fees array", () => {
     const record = mapRealPermitRecord(SAMPLE_ROW, "bastrop_tx", "tenant-private");
-    assert.equal(record.applicant, "Redwood Development LLC");
+    /**
+     * G-154, acceptance item 4: "no resident is named beside an address". The
+     * Pipeline table renders `record.applicant` in its own column, one cell from
+     * the address, so the mapper carries no applicant name at all. The reference
+     * the surface draws instead is written by composeRealPermits, which is the
+     * only place the whole population is visible.
+     */
+    assert.equal(record.applicant, null);
     assert.equal(record.contractor, "Acme Paving Co");
     assert.equal(record.ownerName, "Bastrop County");
     // Itemized, not collapsed to a total -- production shows a real fees
