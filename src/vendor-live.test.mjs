@@ -15,6 +15,13 @@ import {
 import { getDomain } from "./domains.mjs";
 import { BASTROP_TX } from "./city-pack.mjs";
 
+/**
+ * D-13.1. A live platform read now requires a configured base. These tests
+ * assert the ROUTE they read (see the include_inactive test below), so the
+ * base they name is a fixture host, not production's.
+ */
+const ENV = { PLATFORM_INTERNAL_API_KEY: "test-key", SMARTCITY_V1_PLATFORM_BASE: "https://platform.test" };
+
 describe("vendor-live (G-116 Phase 2 third batch)", () => {
   it("fleet-vehicles: maps a real Samsara row, origin feed, real (not fixture) status", () => {
     const record = mapRealFleetVehicleRecord(
@@ -132,7 +139,7 @@ describe("vendor-live (G-116 Phase 2 third batch)", () => {
       return { ok: true, json: async () => ({ vehicles: [], contract: "live" }) };
     };
     const domain = getDomain("patrol-vehicles");
-    await composeRealPatrolVehicles(BASTROP_TX, domain, { env: { PLATFORM_INTERNAL_API_KEY: "test-key" }, fetchImpl });
+    await composeRealPatrolVehicles(BASTROP_TX, domain, { env: ENV, fetchImpl });
     assert.match(requestedUrl, /\/api\/platform\/spireon\/vehicles\?include_inactive=true$/);
   });
 
@@ -245,7 +252,7 @@ describe("vendor-live (G-116 Phase 2 third batch)", () => {
       it("returns real records with source live on success", async () => {
         const fetchImpl = async () => ({ ok: true, json: async () => ({ [listKey]: [{ id: "x", name: "x" }], contract: "live" }) });
         const domain = getDomain(id);
-        const out = await compose(BASTROP_TX, domain, { env: { PLATFORM_INTERNAL_API_KEY: "test-key" }, fetchImpl });
+        const out = await compose(BASTROP_TX, domain, { env: ENV, fetchImpl });
         assert.equal(out.source, "live");
         assert.equal(out.status, "ok");
         assert.equal(out.recordCount, 1);
@@ -264,7 +271,7 @@ describe("vendor-live (G-116 Phase 2 third batch)", () => {
           json: async () => ({ error: "permission_required", message: "current API credentials do not have access" }),
         });
         const domain = getDomain(id);
-        const out = await compose(BASTROP_TX, domain, { env: { PLATFORM_INTERNAL_API_KEY: "test-key" }, fetchImpl });
+        const out = await compose(BASTROP_TX, domain, { env: ENV, fetchImpl });
         assert.equal(out.status, "unavailable");
         assert.match(out.basis, /current API credentials do not have access/);
       });
@@ -278,7 +285,7 @@ describe("vendor-live (G-116 Phase 2 third batch)", () => {
         json: async () => ({ summary: { totalCalls: 10, answeredCalls: 9, missedCalls: 1, answerRate: 90 }, contract: "aggregate" }),
       });
       const domain = getDomain("call-analytics");
-      const out = await composeRealCallAnalytics(BASTROP_TX, domain, { env: { PLATFORM_INTERNAL_API_KEY: "test-key" }, fetchImpl });
+      const out = await composeRealCallAnalytics(BASTROP_TX, domain, { env: ENV, fetchImpl });
       assert.equal(out.recordCount, 1);
       assert.equal(out.records[0].callsAnswered, 9);
     });
@@ -290,7 +297,7 @@ describe("vendor-live (G-116 Phase 2 third batch)", () => {
         json: async () => ({ error: "goto_not_authorized", needsAuth: true }),
       });
       const domain = getDomain("call-analytics");
-      const out = await composeRealCallAnalytics(BASTROP_TX, domain, { env: { PLATFORM_INTERNAL_API_KEY: "test-key" }, fetchImpl });
+      const out = await composeRealCallAnalytics(BASTROP_TX, domain, { env: ENV, fetchImpl });
       assert.equal(out.status, "unavailable");
       assert.match(out.basis, /goto_not_authorized/);
     });

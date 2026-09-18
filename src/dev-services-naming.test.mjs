@@ -42,7 +42,15 @@ import { composeRealPermits, mapRealPermitRecord } from "./mygov-permits.mjs";
 import { DS_TABS } from "./staff-review.mjs";
 import { compareLicenseRoll } from "./domains/business-licenses.mjs";
 
-const ENV = { PLATFORM_INTERNAL_API_KEY: "test-key" };
+/**
+ * D-13.1. The base is stated here rather than inherited from a default that no
+ * longer exists: these tests read platform feeds, so they must say which
+ * platform they read. A test that reached the network through a fallback host
+ * was asserting against whichever host was compiled in, which is the coupling
+ * D-13 removes.
+ */
+const PLATFORM_TEST_BASE = "https://platform.test";
+const ENV = { PLATFORM_INTERNAL_API_KEY: "test-key", SMARTCITY_V1_PLATFORM_BASE: PLATFORM_TEST_BASE };
 
 /** The strings the capture this lens' design was drawn from actually carries. */
 const CAPTURE_PERSON = "DEBORAH MOORE, PH#737-762-6252";

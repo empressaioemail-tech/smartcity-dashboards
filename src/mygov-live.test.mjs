@@ -14,6 +14,14 @@ import {
 import { getDomain } from "./domains.mjs";
 import { BASTROP_TX } from "./city-pack.mjs";
 
+/**
+ * D-13.1. A live platform read now requires a configured base -- there is no
+ * compiled-in host to fall back to. Stated once here so the read tests assert
+ * against the platform they named, not against whichever host used to be
+ * hardcoded.
+ */
+const ENV = { PLATFORM_INTERNAL_API_KEY: "test-key", SMARTCITY_V1_PLATFORM_BASE: "https://platform.test" };
+
 const CASES = [
   {
     name: "work-orders",
@@ -130,7 +138,7 @@ describe("mygov-live (G-116 Phase 2 second batch)", () => {
           json: async () => ({ [listKey]: [sampleRow], contract: "live" }),
         });
         const domain = getDomain(name === "work-orders" ? "work-orders" : name);
-        const out = await compose(BASTROP_TX, domain, { env: { PLATFORM_INTERNAL_API_KEY: "test-key" }, fetchImpl });
+        const out = await compose(BASTROP_TX, domain, { env: ENV, fetchImpl });
         assert.equal(out.source, "live");
         assert.equal(out.generated, false);
         assert.equal(out.granted, true);
@@ -142,7 +150,7 @@ describe("mygov-live (G-116 Phase 2 second batch)", () => {
       it("is honestly granted-empty, not silently absent, when the live read returns zero", async () => {
         const fetchImpl = async () => ({ ok: true, json: async () => ({ [listKey]: [], contract: "live" }) });
         const domain = getDomain(name === "work-orders" ? "work-orders" : name);
-        const out = await compose(BASTROP_TX, domain, { env: { PLATFORM_INTERNAL_API_KEY: "test-key" }, fetchImpl });
+        const out = await compose(BASTROP_TX, domain, { env: ENV, fetchImpl });
         assert.equal(out.status, "granted-empty");
         assert.equal(out.granted, true);
         assert.equal(out.recordCount, 0);

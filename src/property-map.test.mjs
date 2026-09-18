@@ -11,6 +11,13 @@ import {
 } from "./property-map.mjs";
 import { getAllLayerKeys } from "./property-map-catalog.mjs";
 
+/**
+ * D-13.1. The summary and layers routes were two independently overridable
+ * hosts and are now two routes on the one configured base. These tests name
+ * the base instead of inheriting one.
+ */
+const ENV = { PLATFORM_INTERNAL_API_KEY: "test-key", SMARTCITY_V1_PLATFORM_BASE: "https://platform.test" };
+
 const SAMPLE_BODY = {
   found: true,
   source: "live",
@@ -68,7 +75,7 @@ describe("property-map (G-117 native map live feed)", () => {
       return { ok: true, json: async () => SAMPLE_BODY };
     };
     const result = await fetchPropertyIntelSummary("123 Chestnut St", {
-      env: { PLATFORM_INTERNAL_API_KEY: "test-key" },
+      env: ENV,
       fetchImpl,
     });
     assert.equal(result.status, "ok");
@@ -80,7 +87,7 @@ describe("property-map (G-117 native map live feed)", () => {
   it("fetchPropertyIntelSummary stays honest-unavailable on a non-ok HTTP response, not a thrown crash", async () => {
     const fetchImpl = async () => ({ ok: false, status: 503, json: async () => ({ message: "upstream_unavailable" }) });
     const result = await fetchPropertyIntelSummary("123 Chestnut St", {
-      env: { PLATFORM_INTERNAL_API_KEY: "test-key" },
+      env: ENV,
       fetchImpl,
     });
     assert.equal(result.status, "unavailable");
@@ -137,7 +144,7 @@ describe("property-map (G-117 native map live feed)", () => {
     const out = await composePropertyIntelSummary({
       address: "123 Chestnut St",
       cityKey: "template-city",
-      env: { PLATFORM_INTERNAL_API_KEY: "test-key" },
+      env: ENV,
       fetchImpl: async () => ({ ok: true, json: async () => SAMPLE_BODY }),
     });
     assert.equal(out.status, "unavailable");
@@ -151,7 +158,7 @@ describe("property-map (G-117 native map live feed)", () => {
     const out = await composePropertyIntelSummary({
       address: "   ",
       cityKey: "bastrop_tx",
-      env: { PLATFORM_INTERNAL_API_KEY: "test-key" },
+      env: ENV,
       fetchImpl: async () => ({ ok: true, json: async () => SAMPLE_BODY }),
     });
     assert.equal(out.status, "unavailable");
@@ -162,7 +169,7 @@ describe("property-map (G-117 native map live feed)", () => {
     const out = await composePropertyIntelSummary({
       address: "nonexistent place",
       cityKey: "bastrop_tx",
-      env: { PLATFORM_INTERNAL_API_KEY: "test-key" },
+      env: ENV,
       fetchImpl: async () => ({ ok: true, json: async () => ({ found: false, status: "no_match", message: "No address match found." }) }),
     });
     assert.equal(out.status, "no_match");
@@ -174,7 +181,7 @@ describe("property-map (G-117 native map live feed)", () => {
     const out = await composePropertyIntelSummary({
       address: "123 Chestnut St",
       cityKey: "bastrop_tx",
-      env: { PLATFORM_INTERNAL_API_KEY: "test-key" },
+      env: ENV,
       fetchImpl: async () => ({ ok: true, json: async () => SAMPLE_BODY }),
     });
     assert.equal(out.status, "ok");
@@ -192,7 +199,7 @@ describe("property-map (G-117 native map live feed)", () => {
     const out = await composePropertyIntelSummary({
       address: "123 Chestnut St",
       cityKey: "bastrop_tx",
-      env: { PLATFORM_INTERNAL_API_KEY: "test-key" },
+      env: ENV,
       fetchImpl: async () => {
         throw new Error("network unreachable");
       },
@@ -251,7 +258,7 @@ describe("property-map (G-117 full-parity follow-up: the property map's 52 toggl
       return { ok: true, json: async () => SAMPLE_LAYER_BODY };
     };
     const result = await fetchPropertyIntelLayer("zoning", SAMPLE_BBOX, {
-      env: { PLATFORM_INTERNAL_API_KEY: "test-key" },
+      env: ENV,
       fetchImpl,
     });
     assert.equal(result.status, "ok");
@@ -265,7 +272,7 @@ describe("property-map (G-117 full-parity follow-up: the property map's 52 toggl
   it("fetchPropertyIntelLayer stays honest-unavailable on a non-ok HTTP response, not a thrown crash", async () => {
     const fetchImpl = async () => ({ ok: false, status: 400, json: async () => ({ error: "Unknown or disallowed layer key: bogus" }) });
     const result = await fetchPropertyIntelLayer("zoning", SAMPLE_BBOX, {
-      env: { PLATFORM_INTERNAL_API_KEY: "test-key" },
+      env: ENV,
       fetchImpl,
     });
     assert.equal(result.status, "unavailable");
@@ -277,7 +284,7 @@ describe("property-map (G-117 full-parity follow-up: the property map's 52 toggl
       key: "zoning",
       cityKey: "template-city",
       ...SAMPLE_BBOX,
-      env: { PLATFORM_INTERNAL_API_KEY: "test-key" },
+      env: ENV,
       fetchImpl: async () => ({ ok: true, json: async () => SAMPLE_LAYER_BODY }),
     });
     assert.equal(out.status, "unavailable");
@@ -293,7 +300,7 @@ describe("property-map (G-117 full-parity follow-up: the property map's 52 toggl
       key: "permits",
       cityKey: "bastrop_tx",
       ...SAMPLE_BBOX,
-      env: { PLATFORM_INTERNAL_API_KEY: "test-key" },
+      env: ENV,
       fetchImpl: async () => {
         fetchCalled = true;
         return { ok: true, json: async () => SAMPLE_LAYER_BODY };
@@ -313,7 +320,7 @@ describe("property-map (G-117 full-parity follow-up: the property map's 52 toggl
       ymin: 30.08,
       xmax: -97.28,
       ymax: 30.14,
-      env: { PLATFORM_INTERNAL_API_KEY: "test-key" },
+      env: ENV,
       fetchImpl: async () => ({ ok: true, json: async () => SAMPLE_LAYER_BODY }),
     });
     assert.equal(out.status, "unavailable");
@@ -325,7 +332,7 @@ describe("property-map (G-117 full-parity follow-up: the property map's 52 toggl
       key: "zoning",
       cityKey: "bastrop_tx",
       ...SAMPLE_BBOX,
-      env: { PLATFORM_INTERNAL_API_KEY: "test-key" },
+      env: ENV,
       fetchImpl: async () => ({ ok: true, json: async () => SAMPLE_LAYER_BODY }),
     });
     assert.equal(out.status, "ok");
@@ -347,7 +354,7 @@ describe("property-map (G-117 full-parity follow-up: the property map's 52 toggl
       key: "subdivisions",
       cityKey: "bastrop_tx",
       ...SAMPLE_BBOX,
-      env: { PLATFORM_INTERNAL_API_KEY: "test-key" },
+      env: ENV,
       fetchImpl: async () => ({
         ok: true,
         json: async () => ({ found: true, source: "live", key: "subdivisions", layer: { type: "FeatureCollection", features: [], totalReturned: 0 } }),
@@ -364,7 +371,7 @@ describe("property-map (G-117 full-parity follow-up: the property map's 52 toggl
       key: "parcels-one-click",
       cityKey: "bastrop_tx",
       ...SAMPLE_BBOX,
-      env: { PLATFORM_INTERNAL_API_KEY: "test-key" },
+      env: ENV,
       fetchImpl: async () => {
         throw new Error("network unreachable");
       },

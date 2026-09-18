@@ -1,4 +1,33 @@
 import { FORBIDDEN_PRODUCT_STRINGS } from "./catalog.mjs";
+import { PLATFORM_BASE_UNSET_BASIS, PLATFORM_ROUTES, assertPlatformRoute, platformRoute } from "./platform-base.mjs";
+
+/**
+ * D-13. A platform grant's provenance is the configured base plus its route,
+ * declared here as a ROUTE rather than as a host.
+ *
+ * WHY AN ACCESSOR AND NOT A STRING. The dispatch's rule is that `sourceUrl` is
+ * provenance and must name the host actually read. A literal cannot do that any
+ * more, because the host is a deployment decision that moves; a getter resolves
+ * against the current base every time it is read, so it cannot go stale the way
+ * a value captured at module load would. It is non-enumerable on purpose:
+ * `JSON.stringify` would otherwise freeze today's host into the packs store's
+ * JSONB, and the grant read back from that row would then name a host the feed
+ * is no longer reading -- the exact failure this field exists to prevent. What
+ * round-trips is `platformRoute`; provenance is re-derived from it.
+ *
+ * With no base configured the accessor returns the refusal basis, so a consumer
+ * that prints it prints WHY there is no host rather than an empty string.
+ */
+function withPlatformProvenance(grant) {
+  Object.defineProperty(grant, "sourceUrl", {
+    enumerable: false,
+    configurable: true,
+    get() {
+      return platformRoute(grant.platformRoute) ?? PLATFORM_BASE_UNSET_BASIS;
+    },
+  });
+  return grant;
+}
 
 export const WRITE_TARGETS = new Set(["spine", "files"]);
 
@@ -934,20 +963,24 @@ export const TEMPLATE_MUNICODE_CALENDAR_GRANT = {
  * describes the record's conceptual home, not this grant's own mechanism.
  * accessPolicy tenant-private matches mygov's defaultAccessPolicy (real
  * permit records are not public-free the way a municode meeting calendar
- * is). sourceUrl is smartcity-os's new platform-internal endpoint
+ * is). The route is smartcity-os's platform-internal endpoint
  * (`_decisions/2026-09-03_smartcity_os_platform_read_authorization.md`),
  * gated there by PLATFORM_INTERNAL_API_KEY -- this grant object carries no
  * key itself; src/mygov-permits.mjs reads that from its own env at request
  * time, the same separation of "where" from "how authenticated" every
  * other feed in this file already uses.
+ *
+ * D-13.1: `sourceUrl` used to be a literal naming the GCP host directly, so
+ * this grant was the fourth place a cutover had to be made by hand. It now
+ * declares the route; the host comes from the one configured base.
  */
-export const PLATFORM_MYGOV_PERMITS_GRANT = {
+export const PLATFORM_MYGOV_PERMITS_GRANT = withPlatformProvenance({
   kind: "mygov",
   purpose: "permits",
   writesTo: "spine",
   accessPolicy: "tenant-private",
-  sourceUrl: "https://smartcity-api-7dyaiy7wha-uc.a.run.app/api/platform/mygov/permits",
-};
+  platformRoute: PLATFORM_ROUTES.mygovPermits,
+});
 
 /**
  * G-116 Phase 2, third batch. Five more real grants, one per kind (unlike
@@ -968,45 +1001,45 @@ export const PLATFORM_MYGOV_PERMITS_GRANT = {
  * route's own honest status field to report each time it's actually
  * called, not something to gate the grant itself on.
  */
-export const PLATFORM_SAMSARA_FLEET_GRANT = {
+export const PLATFORM_SAMSARA_FLEET_GRANT = withPlatformProvenance({
   kind: "samsara",
   purpose: "fleet-vehicles",
   writesTo: "files",
   accessPolicy: "tenant-private",
-  sourceUrl: "https://smartcity-api-7dyaiy7wha-uc.a.run.app/api/platform/samsara/vehicles",
-};
+  platformRoute: PLATFORM_ROUTES.samsaraVehicles,
+});
 
-export const PLATFORM_SPIREON_PATROL_GRANT = {
+export const PLATFORM_SPIREON_PATROL_GRANT = withPlatformProvenance({
   kind: "spireon",
   purpose: "patrol-vehicles",
   writesTo: "files",
   accessPolicy: "tenant-private",
-  sourceUrl: "https://smartcity-api-7dyaiy7wha-uc.a.run.app/api/platform/spireon/vehicles",
-};
+  platformRoute: PLATFORM_ROUTES.spireonVehicles,
+});
 
-export const PLATFORM_FIRSTDUE_APPARATUS_GRANT = {
+export const PLATFORM_FIRSTDUE_APPARATUS_GRANT = withPlatformProvenance({
   kind: "firstdue",
   purpose: "fire-apparatus",
   writesTo: "files",
   accessPolicy: "tenant-private",
-  sourceUrl: "https://smartcity-api-7dyaiy7wha-uc.a.run.app/api/platform/firstdue/apparatus",
-};
+  platformRoute: PLATFORM_ROUTES.firstdueApparatus,
+});
 
-export const PLATFORM_POWERBI_CIP_GRANT = {
+export const PLATFORM_POWERBI_CIP_GRANT = withPlatformProvenance({
   kind: "powerbi",
   purpose: "cip-projects",
   writesTo: "files",
   accessPolicy: "tenant-private",
-  sourceUrl: "https://smartcity-api-7dyaiy7wha-uc.a.run.app/api/platform/powerbi/cip-projects",
-};
+  platformRoute: PLATFORM_ROUTES.powerbiCipProjects,
+});
 
-export const PLATFORM_GOTO_CALLS_GRANT = {
+export const PLATFORM_GOTO_CALLS_GRANT = withPlatformProvenance({
   kind: "goto",
   purpose: "call-analytics",
   writesTo: "files",
   accessPolicy: "tenant-private",
-  sourceUrl: "https://smartcity-api-7dyaiy7wha-uc.a.run.app/api/platform/goto/call-summary",
-};
+  platformRoute: PLATFORM_ROUTES.gotoCallSummary,
+});
 
 /**
  * G-116. cityKey is the pack this URL is being evaluated FOR, not a label on
@@ -1088,7 +1121,27 @@ export function assertGrantedAdapterShape(grant, cityKey) {
       throw new Error("writesTo override requires a named reason");
     }
   }
-  assertPublicFeedSourceUrl(grant.sourceUrl, cityKey);
+  /**
+   * D-13.1. A grant names its source one of two ways, and both are checked:
+   *
+   *  - `platformRoute`, for a read that goes through this product's own v1
+   *    platform on whatever base is configured. Checked against the declared
+   *    route list, and against being a path -- see assertPlatformRoute.
+   *  - `sourceUrl`, for a real third-party public host (municode's clerk
+   *    calendar, the one grant that still carries a literal). Checked as
+   *    before, host and path rules included.
+   *
+   * platformRoute wins when both are present, because it is the one that
+   * round-trips: a grant read back out of the packs store has no accessor and
+   * therefore no sourceUrl to check, and the route it does carry is the whole
+   * declaration. Reading the accessor here instead would make an unset base --
+   * a fetch-time refusal with a stated basis -- read as a malformed pack.
+   */
+  if (grant.platformRoute !== undefined) {
+    assertPlatformRoute(grant.platformRoute);
+  } else {
+    assertPublicFeedSourceUrl(grant.sourceUrl, cityKey);
+  }
   return true;
 }
 

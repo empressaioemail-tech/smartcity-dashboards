@@ -17,13 +17,16 @@ groups honestly instead.
 
 import { opaqueRefs, refusalBasis } from "./record-identity.mjs";
 import { compareLicenseRoll, expiryLabelFor } from "./domains/business-licenses.mjs";
+import { PLATFORM_BASE_UNSET_BASIS, platformRoute } from "./platform-base.mjs";
 
-const DEFAULT_PLATFORM_BASE = "https://smartcity-api-7dyaiy7wha-uc.a.run.app/api/platform/mygov";
-
-function platformBase(env = process.env) {
-  return String(env.MYGOV_PLATFORM_BASE || DEFAULT_PLATFORM_BASE).trim();
-}
-
+/**
+ * D-13. The MyGov routes used to default to a host and accept an override
+ * (`MYGOV_PLATFORM_BASE`). Both are gone: one configured base decides where
+ * every v1 platform read goes, and there is no host to fall back to. Nothing
+ * deployed carried the old override (checked on d12-main-uat and dolphin-app,
+ * neither of which sets MYGOV_PLATFORM_BASE), so nothing is silently dropped
+ * by its removal.
+ */
 function platformKey(env = process.env) {
   return String(env.PLATFORM_INTERNAL_API_KEY || "").trim();
 }
@@ -34,9 +37,13 @@ async function fetchLiveResource(path, listKey, { env = process.env, fetchImpl =
   if (!key) {
     return { status: "unavailable", basis: "PLATFORM_INTERNAL_API_KEY unset", rows: [] };
   }
+  const url = platformRoute(`mygov/${path}`, env);
+  if (!url) {
+    return { status: "unavailable", basis: PLATFORM_BASE_UNSET_BASIS, rows: [] };
+  }
   let res;
   try {
-    res = await fetchImpl(`${platformBase(env)}/${path}`, {
+    res = await fetchImpl(url, {
       headers: { authorization: `Bearer ${key}`, accept: "application/json" },
       signal: AbortSignal.timeout(15000),
     });
