@@ -124,6 +124,38 @@ describe("G-95 the scanned surface list is derived, not written down", () => {
     const dupes = titles.filter((t, i) => titles.indexOf(t) !== i);
     assert.deepEqual(dupes, [], `${new Set(titles).size} distinct titles over ${titles.length} surfaces`);
   });
+
+  it("G-161: names the pack on every surface, because a URL that names none is the no-city panel", () => {
+    /**
+     * THE GATE'S DENOMINATOR DEPENDS ON THIS. Before G-161 a lens target
+     * deliberately carried no `cityKey` and the client resolved the demo pack for
+     * it. The client no longer resolves any pack for an unnamed URL - it renders
+     * the stated no-city panel - so a target without a pack would point the whole
+     * scan at one panel, and every title would disagree, because the pack's name
+     * is part of the title and nothing would have put it there.
+     *
+     * Asserted as a property of the LIST rather than by reading the one place
+     * that builds it, so a target added later is caught wherever it came from.
+     */
+    const cityless = (targets) => targets.filter((t) => !t.params.cityKey).map((t) => t.surface);
+    assert.deepEqual(cityless(A11Y_TARGETS), []);
+
+    // Proven able to fire: the same predicate over the list plus one target that
+    // names no pack, asserted to come back named.
+    const injected = [...A11Y_TARGETS, { surface: "lens-finance", url: "/?lens=finance", search: "?lens=finance", params: { lens: "finance" } }];
+    assert.deepEqual(cityless(injected), ["lens-finance"]);
+
+    /** And the pack is really in the expected title, not just in the params. */
+    const finance = A11Y_TARGETS.find((t) => t.surface === "lens-finance");
+    assert.match(expectedTitle(finance), /Template city/);
+
+    /** A target naming a pack this file cannot compose a title for throws by
+     *  name, rather than returning a title with no pack in it. */
+    assert.throws(
+      () => expectedTitle({ surface: "lens-finance", search: "?cityKey=no-such-pack&lens=finance", params: { cityKey: "no-such-pack" } }),
+      /names the pack no-such-pack, which this file has no pack for/,
+    );
+  });
 });
 
 /* --------------------------------------------------------------- the fixtures */

@@ -754,22 +754,37 @@ describe("G-77 fixture pack on Development services", () => {
   it("G-116 close: every static nav href threads the active pack's cityKey forward, so navigation cannot drop a non-default pack", () => {
     /**
      * Every shipped nav href is a static /?lens=... or /?work=... link with
-     * no cityKey of its own -- correct by coincidence for template-city
-     * (the default staffMap.cityKey falls back to) and silently wrong for
-     * bastrop_tx or any other real pack: one click on any nav item lost the
-     * pack and landed the visitor back on the demo. Confirmed still true of
-     * the shipped markup (would be a stale test otherwise): every one of
-     * these hrefs carries no cityKey param.
+     * no cityKey of its own -- correct by coincidence for the one pack that
+     * used to be the boot default and silently wrong for bastrop_tx or any
+     * other: one click on any nav item lost the pack and landed the visitor
+     * back on the default. Confirmed still true of the shipped markup (would
+     * be a stale test otherwise): every one of these hrefs carries no
+     * cityKey param.
      */
     const hrefs = [...html.matchAll(/href="(\/\?[^"]*)"/g)].map((m) => m[1]);
     assert.ok(hrefs.length > 0, "expected at least one static nav href");
     for (const href of hrefs) {
       assert.equal(href.includes("cityKey="), false, href);
     }
-    // The fix: rewritten once at boot from the same staffMap.cityKey every
-    // loader on this page already uses, gated so it is a no-op for the
-    // default pack (byte-identical behaviour for template-city).
-    assert.match(app, /staffMap\.cityKey !== DEFAULT_CITY_KEY/);
+    /**
+     * The fix: rewritten once at boot from the same staffMap.cityKey every
+     * loader on this page already uses.
+     *
+     * G-161 WIDENED THE GATE. It used to fire only when the resolved key
+     * DIFFERED from the boot default, which made the default pack the one pack
+     * whose navigation was not carried -- correct only while a bare visit
+     * already resolved to that pack. There is no boot default any more, so the
+     * guard is simply "a city resolved", and a pack named explicitly (the demo
+     * pack included) keeps its visitor on that pack. A no-city visit keeps the
+     * static hrefs, because the page it lands on names no city either.
+     *
+     * The old comparison is asserted absent as well as the new guard asserted
+     * present, because deleting the default is the change and a leftover
+     * `!== DEFAULT_CITY_KEY` would be a reference to a binding that no longer
+     * exists.
+     */
+    assert.equal(/staffMap\.cityKey !== DEFAULT_CITY_KEY/.test(app), false);
+    assert.match(app, /if \(staffMap\.cityKey\) \{/);
     assert.match(app, /querySelectorAll\('a\[href\^="\/\?"\]'\)/);
     assert.match(app, /url\.searchParams\.set\("cityKey", staffMap\.cityKey\)/);
   });

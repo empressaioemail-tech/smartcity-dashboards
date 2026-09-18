@@ -33,9 +33,44 @@ describe("city-manager compose", () => {
     assert.equal(PARCEL_NODE_ID_RE.test(""), false);
   });
 
+  /**
+   * G-161. THE COMPOSER REFUSES A MISSING CITY, AND COMPOSES THE ONE IT IS GIVEN.
+   *
+   * Both arms in one test on purpose. A refusal asserted only to throw could be
+   * throwing for any reason at all, so the second half puts the SAME call
+   * through with a city named and shows it composes and names that city - and
+   * that the embed it builds carries it. Before this lane both halves returned
+   * composed demo data with a 200, which is the defect stated as a measurement
+   * rather than as a comment.
+   */
+  it("refuses to compose without a cityKey, and composes the one it is given", async () => {
+    const fetchImpl = mockFetch((url) =>
+      url.includes("/atom-chain")
+        ? jsonResponse(404, { error: "not found" })
+        : jsonResponse(200, { folders: [] }),
+    );
+    for (const absent of [undefined, "", "   "]) {
+      await assert.rejects(
+        () =>
+          composeCityManager({ parcelNodeId: VALID, cityKey: absent, env: envWithMounts(), fetchImpl }),
+        /requires an explicit cityKey/,
+        `cityKey ${JSON.stringify(absent)} must be refused rather than defaulted`,
+      );
+    }
+    const named = await composeCityManager({
+      parcelNodeId: VALID,
+      cityKey: "template-city",
+      env: envWithMounts(),
+      fetchImpl,
+    });
+    assert.equal(named.cityKey, "template-city");
+    assert.match(named.planReview.url, /cityKey=template-city/);
+  });
+
   it("honest-empties when retrieval URL is unset, 404, or empty chain", async () => {
     const unset = await composeCityManager({
       parcelNodeId: VALID,
+      cityKey: "template-city",
       env: { SMART_FILES_BACKEND_URL: "" },
       fetchImpl: mockFetch(() => {
         throw new Error("fetch must not run when retrieval URL is unset");
@@ -47,7 +82,8 @@ describe("city-manager compose", () => {
     assert.equal("atoms" in unset.atoms, false);
     assert.equal(unset.smartsite.url.includes("parcelNodeId=48021%3A34137"), true);
     // G-114: the embed carries the composing city's own identity, not a bare
-    // static origin -- defaults to DEFAULT_CITY_KEY since none was passed here.
+    // static origin. G-161: that city is now the one THIS CALL passed in, so the
+    // assertion below reads the caller's argument rather than a module default.
     assert.equal(
       unset.planReview.url,
       "https://plan-review-app-ten.vercel.app/?embed=1&cityKey=template-city",
@@ -62,6 +98,7 @@ describe("city-manager compose", () => {
 
     const notFound = await composeCityManager({
       parcelNodeId: VALID,
+      cityKey: "template-city",
       env: envWithMounts(),
       fetchImpl: mockFetch((url) => {
         if (url.includes("/atom-chain")) return jsonResponse(404, { error: "not found" });
@@ -76,6 +113,7 @@ describe("city-manager compose", () => {
 
     const emptyChain = await composeCityManager({
       parcelNodeId: VALID,
+      cityKey: "template-city",
       env: envWithMounts({ HAUSKA_RETRIEVAL_API_KEY: "k" }),
       fetchImpl: mockFetch((url) => {
         if (url.includes("/atom-chain")) {
@@ -96,6 +134,7 @@ describe("city-manager compose", () => {
   it("marks retrieval 401 as unavailable and never invents atoms", async () => {
     const composed = await composeCityManager({
       parcelNodeId: VALID,
+      cityKey: "template-city",
       env: envWithMounts({ HAUSKA_RETRIEVAL_API_KEY: "bad" }),
       fetchImpl: mockFetch((url) => {
         if (url.includes("/atom-chain")) return jsonResponse(401, { error: "nope" });
@@ -161,6 +200,7 @@ describe("city-manager compose", () => {
 
   it("leaves SmartSite url empty when parcelNodeId is missing or invalid", async () => {
     const missing = await composeCityManager({
+      cityKey: "template-city",
       env: envWithMounts(),
       fetchImpl: mockFetch((url) => {
         if (url.includes("/atom-chain")) throw new Error("must not call retrieval");
@@ -174,6 +214,7 @@ describe("city-manager compose", () => {
 
     const invalid = await composeCityManager({
       parcelNodeId: "not-a-node",
+      cityKey: "template-city",
       env: envWithMounts(),
       fetchImpl: mockFetch((url) => {
         if (url.includes("/atom-chain")) throw new Error("must not call retrieval");
@@ -188,6 +229,7 @@ describe("city-manager compose", () => {
   it("summarizes only public-free types; retrieval Bearer authenticates the product", async () => {
     const composed = await composeCityManager({
       parcelNodeId: VALID,
+      cityKey: "template-city",
       env: envWithMounts({ HAUSKA_ENGINE_API_KEY: "engine-service" }),
       fetchImpl: mockFetch((url, opts) => {
         if (url.includes("/atom-chain")) {
@@ -295,6 +337,7 @@ describe("city-manager compose", () => {
   it("refuses an atom whose accessPolicy is absent, blank or unrecognised", async () => {
     const composed = await composeCityManager({
       parcelNodeId: VALID,
+      cityKey: "template-city",
       env: envWithMounts({ HAUSKA_RETRIEVAL_API_KEY: "retrieval-service" }),
       fetchImpl: mockFetch((url, opts) => {
         if (url.includes("/atom-chain")) {
@@ -338,6 +381,7 @@ describe("city-manager compose", () => {
   it("still reads a declared public-free atom on a chain the rest of which is refused", async () => {
     const composed = await composeCityManager({
       parcelNodeId: VALID,
+      cityKey: "template-city",
       env: envWithMounts({ HAUSKA_RETRIEVAL_API_KEY: "retrieval-service" }),
       fetchImpl: mockFetch((url) => {
         if (url.includes("/atom-chain")) {
@@ -360,6 +404,7 @@ describe("city-manager compose", () => {
     const folderAuths = [];
     const composed = await composeCityManager({
       parcelNodeId: VALID,
+      cityKey: "template-city",
       env: envWithMounts({ SMART_FILES_API_KEY: "files-secret" }),
       fetchImpl: mockFetch((url, opts) => {
         if (url.includes("/atom-chain")) return jsonResponse(200, { atoms: [] });
@@ -454,6 +499,7 @@ describe("city-manager compose", () => {
   it("does not denylist type names; public-free owner-fact stays visible", async () => {
     const composed = await composeCityManager({
       parcelNodeId: VALID,
+      cityKey: "template-city",
       env: envWithMounts({ HAUSKA_ENGINE_API_KEY: "k" }),
       fetchImpl: mockFetch((url) => {
         if (url.includes("/atom-chain")) {
@@ -478,6 +524,7 @@ describe("city-manager compose", () => {
   it("names files 401 as unavailable with files auth refused", async () => {
     const composed = await composeCityManager({
       parcelNodeId: VALID,
+      cityKey: "template-city",
       env: envWithMounts({ SMART_FILES_API_KEY: "files-secret" }),
       fetchImpl: mockFetch((url, opts) => {
         if (url.includes("/atom-chain")) return jsonResponse(200, { atoms: [] });
@@ -519,6 +566,7 @@ describe("city-manager compose", () => {
   it("is G-13 mounts only; not a vendor JSON lens", async () => {
     const composed = await composeCityManager({
       parcelNodeId: VALID,
+      cityKey: "template-city",
       env: envWithMounts(),
       fetchImpl: mockFetch((url) => {
         if (url.includes("/atom-chain")) return jsonResponse(200, { atoms: [] });

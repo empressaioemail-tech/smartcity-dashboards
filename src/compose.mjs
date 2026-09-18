@@ -4,7 +4,22 @@ import { meetingsFromPack } from "./municode-calendar.mjs";
 
 export const PARCEL_NODE_ID_RE = /^\d{5}:[A-Za-z0-9._-]+$/;
 export const COMPOSE_TIMEOUT_MS = 8000;
-export const DEFAULT_CITY_KEY = "template-city";
+/**
+ * G-161. DEFAULT_CITY_KEY IS GONE FROM THIS FILE.
+ *
+ * It lived here as `export const DEFAULT_CITY_KEY = "template-city"` and was
+ * applied TWICE in composeCityManager -- as the `cityKey` parameter default AND
+ * again as `String(cityKey || DEFAULT_CITY_KEY).trim() || DEFAULT_CITY_KEY` --
+ * so an omitted cityKey and an EMPTY-STRING cityKey both composed the demo pack.
+ * Two applications of one default is how the empty string hides: a reader who
+ * checked the parameter would have concluded an explicit "" still meant "no
+ * city", and the second line made it the demo.
+ *
+ * Removed rather than kept-and-unused, because an exported constant named
+ * DEFAULT_CITY_KEY sitting in the module that composes a city IS the fallback
+ * this lane exists to delete. src/staff-map.mjs carried its own copy for the
+ * client boot and lost it in the same lane.
+ */
 
 function trimEnv(env, name) {
   return String(env[name] || "").trim();
@@ -303,13 +318,36 @@ function floodDrainageMapSrc(smartsite) {
 
 export async function composeCityManager({
   parcelNodeId = "",
-  cityKey = DEFAULT_CITY_KEY,
+  cityKey,
   env = process.env,
   fetchImpl = globalThis.fetch,
   caller = { kind: "anonymous" },
   nativePropertyMap = false,
 } = {}) {
-  const city = String(cityKey || DEFAULT_CITY_KEY).trim() || DEFAULT_CITY_KEY;
+  /**
+   * G-161. AN EXPLICIT CITY, OR NOTHING.
+   *
+   * Both defaults are gone (see the header where DEFAULT_CITY_KEY used to be).
+   * What is left is a REFUSAL rather than a blank: `String(cityKey || "").trim()`
+   * turns undefined, null, "" and "   " into the same absent city, and composing
+   * with one would embed that absence into every url, key every files-room write
+   * and every meeting lookup to it, and return a payload whose own `cityKey`
+   * field was blank - a silent no-city compose is worse than either the old
+   * default or this throw, because it would read as an answer.
+   *
+   * The route that calls this refuses an unnamed request 400 city_key_required
+   * BEFORE it gets here (src/server.mjs's requiredCityKey), so this throw is a
+   * contract guard rather than a reachable production path. It is not a
+   * substitute for that refusal and must not be treated as one: a request that
+   * never reaches this function still has to be refused, and only the route can
+   * see that it happened.
+   */
+  const city = String(cityKey || "").trim();
+  if (!city) {
+    throw new Error(
+      "composeCityManager requires an explicit cityKey; it no longer defaults to a city (G-161)",
+    );
+  }
   const id = String(parcelNodeId || "").trim();
   const valid = PARCEL_NODE_ID_RE.test(id);
   const smartsite = nativePropertyMap

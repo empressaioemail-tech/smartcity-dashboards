@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { listLenses, getLens } from "./lenses.mjs";
 import { listCityPacks, getCityPack, getPacksStore, ensureCityPacksTable } from "./city-pack.mjs";
 import { readMounts, smartsiteEmbedUrl, planReviewEmbedUrl, smartFilesEmbedUrl, assertNoSupplierDsn, assertNoSupplierMounts } from "./mounts.mjs";
-import { composeCityManager, DEFAULT_CITY_KEY } from "./compose.mjs";
+import { composeCityManager } from "./compose.mjs";
 import { composePropertyIntelSummary, composePropertyIntelLayer, NATIVE_PROPERTY_MAP_CITY_KEY } from "./property-map.mjs";
 import { listAdapterKinds, platformGrantForKind } from "./adapters.mjs";
 import { composeRealPermits } from "./mygov-permits.mjs";
@@ -108,6 +108,51 @@ function json(res, status, body) {
     "cache-control": "no-store",
   });
   res.end(data);
+}
+
+/* ---------------------------------------------------------------------------
+ * G-161. THE CITY REFUSAL, STATED ONCE.
+ *
+ * A route that reads a city pack and answers anyway when the request named no
+ * city is not a route with a default. It is a route that INVENTS an answer, and
+ * the invented answer was always the demo pack: a caller who asked for nothing
+ * in particular was handed template-city's identity, its shell state and its
+ * domains under a 200, reading like a real city's records.
+ *
+ * G-159 wrote this refusal on /api/lenses/finance/sources and this is the
+ * pattern the rest of the routes now take, so it lives here once rather than
+ * seven times: ONE rule, one implementation. A new route either calls this or
+ * is visibly the odd one out.
+ *
+ * ORDER IS THE POINT. Checked BEFORE resolveCaller(req), so the answer does not
+ * depend on who is asking: a request that names no city is malformed whatever
+ * identity presents it, and refusing it leaks nothing a 401 would have
+ * withheld. A named unknown pack still takes the pack path and still answers
+ * 404; a named readable pack is unchanged. Only "named no city at all" is 400.
+ *
+ * 400 rather than 404, because the pack is not UNKNOWN - it is ABSENT, and the
+ * two are different findings that must stay distinguishable.
+ *
+ * WHITESPACE NAMES NOTHING TOO. `?cityKey=%20` is a caller who supplied a
+ * blank, not a caller who named a city; trim-then-test is what keeps those from
+ * being the same case.
+ *
+ * `stake` is the sentence the route contributes, because what a wrong answer
+ * COSTS differs per route and one shared sentence would have to be vague enough
+ * to be useless. It is required rather than defaulted, so a new call site has to
+ * say what its own 400 is protecting.
+ *
+ * Returns the trimmed key, or null after writing the refusal - the caller MUST
+ * return on null.
+ */
+function requiredCityKey(res, url, stake) {
+  const cityKey = (url.searchParams.get("cityKey") || "").trim();
+  if (cityKey) return cityKey;
+  json(res, 400, {
+    error: "city_key_required",
+    message: `this route takes a cityKey and refuses without one; ${stake}`,
+  });
+  return null;
 }
 
 // A strong validator derived from the bytes themselves. Content-derived on every
@@ -245,7 +290,24 @@ async function handle(req, res) {
       json(res, 401, { error: "unauthorized" });
       return;
     }
-    const cityKey = url.searchParams.get("cityKey") || "template-city";
+    /**
+     * G-161. Was `|| "template-city"`. The 403 below means this default could
+     * not serve ANOTHER city, which is why it read as harmless - but a keyless
+     * caller still silently RAN the demo pack's calendar and wrote its files, a
+     * run nobody aimed at a pack.
+     *
+     * The order is deliberate and is the one thing kept from the old shape: 401
+     * first (this caller is not authorized at all), then the 400 (the request
+     * names no pack), then the 403 (the named pack is not what this adapter run
+     * is for). The refusal is about the REQUEST, so it does not come before the
+     * authorization of the CALLER.
+     */
+    const cityKey = requiredCityKey(
+      res,
+      url,
+      "this adapter run WRITES files keyed by the pack it is handed, so a default would write the demo pack's calendar for a run nobody aimed at it",
+    );
+    if (!cityKey) return;
     if (cityKey !== "template-city") {
       json(res, 403, { error: "municode calendar run is template-city only" });
       return;
@@ -286,8 +348,18 @@ async function handle(req, res) {
    * so the composed payload cannot name a pack the gate did not clear.
    */
   if (req.method === "GET" && url.pathname === "/api/lenses/city-manager/compose") {
+    /**
+     * G-161. This route read `|| DEFAULT_CITY_KEY`, and the SYMBOL is why it
+     * hid: a grep for the literal "template-city" misses it entirely. A keyless
+     * call composed the demo pack's parcel and named it in the payload.
+     */
+    const cityKey = requiredCityKey(
+      res,
+      url,
+      "the compose names the pack it composed and embeds ITS cityKey in every external url, so a default would put the demo pack's parcel in front of a caller who named no city",
+    );
+    if (!cityKey) return;
     const caller = await resolveCaller(req);
-    const cityKey = url.searchParams.get("cityKey") || DEFAULT_CITY_KEY;
     const pack = await getCityPack(cityKey);
     const status = packContentReadStatus(pack, caller);
     if (status === 404) {
@@ -390,8 +462,14 @@ async function handle(req, res) {
    * anything under it, and the compose route above learned that the hard way.
    */
   if (req.method === "GET" && url.pathname === "/api/lenses/development-services/pipeline") {
+    /** G-161. Was `|| "template-city"`. */
+    const cityKey = requiredCityKey(
+      res,
+      url,
+      "answering with the demo pack's cases in flight would show demo permits under whatever city the caller meant",
+    );
+    if (!cityKey) return;
     const caller = await resolveCaller(req);
-    const cityKey = url.searchParams.get("cityKey") || "template-city";
     const pack = await getCityPack(cityKey);
     // Content read, not enumeration: a public-free pack is readable anonymously
     // whether or not this deployment has a service key configured.
@@ -438,8 +516,14 @@ async function handle(req, res) {
    * answer an anonymous visitor whether or not a service key is configured.
    */
   if (req.method === "GET" && url.pathname === "/api/city-domains") {
+    /** G-161. Was `|| "template-city"`. */
+    const cityKey = requiredCityKey(
+      res,
+      url,
+      "answering with the demo pack's domains would report demo capabilities as the caller's city's",
+    );
+    if (!cityKey) return;
     const caller = await resolveCaller(req);
-    const cityKey = url.searchParams.get("cityKey") || "template-city";
     const pack = await getCityPack(cityKey);
     const status = packContentReadStatus(pack, caller);
     if (status === 404) {
@@ -495,8 +579,18 @@ async function handle(req, res) {
    * real determination and it has to be able to say so.
    */
   if (req.method === "GET" && url.pathname.startsWith("/api/domains/")) {
+    /**
+     * G-161. Was `|| "template-city"`. This one handler answers EVERY domain
+     * endpoint behind the seven lenses, so the default reached further than any
+     * other line on this list.
+     */
+    const cityKey = requiredCityKey(
+      res,
+      url,
+      "every domain endpoint under the seven lenses reads through here, so a default would serve the demo pack's domain records under whatever city the caller meant",
+    );
+    if (!cityKey) return;
     const caller = await resolveCaller(req);
-    const cityKey = url.searchParams.get("cityKey") || "template-city";
     const domainId = decodeURIComponent(url.pathname.slice("/api/domains/".length));
     const pack = await getCityPack(cityKey);
     const status = packContentReadStatus(pack, caller);
@@ -548,8 +642,18 @@ async function handle(req, res) {
    * A tenant-private pack still refuses an anonymous caller here.
    */
   if (req.method === "GET" && url.pathname === "/api/city-identity") {
+    /**
+     * G-161. Was `|| "template-city"`. This is the route that names the city on
+     * the surface, so the default here stamped the DEMO city's name, seal and
+     * palette onto a caller who had named none - the loudest form of the defect.
+     */
+    const cityKey = requiredCityKey(
+      res,
+      url,
+      "this route IS the city's name and seal, so a default would stamp the demo pack's identity on a surface the caller never asked for",
+    );
+    if (!cityKey) return;
     const caller = await resolveCaller(req);
-    const cityKey = url.searchParams.get("cityKey") || "template-city";
     const pack = await getCityPack(cityKey);
     const status = packContentReadStatus(pack, caller);
     if (status === 404) {
@@ -576,8 +680,18 @@ async function handle(req, res) {
    * through the existing tenancy resolver. Nothing new authenticates anything.
    */
   if (req.method === "GET" && url.pathname === "/api/shell") {
+    /**
+     * G-161. Was `|| "template-city"`. The shell state is the chrome's own
+     * counts and basis lines, so the default made a cityless visit render the
+     * demo pack's shell as if it were the caller's.
+     */
+    const cityKey = requiredCityKey(
+      res,
+      url,
+      "the shell state is the chrome's counts and basis lines, so a default would render the demo pack's shell under whatever city the caller meant",
+    );
+    if (!cityKey) return;
     const caller = await resolveCaller(req);
-    const cityKey = url.searchParams.get("cityKey") || "template-city";
     const pack = await getCityPack(cityKey);
     const status = packContentReadStatus(pack, caller);
     if (status === 404) {
@@ -763,18 +877,19 @@ async function handle(req, res) {
      * The client already had the honest branch for this: web/app.js fetches with
      * no query string when no pack is resolved and renders the four states as NOT
      * READ, which is now the only thing an unnamed request can produce.
+     *
+     * G-161 moved the refusal itself into requiredCityKey(), above, so this route
+     * and the seven that joined it in G-161 are one implementation rather than
+     * eight copies that can drift. The message is unchanged, byte for byte:
+     * this route's `stake` is the sentence that used to be inline here.
      */
-    const requestedCityKey = (url.searchParams.get("cityKey") || "").trim();
-    if (!requestedCityKey) {
-      json(res, 400, {
-        error: "city_key_required",
-        message:
-          "this route takes a cityKey and refuses without one; answering with the demo pack's finance states would serve demo finance under whatever city the caller meant",
-      });
-      return;
-    }
+    const cityKey = requiredCityKey(
+      res,
+      url,
+      "answering with the demo pack's finance states would serve demo finance under whatever city the caller meant",
+    );
+    if (!cityKey) return;
     const caller = await resolveCaller(req);
-    const cityKey = requestedCityKey;
     const pack = await getCityPack(cityKey);
     const status = packContentReadStatus(pack, caller);
     if (status === 404) {
@@ -812,7 +927,28 @@ async function handle(req, res) {
       json(res, 401, { error: "unauthorized" });
       return;
     }
-    json(res, 200, { cityPacks });
+    /**
+     * G-161. The caller's own resolved tenant rides back with the list.
+     *
+     * The client must take its city from an explicit choice FIRST and from the
+     * caller's resolved tenant SECOND (dispatch item 3), and the second leg is
+     * not something a browser can work out on its own: a Hauska product key or a
+     * staff sign-in names the city SERVER-side, and web/app.js is forbidden by
+     * src/city-identity.test.mjs from naming any shipped pack as a literal. It
+     * cannot default to `template-city` and it cannot guess `bastrop_tx`, so the
+     * one route it can ask without naming a city is this one, which is already
+     * the enumeration and already resolves the caller.
+     *
+     * `tenant` is the caller's cityKey - the same field callerIsPackSubject()
+     * compares against a pack's own cityKey - and it is null for a caller that is
+     * a subject of nothing, which is a real state (a staff account provisioned
+     * with no role yet) rather than an error. The client reads null as "no city
+     * resolved" and shows its no-city state, so a blank is never a city.
+     */
+    json(res, 200, {
+      cityPacks,
+      caller: { kind: caller.kind, tenant: caller.tenant ?? null },
+    });
     return;
   }
 

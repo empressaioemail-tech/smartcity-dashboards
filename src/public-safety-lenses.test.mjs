@@ -123,7 +123,14 @@ describe("G-97 R2 the two lenses are built, not roster placeholders", () => {
     assert.equal(app.includes("domain-render.mjs"), false, "the deleted resolver is still imported");
     for (const loader of ["loadPoliceLens", "loadFireEmsLens"]) {
       assert.match(app, new RegExp(`async function ${loader}\\(cityKey\\)`), loader);
-      assert.match(app, new RegExp(`^${loader}\\(staffMap\\.cityKey\\);$`, "m"), `${loader} is never booted`);
+      /**
+       * G-161. Indentation-tolerant since the boot grew a branch. The call is
+       * still the ONLY way these loaders boot and it still passes the boot's
+       * resolved staffMap.cityKey; anchoring on column 0 would have gone red on
+       * a correct change and, worse, would have kept passing for a loader booted
+       * with some OTHER city.
+       */
+      assert.match(app, new RegExp(`^\\s*${loader}\\(staffMap\\.cityKey\\);$`, "m"), `${loader} is never booted`);
     }
   });
 });

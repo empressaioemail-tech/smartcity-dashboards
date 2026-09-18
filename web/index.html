@@ -318,6 +318,47 @@
           </nav>
 
           <main class="shell-main">
+            <!-- G-161. THE NO-CITY STATE, AND WHY IT IS A STATE RATHER THAN A GUESS.
+                 A visit that named no city, carried no key and had no sign-in used
+                 to boot every loader against the demo pack, so the surface rendered
+                 one city's identity and records for a visitor who had asked for
+                 none of it. The boot in web/app.js now resolves a city in the order
+                 the lane states - an explicit ?cityKey, then the caller's own
+                 resolved tenant, then THIS - and this branch reveals the panel
+                 below instead of reading anything at all.
+
+                 It states rather than loads. Nothing here is waiting on a request,
+                 because no request was made, and a spinner would claim otherwise.
+
+                 Shipped hidden like every other conditional branch in this document,
+                 so a browser with scripting off still sees the one lens the static
+                 markup turns on (G-89). web/app.js is the only thing that unhides
+                 it, and it hides the lens surfaces in the same step, so the two can
+                 never both be on screen.
+
+                 It names no city and carries no pack hook: the whole point of the
+                 branch is that no city was named, and a name here would be exactly
+                 the invention this lane deletes. The address that resolves it is
+                 written in the abstract (<pack key>), because web/index.html must
+                 not carry a shipped pack's key either. -->
+            <div id="no-city-state" hidden>
+              <div class="shell-regions">
+                <div class="colstack" tabindex="0">
+                  <div class="panel">
+                    <div class="panel-head"><span class="t">No city selected</span><span class="grow"></span><span class="pill p-quiet">Nothing read</span></div>
+                    <div class="panel-body">
+                      <div class="state">
+                        <span class="st-k">No city selected</span>
+                        <h2>This surface will not guess which city you meant.</h2>
+                        <p>Every panel in this product reads one city's own records, so it has to be told which city before it can read them. Naming no city and being shown one anyway would put a real-looking city name on records nobody chose, so this address shows this panel instead.</p>
+                        <p>Name a city in the address to read one: add <b>?cityKey=&lt;pack key&gt;</b>. The key is the one the city was onboarded under, and it is the same key every route below takes.</p>
+                        <span class="basis" id="no-city-basis">Basis: no cityKey in the address, and no key or sign-in resolved a city pack.</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
             <section class="lens on" id="lens-city-manager">
               <header class="pagehead">
                 <div class="crumb"><b data-pack-name>This city</b> <span>/</span> Overview</div>
