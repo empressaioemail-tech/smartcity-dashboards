@@ -1437,6 +1437,250 @@ html[data-atab="fixture"] #atab-fixture {
 .meter i { width: 11px; height: 4px; border-radius: 1px; background: var(--sc-line-strong); }
 .meter i.f { background: var(--sc-accent); }
 
+/* ---------- G-152: the Public works and Fire and EMS lens furniture ---------- */
+
+/* THREE SHAPES THE RATIFIED BOARDS DRAW AND THIS SHELL HAD NO CLASS FOR: a
+   phase-by-status MATRIX whose forbidden cells are hatched, a queue-by-day GRID
+   with both margins, and per-station SMALL MULTIPLES. The boards draw each with
+   inline styles because an artboard is a canvas that renders one pack; the
+   product ships classes so the same shape renders any pack. Every declaration
+   below uses kit tokens only, and web/sc-kit.css is NOT edited (it is a
+   byte-identical copy of the design kit, on the convention the Finance and
+   Development services lenses set).
+
+   Data-driven colour stays inline in the markup, because it varies per cell:
+   these rules own structure, typography and the ONE state that is not a colour -
+   the hatch. */
+
+/* A BAND CHIP IS NOT A STATE PILL, and the difference is load-bearing rather
+   than cosmetic. `pill p-*` is the product's state-word vocabulary, and the
+   design's check refuses an invented state word on it. A readiness band or a
+   project status arrives FROM the payload, so it is drawn as a chip - a
+   different element, with a different SELECTOR - and it carries the c-* tone
+   classes, which are bound to the same tokens the p-* pills use. One token set,
+   two class families: the roles share a palette and cannot share a selector, so
+   the design's built-form reader can tell a band from a state word by class
+   alone. */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: var(--sc-r-full);
+  font: 500 12px/16px var(--sc-font-ui);
+  white-space: nowrap;
+}
+
+/* The chip's own tone classes. Deliberately not `p-*`: a chip is read from the
+   payload and a pill is not, and the design's built-form reader distinguishes
+   them by class rather than by element. Same tokens, so the palette is still
+   declared once. */
+.c-ok { color: var(--sc-ok); background: var(--sc-ok-wash); }
+.c-info { color: var(--sc-info); background: var(--sc-info-wash); }
+.c-warn { color: var(--sc-warn); background: var(--sc-warn-wash); }
+.c-crit { color: var(--sc-crit); background: var(--sc-crit-wash); }
+.c-quiet { color: var(--sc-quiet); background: var(--sc-quiet-wash); }
+
+/* Screen-reader text: the matrix's cell states and the grid's margins say in
+   words what the hatch and the wash say in pixels, and this keeps those words
+   out of the visual layout without hiding them from an assistive read. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* The blocked card: a region that cannot show data states four things and never
+   fewer - its state, its basis verbatim, what KIND of thing would move it, and
+   when that was last read. It is a card rather than a state block because the
+   obstacle is not the reader's to fix, and a retry affordance here would be a
+   lie about who can move it. */
+.blocked {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sc-2);
+  padding: var(--sc-4);
+  background: var(--sc-surface-2);
+  border-bottom: 1px solid var(--sc-line-faint);
+}
+.blocked-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sc-2);
+  flex-wrap: wrap;
+}
+.blocked-facts { width: auto; min-width: 320px; }
+.blocked-facts th[scope="row"] { width: 42%; }
+.stchip {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: var(--sc-r-control);
+  border: 1px solid currentColor;
+  font: 500 12px/16px var(--sc-font-ui);
+  white-space: nowrap;
+}
+
+/* THE MATRIX. Four states, four renderings, and no two of them alike: a count
+   carries the status tone as a wash, a measured zero is a plain 0, an unmeasured
+   cell is flat and quiet, and a cell the product's own STATUS_PHASES forbids is
+   HATCHED. The hatch is the whole point of the rule: drawn as a zero it would be
+   an invented reading, and collapsed into "unmeasured" it would be a hole. */
+.mtx { padding: var(--sc-4); overflow-x: auto; }
+.mtx-table { width: auto; min-width: 100%; }
+.mtx-table thead th:first-child, .mtx-table tbody th[scope="row"] { text-align: left; }
+.mtx-c {
+  text-align: center;
+  font: 400 13px/18px var(--sc-font-data);
+  font-variant-numeric: tabular-nums;
+  color: var(--sc-ink);
+  min-width: 62px;
+}
+.mtx-n { font-variant-numeric: tabular-nums; }
+.mtx-counted .mtx-n { font-weight: 500; }
+/* A measured zero is a READING: present, quiet, never absent. */
+.mtx-zero-cell { background: var(--sc-surface); }
+.mtx-zero-cell .mtx-n { color: var(--sc-ink-3); }
+/* Unmeasured is not a zero and not a hatch: flat, and the word says so. */
+.mtx-unread-cell { background: var(--sc-surface-2); }
+.mtx-unread { color: var(--sc-ink-3); }
+/* Cannot occur by rule, drawn hatched. The one state that is a pattern. */
+.mtx-hatch-cell {
+  background: repeating-linear-gradient(
+    135deg,
+    var(--sc-surface-3) 0 4px,
+    transparent 4px 8px
+  );
+}
+.mtx-hatch { color: var(--sc-ink-3); }
+/* ABSENT is the fifth state and it is not a grid at all: the surface does not
+   exist, so there is no cell for a zero or an "unread" to be about. Drawn as a
+   dashed outline rather than a table, because an empty table would be read as a
+   surface with nothing in it. */
+.mtx-absent {
+  padding: var(--sc-4);
+  border: 1px dashed var(--sc-line);
+  border-radius: var(--sc-r);
+  background: var(--sc-surface-2);
+}
+.mtx-absent p { margin: 0; max-width: 72ch; color: var(--sc-ink-2); }
+/* An unmeasured bucket in the calls grid: no reading at all, on a flat ground,
+   with the dash that says so and the accessible text behind it. */
+.ht-unread {
+  text-align: center;
+  font: 400 13px/18px var(--sc-font-data);
+  color: var(--sc-ink-3);
+  background: var(--sc-surface-2);
+}
+.mtx-total, .ht-total { font-weight: 600; background: var(--sc-surface-2); }
+.mtx-legend {
+  display: flex;
+  align-items: center;
+  gap: var(--sc-4);
+  flex-wrap: wrap;
+  padding: var(--sc-3) var(--sc-4);
+  border-top: 1px solid var(--sc-line-faint);
+  font: 400 12px/16px var(--sc-font-ui);
+  color: var(--sc-ink-3);
+}
+.mtx-legend > span { display: inline-flex; align-items: center; gap: 6px; }
+.mtx-swatch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 16px;
+  padding: 0 5px;
+  border: 1px solid var(--sc-line);
+  border-radius: 3px;
+  background: var(--sc-surface);
+  /* 12px is the product's type floor. The ratified board draws the zero key at
+     9px, which the floor does not admit on a shipped surface ("if content will
+     not fit at the floor, cut content rather than shrink type", anti-pattern
+     A5), so the key takes the floor and the two boxes that carried a WORD drop
+     it: a swatch is a key to a symbol, and the label beside it already says what
+     the state is. */
+  font: 400 12px/16px var(--sc-font-data);
+  color: var(--sc-ink-2);
+}
+/* The design draws a measured zero at ink-3 on a plain ground: present, quiet,
+   never absent. */
+.mtx-swatch-zero { color: var(--sc-ink-3); }
+.mtx-swatch-unread { background: var(--sc-surface-2); color: var(--sc-ink-3); }
+.mtx-swatch-hatch {
+  background: repeating-linear-gradient(
+    135deg,
+    var(--sc-surface-3) 0 4px,
+    transparent 4px 8px
+  );
+}
+
+/* THE RECONCILED GRID. The two margins of one set of buckets, drawn once: the
+   row margin, the column margin and the corner total, so two numbers that must
+   agree are shown agreeing. Cell washes are inline because they scale with the
+   value. */
+.ht { padding: var(--sc-4); overflow-x: auto; }
+.ht-table { width: auto; min-width: 100%; }
+.ht-c {
+  text-align: center;
+  font: 400 13px/18px var(--sc-font-data);
+  font-variant-numeric: tabular-nums;
+  color: var(--sc-ink);
+  min-width: 58px;
+}
+
+/* SMALL MULTIPLES, one card per station: the same bands in the same order at the
+   same scale, so a reader compares parts instead of reading a whole. A rollup
+   cannot say which station is carrying the shortfall, which is the sentence this
+   lens exists to honour. */
+.sm {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: var(--sc-3);
+}
+.sm-wrap { padding: var(--sc-4); }
+.sm-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sc-2);
+  padding: var(--sc-3);
+  border: 1px solid var(--sc-line);
+  border-radius: var(--sc-r);
+  background: var(--sc-surface);
+}
+.sm-head { display: flex; align-items: baseline; gap: var(--sc-2); flex-wrap: wrap; }
+.sm-label { font: 400 12px/16px var(--sc-font-ui); color: var(--sc-ink-2); }
+.sm-ready { display: flex; align-items: baseline; gap: 5px; }
+.sm-ready-n { font: 620 20px/24px var(--sc-font-ui); color: var(--sc-ink); font-variant-numeric: tabular-nums; }
+.sm-ready-d { font: 400 12px/16px var(--sc-font-ui); color: var(--sc-ink-3); }
+.sm-bars {
+  display: flex;
+  height: 6px;
+  border-radius: var(--sc-r-full);
+  overflow: hidden;
+  background: var(--sc-surface-3);
+}
+.sm-bar { height: 6px; }
+.sm-table { margin-top: var(--sc-1); }
+.sm-table th[scope="row"] { text-align: left; font-weight: 400; padding-left: 0; }
+.sm-table td { text-align: right; }
+.sm-n { font-variant-numeric: tabular-nums; }
+/* A zero in a per-station band is a reading about that station, so it stays
+   legible rather than being dimmed into an absence. */
+.sm-zero { color: var(--sc-ink-2); }
+@media (max-width: 900px) {
+  .sm { grid-template-columns: minmax(0, 1fr); }
+  .blocked-facts { min-width: 0; }
+}
+
 /* ---------- responsive ---------- */
 
 @media (max-width: 1180px) {
