@@ -26,6 +26,7 @@ import {
 import { composePipeline } from "./fixtures.mjs";
 import { composeDomainById, composeDomainMap, getDomain } from "./domains.mjs";
 import { cityIdentity } from "./city-identity.mjs";
+import { financeLensPayload } from "./finance-lens.mjs";
 import { runMunicodeCalendar } from "./municode-calendar.mjs";
 import { loadDotenv } from "./load-env.mjs";
 import { pingDb } from "./db.mjs";
@@ -717,6 +718,41 @@ async function handle(req, res) {
     }
     const answer = await deliverFeedback({ body, env: process.env });
     json(res, answer.status, { accepted: answer.accepted, basis: answer.basis });
+    return;
+  }
+
+  /**
+   * G-156. THE FINANCE LENS'S OWN STATE, PER PACK.
+   *
+   * Registered BEFORE the generic /api/lenses/ handler below, for the same
+   * reason /api/lenses/development-services/pipeline is registered there: that
+   * handler swallows everything under the prefix and would answer this path with
+   * the lens's catalogue record instead.
+   *
+   * GATED EXACTLY AS /api/shell IS, and for the same reason it states: the
+   * states are DERIVED FROM THE PACK'S GRANTS, which is pack CONTENT rather than
+   * deployment posture. Reusing packContentReadStatus rather than writing a
+   * second policy here means there is one access rule for pack content and not
+   * two that can drift.
+   *
+   * The capture quotation rides with the payload and is null for every pack but
+   * the one the capture is about, so no caller can render one city's v1 screen
+   * contents beside another city's name. web/index.html never carries them.
+   */
+  if (req.method === "GET" && url.pathname === "/api/lenses/finance/sources") {
+    const caller = await resolveCaller(req);
+    const cityKey = url.searchParams.get("cityKey") || "template-city";
+    const pack = await getCityPack(cityKey);
+    const status = packContentReadStatus(pack, caller);
+    if (status === 404) {
+      json(res, 404, { error: "unknown city pack" });
+      return;
+    }
+    if (status !== 200) {
+      json(res, status, accessRefusalBody(caller, status));
+      return;
+    }
+    json(res, 200, financeLensPayload(pack));
     return;
   }
 

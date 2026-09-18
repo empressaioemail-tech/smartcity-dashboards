@@ -72,8 +72,22 @@ describe("G-66 four-lens shell", () => {
   it("keeps finance honest-empty with a source register and citizen without payment theater", () => {
     assert.match(html, /id="finance-source-register"/);
     assert.match(html, /Permit fee revenue/);
-    assert.match(html, />Partial</);
-    assert.match(html, /That is not a zero balance/);
+    /**
+     * G-156. This assertion used to read `>Partial<` and then require the
+     * sentence "That is not a zero balance", because the finance stub typed
+     * "Partial" beside Permit fee revenue and typed its own explanation. Both
+     * were static claims about a pack nobody had read, and the build replaced
+     * them with states derived from the pack's grants. The intent is unchanged
+     * and is what is asserted now: the four cells exist on the unresolved page
+     * and every one of them says it was not read, and the refusals say they are
+     * refused rather than zero. The lens renders no "$0" then or later.
+     */
+    const finance = html.match(/id="lens-finance"[\s\S]*?<\/section>/)?.[0] || "";
+    for (const id of ["adopted-budget", "fund-ledger", "permit-fee-revenue", "department-spend"]) {
+      assert.match(finance, new RegExp(`data-finance-state="${id}">Not read<`), id);
+    }
+    assert.match(finance, /Refused, not zero/);
+    assert.match(finance, /would be four false claims/);
     assert.equal(html.includes("$0"), false);
     assert.equal(html.includes("$0.00"), false);
     assert.match(html, /id="citizen-payments"/);
@@ -341,7 +355,16 @@ describe("G-75 shell, mounts and motion", () => {
     const expected = {
       "lens-city-manager": "Empty",
       "lens-development-services": "Empty",
-      "lens-finance": "Empty",
+      /**
+       * G-156. The Finance lens joins this map on the same terms: its static
+       * value is the unread fallback on BOTH sides, and loadFinanceLens()
+       * writes the resolved word to both at boot. Its resolved word is the
+       * design's own lens state - PARTIAL on a pack with one partial source,
+       * UNACCOUNTED on a pack with none - which is why the fallback is
+       * "Not read" and not "Empty": a lens whose sources were never read is
+       * not a lens that read and found nothing.
+       */
+      "lens-finance": "Not read",
       "lens-citizen": "Preview",
       "work-review": "Preview",
       "work-files": "Preview",
@@ -371,7 +394,7 @@ describe("G-75 shell, mounts and motion", () => {
     for (const [label, badge] of [
       ["Overview", "Empty"],
       ["Development services", "Empty"],
-      ["Finance", "Empty"],
+      ["Finance", "Not read"],
       ["Citizen", "Preview"],
       ["Plan review", "Preview"],
       ["Files", "Preview"],

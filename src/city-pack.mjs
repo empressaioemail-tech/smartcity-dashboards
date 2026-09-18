@@ -142,6 +142,20 @@ memoryPacks.set(EMPTY_CITY.cityKey, EMPTY_CITY);
 memoryPacks.set(FIXTURE_CITY.cityKey, FIXTURE_CITY);
 memoryPacks.set(BASTROP_TX.cityKey, BASTROP_TX);
 
+/**
+ * G-156. The in-memory packs, read without a store.
+ *
+ * getCityPack() below is async and resolves through the packs store when one is
+ * configured, which is right for a request and wrong for a build tool:
+ * scripts/export-finance-lens.mjs has to render a named pack's lens with no
+ * database and no network, because the design folder's check runs in CI beside
+ * this repo's tests. This is the same lookup getCityPack() falls back to, given
+ * a name rather than duplicated.
+ */
+export function getMemoryPack(cityKey) {
+  return memoryPacks.get(String(cityKey || "")) || null;
+}
+
 const CREATE_CITY_PACKS_SQL = `
 CREATE TABLE IF NOT EXISTS city_packs (
   city_key TEXT PRIMARY KEY,
