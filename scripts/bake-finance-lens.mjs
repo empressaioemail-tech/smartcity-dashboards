@@ -39,7 +39,7 @@ const figures = section.match(MONEY) || [];
 if (figures.length) {
   throw new Error(`the unread default carries ${figures.length} money figure(s): ${[...new Set(figures)].join(", ")}`);
 }
-for (const id of ["lens-finance", "finance-source-metrics", "finance-source-register", "finance-appropriation", "finance-refusals", "finance-acquisition", "finance-capture", "finance-fund-rows"]) {
+for (const id of ["lens-finance", "finance-source-metrics", "finance-source-register", "finance-appropriation", "finance-refusals", "finance-acquisition", "finance-capture", "finance-fund-empty", "finance-fund-body", "finance-fund-rows"]) {
   if (!section.includes(`id="${id}"`)) throw new Error(`${id} missing from the baked section`);
 }
-console.log("post-conditions: 0 money figures in the unread default, 8 regions present");
+console.log("post-conditions: 0 money figures in the unread default, 10 regions present");

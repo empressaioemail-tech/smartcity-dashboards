@@ -360,6 +360,14 @@ export function financeLensState(pack, { kinds = ADAPTER_KINDS, shapes = RECORD_
     fundBasis: resolvedPack
       ? `Basis: 0 fund rows on this page, because the fund list is the adopted budget feed's own output and no reading of that feed exists for ${packLabel}. Contact: ${budgetOwner}.`
       : `Basis: 0 fund rows on this page, because the fund list is the adopted budget feed's own output and no pack has been resolved to read a grant or a reading for it. Contact: ${budgetOwner}.`,
+    /**
+     * THE FUND LIST ITSELF, which is the adopted budget feed's OUTPUT rather
+     * than a cell derived from a grant - so it is empty on every pack today, and
+     * it is a field rather than a literal because the renderer's two branches
+     * (the table, and the honest-empty sibling that hides it) are chosen from
+     * it. Nothing here is a zero: no fund row exists to carry one.
+     */
+    funds: [],
   };
 }
 
@@ -644,6 +652,44 @@ export function renderFinanceLens(pack, { kinds = ADAPTER_KINDS, shapes = RECORD
 
   const quotationPanel = renderCapturePanel(pack);
 
+  /**
+   * A11Y, AND A DEFECT THIS REPO HAS ALREADY PAID FOR ONCE.
+   *
+   * The first version of this panel drew the four fund columns as a <table>
+   * with a thead and an empty tbody, because that is how the artboard draws the
+   * cells this lens will hold. axe's th-has-data-cells rule could not settle it
+   * - headers describing no cell are not a pass - and the a11y gate refused the
+   * build on all four Finance scans. The rule is already written down in
+   * web/app.js above renderPropertyRecords(), from the time it fired there:
+   * "the table and its honest-empty sibling are mutually hidden, never both, and
+   * never a headers-only table left visible with zero rows".
+   *
+   * So the empty state comes first and the table body is hidden behind it. The
+   * four cells are still NAMED on the page, in the empty state's heading, which
+   * was the reason for drawing them at all: a field that appears only once
+   * something writes it is a field no gap analysis can find.
+   */
+  const fundBlock = `
+                      <div class="state compact" id="finance-fund-empty">
+                        <span class="st-k" id="finance-fund-empty-kicker">Not read</span>
+                        <h2 id="finance-fund-empty-head">No fund list has been read for this pack.</h2>
+                        <span class="basis" id="finance-fund-basis">${escapeHtml(state.fundBasis)}</span>
+                      </div>
+                      <div id="finance-fund-body" hidden>
+                        <table class="dt">
+                          <caption class="t-caption">The four cells a fund row will carry: fund, appropriation, actuals, variance. The fund list is the adopted budget feed's own output.</caption>
+                          <thead>
+                            <tr>
+                              <th scope="col">Fund</th>
+                              <th scope="col">Appropriation</th>
+                              <th scope="col">Actuals</th>
+                              <th scope="col">Variance</th>
+                            </tr>
+                          </thead>
+                          <tbody id="finance-fund-rows"></tbody>
+                        </table>
+                      </div>`;
+
   return `            <section class="lens" id="lens-finance">
               <header class="pagehead">
                 <div class="crumb"><b data-pack-name>This city</b> <span>/</span> Finance</div>
@@ -670,19 +716,7 @@ export function renderFinanceLens(pack, { kinds = ADAPTER_KINDS, shapes = RECORD
                   <div class="panel" id="finance-appropriation">
                     <div class="panel-head"><span class="t">Appropriation by fund</span><span class="grow"></span><span class="pill p-quiet">Not read</span></div>
                     <div class="panel-body">
-                      <p class="t-caption" id="finance-appropriation-note">${escapeHtml(state.appropriationNote)}</p>
-                      <table class="dt">
-                        <thead>
-                          <tr>
-                            <th scope="col">Fund</th>
-                            <th scope="col">Appropriation</th>
-                            <th scope="col">Actuals</th>
-                            <th scope="col">Variance</th>
-                          </tr>
-                        </thead>
-                        <tbody id="finance-fund-rows"></tbody>
-                      </table>
-                      <span class="basis" id="finance-fund-basis">${escapeHtml(state.fundBasis)}</span>
+                      <p class="t-caption" id="finance-appropriation-note">${escapeHtml(state.appropriationNote)}</p>${fundBlock}
                     </div>
                   </div>
                   <div class="panel" id="finance-refusals">

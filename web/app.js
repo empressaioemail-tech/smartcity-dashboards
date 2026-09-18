@@ -2447,6 +2447,17 @@ function applyFinanceLens(payload) {
   setText("finance-counts-rule", `Basis: ${finance.rule}`);
   setText("finance-appropriation-note", finance.appropriationNote);
   setText("finance-fund-basis", finance.fundBasis);
+  /**
+   * THE TABLE AND ITS HONEST-EMPTY SIBLING, mutually hidden and never both.
+   * The a11y gate settled this on the first build of this panel: a table with a
+   * thead and no data rows is an unresolved conformance check, not a pass. The
+   * fund list is the adopted budget feed's own output, so it is empty on every
+   * pack today, and this toggle is what keeps the two states from ever being
+   * visible together.
+   */
+  const fundRows = Array.isArray(finance.funds) ? finance.funds : [];
+  show(document.getElementById("finance-fund-body"), fundRows.length > 0);
+  show(document.getElementById("finance-fund-empty"), fundRows.length === 0);
   setFinancePill(finance.lens, document.getElementById("finance-state-chip"));
   /**
    * The paired half. Same word, written in the same place, so the nav and the
