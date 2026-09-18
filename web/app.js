@@ -779,12 +779,33 @@ function pctText(value) {
   return `${Math.round(value * 100)}%`;
 }
 
+/**
+ * G-153 PARCEL 2: A RECORD CAN LEGITIMATELY CARRY NO STATUS, AND THE CELL HAS TO
+ * SAY SO. Before parcel 2 every live fleet and patrol record reached this
+ * function carrying a status, because both mappers minted a fallback word
+ * (`"unknown"` / `"Unknown"`) for the missing case -- the fabrication the guard
+ * now refuses by name. With the fallback gone, `record.status` is null on a read
+ * that reported nothing, and the old `meta.label` would render an EMPTY pill: a
+ * blank in the loudest column on the roster, which reads as a render fault
+ * rather than as the reading it is. The dispatch is explicit about which of the
+ * two is allowed here -- "if it must reach the surface, it is the absent case,
+ * named" -- so the absent case is NAMED, in the same quiet pill every other
+ * no-value state uses, and the record's own basis rides along as the pill's
+ * title rather than as a second column.
+ */
 function statusCell(record, statusLabels) {
   const cell = document.createElement("td");
   const pill = document.createElement("span");
-  const meta = statusLabels[record.status] || { label: record.status, severity: "quiet" };
+  const absent = record.status == null;
+  const meta = statusLabels[record.status] || {
+    label: absent ? "Not reported" : record.status,
+    severity: "quiet",
+  };
   pill.className = `pill ${SEVERITY_PILL[meta.severity] || "p-quiet"}`;
   pill.textContent = meta.label;
+  if (absent && typeof record.statusBasis === "string" && record.statusBasis.trim()) {
+    pill.title = record.statusBasis;
+  }
   cell.append(pill);
   return cell;
 }
@@ -2751,25 +2772,102 @@ function renderRegion(prefix, payload) {
  * make; the strip is rebuilt instead, one tile per real value actually
  * returned, labelled with that real value.
  */
-function renderRealStatusTiles(strip, counts, noteText) {
+function renderRealStatusTiles(strip, counts, noteText, extras) {
   if (!strip) return;
-  strip.replaceChildren(
-    ...counts.map(({ status, count }) => {
-      const tile = document.createElement("div");
-      tile.className = "metric has-value";
-      const k = document.createElement("span");
-      k.className = "k";
-      k.textContent = status;
-      const v = document.createElement("span");
-      v.className = "v";
-      v.textContent = String(count);
-      const n = document.createElement("span");
-      n.className = "n";
-      n.textContent = noteText;
-      tile.append(k, v, n);
-      return tile;
-    }),
-  );
+  const notReported = Number(extras?.statusNotReported) || 0;
+  const refused = Number(extras?.refusalCount) || 0;
+  const served = counts.reduce((sum, c) => sum + (Number(c.count) || 0), 0);
+  const tiles = counts.map(({ status, count }) => {
+    const tile = document.createElement("div");
+    tile.className = "metric has-value";
+    const k = document.createElement("span");
+    k.className = "k";
+    k.textContent = status;
+    const v = document.createElement("span");
+    v.className = "v";
+    v.textContent = String(count);
+    const n = document.createElement("span");
+    n.className = "n";
+    n.textContent = noteText;
+    tile.append(k, v, n);
+    return tile;
+  });
+  /**
+   * THE REMAINDER GETS A TILE RATHER THAN A BLANK, AND IT IS NOT A STATUS VALUE.
+   *
+   * G-153 parcel 2 made this reachable: the live fleet read reports no
+   * engine state on any of its 72 served rows (the vendor's `engineStates` stat
+   * carried no value on any of them, while the same batch supplied the odometer
+   * reading that fills odometerBand; the record's own statusBasis is the
+   * citation), so `realStatusCounts` is
+   * an EMPTY ARRAY on a region that is otherwise ok and full of records. The
+   * loop above then renders zero tiles and the strip goes blank -- which reads
+   * as a broken renderer rather than as the reading it is, and is the same
+   * silent-gap failure the canon preamble prohibits one layer down.
+   *
+   * So the count of records whose read carried no state is shown, with its
+   * denominator beside it, exactly as `statusNotReported` counted it in
+   * vendor-live.mjs. It carries NO `has-value` class on purpose: the count is
+   * dimmed to the same tone every other no-measured-value state uses, so it
+   * cannot be misread as a band the city reported, and it is not a member of any
+   * vocabulary -- nobody's status is the words "Not reported".
+   */
+  if (notReported > 0) {
+    const tile = document.createElement("div");
+    tile.className = "metric";
+    const k = document.createElement("span");
+    k.className = "k";
+    k.textContent = "Not reported";
+    const v = document.createElement("span");
+    v.className = "v";
+    v.textContent = String(notReported);
+    const n = document.createElement("span");
+    n.className = "n";
+    n.textContent = noteText;
+    tile.append(k, v, n);
+    tiles.push(tile);
+  }
+  renderRefusedTile(tiles, refused, extras?.refusalFaults, served + notReported + refused);
+  strip.replaceChildren(...tiles);
+}
+
+/**
+ * THE REMAINING REFUSALS GET A TILE TOO, AND THE TILE NAMES THE FAULT.
+ *
+ * G-153. The guard refuses a live record whose read did not supply something the
+ * declared shape requires, and it names what was missing. On this pack that is
+ * three of the 75 fleet rows, whose reads carried no odometer reading at all (72
+ * carried one, which is how odometerBand is now derived). A refusal is a real
+ * determination about a real vehicle, so it cannot be dropped on the way to the
+ * surface: the region would then read "72 records" over a read that returned 75,
+ * and the three vehicles that were read and not shown would have no statement
+ * anywhere a reader looks.
+ *
+ * The fault text is the guard's own string, taken off the payload and joined the
+ * same way `refusedResult` joins it in src/vendor-live.mjs -- this function
+ * authors no sentence of its own. It carries no `has-value` class for the same
+ * reason the Not reported tile does not: a count of records that were NOT served
+ * is not a measurement of the fleet, and dimming it keeps it from being read as
+ * one. `title` repeats the fault so a truncated tile still answers "refused
+ * why".
+ */
+function renderRefusedTile(tiles, refused, faults, readTotal) {
+  if (!refused) return;
+  const faultText = (faults || []).join("; ");
+  const tile = document.createElement("div");
+  tile.className = "metric";
+  if (faultText) tile.title = faultText;
+  const k = document.createElement("span");
+  k.className = "k";
+  k.textContent = "Refused";
+  const v = document.createElement("span");
+  v.className = "v";
+  v.textContent = String(refused);
+  const n = document.createElement("span");
+  n.className = "n";
+  n.textContent = faultText || `of ${readTotal} records the read returned`;
+  tile.append(k, v, n);
+  tiles.push(tile);
 }
 
 function renderRegionMetrics(strip, payload) {
@@ -2781,6 +2879,7 @@ function renderRegionMetrics(strip, payload) {
       strip,
       extras.realStatusCounts,
       `of ${payload.recordCount} real ${payload.recordType} records`,
+      extras,
     );
     return;
   }
@@ -2887,6 +2986,13 @@ function renderFleet(payload) {
   renderRegionMetrics(document.getElementById("fleet-metrics"), payload);
   const extras = payload.extras || {};
   const records = ok && Array.isArray(payload.records) ? payload.records : [];
+  /**
+   * The first real record, so the live-path absences (operator, and the status
+   * absence the pill names) can be stated once per region from the record that
+   * carries their basis. Null on a fixture read, which is why every use below is
+   * guarded rather than assumed.
+   */
+  const firstLiveRecord = payload.source === "live" ? records[0] : null;
   const labels = statusLabelsFor(payload);
   fill(
     document.getElementById("fleet-roster-rows"),
@@ -2923,6 +3029,21 @@ function renderFleet(payload) {
   if (operator) {
     setText("fleet-operator-basis", `Basis: ${operator.operatorBasis}`);
     setText("fleet-operator-rule", operator.countingRule);
+  } else if (firstLiveRecord && firstLiveRecord.operatorBasis) {
+    /**
+     * G-153 PARCEL 2: THE LIVE OPERATOR ABSENCE, STATED WHERE THE OPERATOR TABLE
+     * WOULD HAVE PUT IT. A fixture read groups vehicles under minted FL-OPR-nn
+     * references, so `extras.operators` is populated and the branch above runs.
+     * A REAL read groups nobody: the vendor route carries no driver assignment
+     * at all (see the record's own basis, which cites the route line), so the
+     * table is empty and this line would otherwise keep the pack-level default,
+     * "The operator dimension has not been read for this pack" -- which is a
+     * false statement about a read that DID happen. The police lens already
+     * states its operator absence this way (renderPatrolRoster sets
+     * patrol-vehicles-operator from records[0].operatorBasis); this is the same
+     * sentence on the fleet side rather than a second wording for it.
+     */
+    setText("fleet-operator-basis", `Basis: ${firstLiveRecord.operatorBasis}`);
   }
 }
 

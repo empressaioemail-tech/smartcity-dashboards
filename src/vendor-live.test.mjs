@@ -14,8 +14,8 @@ import {
 } from "./vendor-live.mjs";
 import { getDomain } from "./domains.mjs";
 import { BASTROP_TX } from "./city-pack.mjs";
-import { assertRecordShape, recordShapeFaults } from "./adapters.mjs";
-import { generateFleetRecords } from "./domains/fleet-vehicles.mjs";
+import { assertRecordShape, recordShapeFaults, LIVE_STATUS_TRANSLATIONS, LIVE_STATUS_TRANSLATION_BASIS } from "./adapters.mjs";
+import { generateFleetRecords, odometerBandFor } from "./domains/fleet-vehicles.mjs";
 import { generatePatrolRecords } from "./domains/patrol-vehicles.mjs";
 
 /**
@@ -237,13 +237,40 @@ describe("vendor-live (G-116 Phase 2 third batch)", () => {
   });
 
   const composeCases = [
-    { id: "fleet-vehicles", compose: composeRealFleetVehicles, listKey: "vehicles", guarded: true },
-    { id: "patrol-vehicles", compose: composeRealPatrolVehicles, listKey: "vehicles", guarded: true },
+    {
+      id: "fleet-vehicles", compose: composeRealFleetVehicles, listKey: "vehicles", guarded: true,
+      /**
+       * THE PLANT, AND WHAT PARCEL 2 CHANGED ABOUT IT. Before parcel 2 the row
+       * below was refused on three faults. It is still refused, now on ONE: no
+       * odometer reading arrived and odometerBand has no declared-absence escape.
+       * The other two clauses became satisfiable BY STATING THE ABSENCE, which is
+       * the change parcel 2 makes -- so the plant moved to the clause that must
+       * keep refusing a row with nothing behind it.
+       */
+      plant: [{ id: "x", name: "x" }],
+      plantRefuses: true,
+    },
+    {
+      id: "patrol-vehicles", compose: composeRealPatrolVehicles, listKey: "vehicles", guarded: true,
+      /**
+       * PATROL'S PLANT NO LONGER REFUSES, AND THAT IS THE MEASURED RESULT RATHER
+       * THAN A HOLE. Every field the patrol shape declares is either carried from
+       * the read verbatim or stated as an absence with its basis, so the mapper is
+       * total over the declared shape and NO vendor row can produce a violating
+       * record -- including this empty one. The clause is therefore proven to fire
+       * at the guard level instead (see the G-153 defect 1 block's planted
+       * violations), and what this row proves here is the other direction: the
+       * route's own fallback word `Unknown` reaches the surface as a STATED
+       * ABSENCE, never as a state.
+       */
+      plant: [{ id: "x", name: "x", nspireStatus: "Unknown" }],
+      plantRefuses: false,
+    },
     { id: "fire-apparatus", compose: composeRealFireApparatus, listKey: "apparatus", guarded: false },
     { id: "cip-projects", compose: composeRealCipProjects, listKey: "projects", guarded: false },
   ];
 
-  for (const { id, compose, listKey, guarded } of composeCases) {
+  for (const { id, compose, listKey, guarded, plant, plantRefuses } of composeCases) {
     describe(id, () => {
       it("fails closed when PLATFORM_INTERNAL_API_KEY is unset", async () => {
         const domain = getDomain(id);
@@ -261,10 +288,24 @@ describe("vendor-live (G-116 Phase 2 third batch)", () => {
        */
       if (guarded) {
         it("refuses a row that does not satisfy the declared shape, and counts it", async () => {
-          const fetchImpl = async () => ({ ok: true, json: async () => ({ [listKey]: [{ id: "x", name: "x" }], contract: "live" }) });
+          const fetchImpl = async () => ({ ok: true, json: async () => ({ [listKey]: plant, contract: "live" }) });
           const domain = getDomain(id);
           const out = await compose(BASTROP_TX, domain, { env: ENV, fetchImpl });
           assert.equal(out.source, "live");
+          if (!plantRefuses) {
+            // See this case's own comment above: the plant is now servable, and what
+            // must be true is that nothing was invented to make it so.
+            assert.equal(out.status, "ok");
+            assert.equal(out.recordCount, 1);
+            const record = out.records[0];
+            assert.equal(record.status, null, "the route's fallback word is an absence, not a state");
+            assert.match(record.statusBasis, /no NSpire status/);
+            assert.equal(record.operatorRef, null);
+            assert.ok(record.operatorBasis.trim(), "the absence is stated, not blank");
+            assert.deepEqual(out.extras.realStatusCounts, []);
+            assert.equal(out.extras.statusNotReported, 1);
+            return;
+          }
           // G-153: a refusal is its OWN status, not `unavailable`. The read
           // succeeded and the guard is what refused, so the region must not say
           // the source could not be read -- those are different sentences to a
@@ -329,15 +370,81 @@ describe("vendor-live (G-116 Phase 2 third batch)", () => {
       dvir: { unresolvedDefectCount: 0, lastInspection: "2026-09-01" },
       safetyEvents7d: 0,
     };
-    const SAMSARA_FAULTS = [
+    /**
+     * THE PRE-FIX FAULT TEXTS, KEPT SO THE FINDING THIS PARCEL ANSWERS STAYS
+     * READABLE IN THE SUITE THAT MEASURED IT. They are no longer what this row
+     * produces -- that is the point of parcel 2 -- and they are still the exact
+     * strings the deployed build produced over the same row, so a future
+     * regression that reintroduces the mapper's fallback token is caught against
+     * the text it was caught on the first time.
+     */
+    const PREFIX_FAULTS = [
       "status must be one of out-of-service, inspection-due, in-shop, in-service",
       "fleet-vehicle requires operatorRef",
       "fleet-vehicle requires odometerBand",
     ];
 
-    it("REFUSES the live Samsara record and names all three faults, not only the first", () => {
+    it("the live Samsara row now PASSES: the vendor's own state is carried, and no band is invented", () => {
       const record = mapRealFleetVehicleRecord(REAL_SAMSARA_ROW, "bastrop_tx");
-      assert.deepEqual(recordShapeFaults(record), SAMSARA_FAULTS);
+      assert.deepEqual(recordShapeFaults(record), []);
+      assert.equal(assertRecordShape(record), true);
+      // The vendor's engine state, verbatim -- not one of this product's four bands,
+      // and specifically not `unknown`, which the pre-fix mapper minted here.
+      assert.equal(record.status, "Off");
+      assert.equal(PREFIX_FAULTS.includes(`${record.status} must be one of`), false);
+    });
+
+    it("carries an explicit, non-empty basis for each field the read does not supply", () => {
+      const record = mapRealFleetVehicleRecord(REAL_SAMSARA_ROW, "bastrop_tx");
+      assert.equal(record.operatorRef, null, "no reference is minted without an operator identity");
+      assert.match(record.operatorBasis, /no operator identity|does not carry/i);
+      assert.equal(record.statusBasis, null, "a state WAS carried, so there is no absence to state");
+    });
+
+    it("derives odometerBand from the reading that is actually in the read", () => {
+      const record = mapRealFleetVehicleRecord(REAL_SAMSARA_ROW, "bastrop_tx");
+      assert.equal(record.odometerMiles, 41022);
+      assert.equal(record.odometerBand, odometerBandFor(41022));
+      assert.equal(record.odometerBand, "20k to 60k miles");
+    });
+
+    /**
+     * THE PLANTED VIOLATIONS, IN ALL FOUR DIRECTIONS. A guard that passes
+     * everything after a change is indistinguishable from a deleted guard, so each
+     * clause parcel 2 touched is shown able to FIRE by handing it a record built
+     * to violate exactly that clause -- and the fault text is asserted, not merely
+     * its presence.
+     */
+    it("still REFUSES a live record that carries the fallback token as if it were a state", () => {
+      const planted = { ...mapRealFleetVehicleRecord(REAL_SAMSARA_ROW, "bastrop_tx"), status: "unknown" };
+      const faults = recordShapeFaults(planted);
+      assert.equal(faults.length, 1);
+      assert.match(faults[0], /status carries "unknown"/);
+      assert.match(faults[0], /absence of a vendor state rather than one/);
+      assert.match(faults[0], /state statusBasis/);
+    });
+
+    it("still REFUSES a live record that asserts one of this product's bands with no translation", () => {
+      const planted = { ...mapRealFleetVehicleRecord(REAL_SAMSARA_ROW, "bastrop_tx"), status: "in-service" };
+      const faults = recordShapeFaults(planted);
+      assert.equal(faults.length, 1);
+      assert.match(faults[0], /status asserts the product band "in-service" on a live fleet-vehicle/);
+      assert.match(faults[0], /no declared translation/);
+      // The table really is empty: the refusal is not an artefact of a missing row
+      // that a future edit could add by accident.
+      assert.deepEqual(LIVE_STATUS_TRANSLATIONS, { samsara: {}, spireon: {} });
+    });
+
+    it("still REFUSES a bare absent operatorRef, and the fault now names the basis requirement", () => {
+      const planted = { ...mapRealFleetVehicleRecord(REAL_SAMSARA_ROW, "bastrop_tx"), operatorRef: null, operatorBasis: null };
+      assert.deepEqual(recordShapeFaults(planted), [
+        "fleet-vehicle requires operatorRef, or operatorBasis stating why this read does not carry it",
+      ]);
+    });
+
+    it("still REFUSES an absent odometerBand, which has no declared-absence escape", () => {
+      const planted = { ...mapRealFleetVehicleRecord(REAL_SAMSARA_ROW, "bastrop_tx"), odometerBand: null };
+      assert.deepEqual(recordShapeFaults(planted), ["fleet-vehicle requires odometerBand"]);
     });
 
     it("the live record used to be served: the raw reading and the inventory field set are still on it", () => {
@@ -348,37 +455,86 @@ describe("vendor-live (G-116 Phase 2 third batch)", () => {
       const undeclared = ["vin", "make", "model", "odometerMiles", "fuelPercent", "department",
         "dvirUnresolvedDefects", "dvirLastInspection", "safetyEvents7d", "highMileage", "lowFuel"];
       const declared = new Set(["recordId", "kind", "recordType", "cityKey", "origin", "accessPolicy",
-        "provenance", "unitLabel", "status", "operatorRef", "operatorBasis", "odometerBand", "odometerBandBasis", "operatorName"]);
+        "provenance", "unitLabel", "status", "statusBasis", "operatorRef", "operatorBasis", "odometerBand",
+        "operatorName"]);
       for (const key of undeclared) {
         assert.ok(key in record, `${key} is no longer on the live record`);
         assert.equal(declared.has(key), false, `${key} is now declared; move it out of this list`);
       }
       assert.equal(record.operatorRef, null, "no reference is minted without an operator identity");
-      assert.equal(record.odometerBand, null, "no band is invented from a raw reading");
     });
 
-    it("the composer refuses rather than serving it, and it is not reported as an empty read", async () => {
-      const fetchImpl = async () => ({ ok: true, json: async () => ({ vehicles: [REAL_SAMSARA_ROW], contract: "live" }) });
-      const out = await composeRealFleetVehicles(BASTROP_TX, getDomain("fleet-vehicles"), { env: ENV, fetchImpl });
-      assert.equal(out.status, "refused");
-      assert.notEqual(out.status, "granted-empty");
-      assert.notEqual(out.status, "unavailable");
-      assert.equal(out.recordCount, 0);
-      assert.deepEqual(out.records, []);
-      assert.equal(out.extras.refusalCount, 1);
-      assert.deepEqual(out.extras.refusalFaults, SAMSARA_FAULTS);
-      assert.match(out.basis, /refused by the record-shape guard/);
+    it("the composer SERVES the row, and still refuses one whose reading never arrived", async () => {
+      const served = async () => ({ ok: true, json: async () => ({ vehicles: [REAL_SAMSARA_ROW], contract: "live" }) });
+      const out = await composeRealFleetVehicles(BASTROP_TX, getDomain("fleet-vehicles"), { env: ENV, fetchImpl: served });
+      assert.equal(out.status, "ok");
+      assert.equal(out.recordCount, 1);
+      assert.equal("refusalCount" in out.extras, false, "nothing refused, so no refusal count is reported");
+      assert.deepEqual(out.extras.realStatusCounts, [{ status: "Off", count: 1 }],
+        "the vendor's own state is counted as what it is, not relabelled onto a band");
+      assert.equal(out.extras.statusNotReported, 0, "this row DID report a state; Off is one");
+
+      // The plant at the level that matters: the SAME composer, a row whose odometer
+      // reading is absent. odometerBand has no escape, so the read refuses and says so.
+      const noReading = { ...REAL_SAMSARA_ROW, stats: { engineState: "Off" } };
+      const planted = async () => ({ ok: true, json: async () => ({ vehicles: [noReading], contract: "live" }) });
+      const refused = await composeRealFleetVehicles(BASTROP_TX, getDomain("fleet-vehicles"), { env: ENV, fetchImpl: planted });
+      assert.equal(refused.status, "refused");
+      assert.notEqual(refused.status, "granted-empty");
+      assert.notEqual(refused.status, "unavailable");
+      assert.equal(refused.recordCount, 0);
+      assert.deepEqual(refused.records, []);
+      assert.equal(refused.extras.refusalCount, 1);
+      assert.deepEqual(refused.extras.refusalFaults, ["fleet-vehicle requires odometerBand"]);
+      assert.match(refused.basis, /refused by the record-shape guard/);
+
+      /**
+       * THE PARTIAL CASE, which is the live one: 72 of 75 real rows carry an
+       * odometer reading and three do not. The region serves records and refuses
+       * records in the same read, so the refusal has to reach the surface from a
+       * route that is NOT refusedResult -- and it has to name its fault there
+       * too, or the only place the three missing vehicles are accounted for is a
+       * count with no reason beside it.
+       */
+      const mixed = async () => ({ ok: true, json: async () => ({ vehicles: [REAL_SAMSARA_ROW, noReading], contract: "live" }) });
+      const partial = await composeRealFleetVehicles(BASTROP_TX, getDomain("fleet-vehicles"), { env: ENV, fetchImpl: mixed });
+      assert.equal(partial.status, "ok");
+      assert.equal(partial.recordCount, 1, "the row with a reading is served");
+      assert.equal(partial.extras.refusalCount, 1);
+      assert.deepEqual(partial.extras.refusalFaults, ["fleet-vehicle requires odometerBand"],
+        "the fault string travels on the partial refusal, derived by the same helper the total refusal uses");
+      assert.equal(partial.extras.refusals[0].recordId, REAL_SAMSARA_ROW.id);
+      // And the served count is NOT silently inflated to cover the refused row.
+      assert.equal(partial.recordCount + partial.extras.refusalCount, 2);
     });
 
-    it("REFUSES the live Spireon record on its own two faults", () => {
-      const record = mapRealPatrolVehicleRecord(
-        { spireonId: "sp-1", name: "Unit 90", nspireStatus: "Stopped", address: "132 Grady Tuck Ln, Bastrop, TX", speed: 0 },
-        "bastrop_tx",
-      );
-      assert.deepEqual(recordShapeFaults(record), [
-        "status must be one of out-of-service, inspection-due, in-shop, in-service",
-        "patrol-vehicle requires operatorRef",
+    it("the live Spireon row now PASSES, and its two planted violations still fire", () => {
+      const row = { spireonId: "sp-1", name: "Unit 90", nspireStatus: "Stopped", address: "132 Grady Tuck Ln, Bastrop, TX", speed: 0 };
+      const record = mapRealPatrolVehicleRecord(row, "bastrop_tx");
+      assert.deepEqual(recordShapeFaults(record), []);
+      // The vendor's own state, verbatim: the read reports states and none of them
+      // is a readiness band, so none is claimed.
+      assert.equal(record.status, "Stopped");
+      assert.equal(record.operatorRef, null);
+      assert.match(record.operatorBasis, /no operator identity|does not carry/i);
+
+      // Plant 1: the route's own fallback word, carried as if it were a state.
+      const token = { ...record, status: "Unknown" };
+      const tokenFaults = recordShapeFaults(token);
+      assert.equal(tokenFaults.length, 1);
+      assert.match(tokenFaults[0], /status carries "Unknown"/);
+
+      // Plant 2: this product's band, asserted on a vendor's row.
+      const band = { ...record, status: "out-of-service" };
+      assert.deepEqual(recordShapeFaults(band), [
+        `status asserts the product band "out-of-service" on a live patrol-vehicle with no declared translation: ${LIVE_STATUS_TRANSLATION_BASIS}`,
       ]);
+
+      // And the mapper turns the fallback word into the absent case rather than a state.
+      const unknownRow = mapRealPatrolVehicleRecord({ spireonId: "sp-2", name: "Unit 91", nspireStatus: "Unknown" }, "bastrop_tx");
+      assert.equal(unknownRow.status, null);
+      assert.match(unknownRow.statusBasis, /no NSpire status/);
+      assert.deepEqual(recordShapeFaults(unknownRow), []);
     });
 
     /**

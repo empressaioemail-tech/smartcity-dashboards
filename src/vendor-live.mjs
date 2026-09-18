@@ -25,6 +25,7 @@ state is genuinely true each time it's called, not a cached assumption.
 */
 
 import { assertRecordShape, recordShapeFaults } from "./adapters.mjs";
+import { odometerBandFor } from "./domains/fleet-vehicles.mjs";
 import { PLATFORM_BASE_UNSET_BASIS, PLATFORM_ROUTES, platformRoute } from "./platform-base.mjs";
 
 /* --------------------------------------------------- sentinels, namespaced
@@ -49,6 +50,31 @@ labels to differ.
 */
 const unknownIdFor = (kindId, noun) => `unknown-${kindId}-${noun}`;
 const unnamedLabelFor = (kindId, noun) => `Unnamed ${kindId} ${noun}`;
+
+/**
+ * A VENDOR STATE, OR NULL WHEN THERE IS NO STATE TO REPORT (G-153 parcel 2).
+ *
+ * Three different inputs mean the same thing and must not be told apart on a
+ * surface: the field never arrived, the field arrived empty, and the field
+ * carried the vendor's own `unknown`. None of the three is a state, and the
+ * third is the trap -- `unknown` is a WORD, so it survives `||` checks and a
+ * truthiness test and reads downstream as a measured value. It reaches a product
+ * surface as a tile or a pill and says "we know the state and it is unknown",
+ * which is a different and false claim from "the read did not tell us".
+ *
+ * So the token is normalised HERE, at the boundary where the vendor's word is
+ * still recognisable as the vendor's, and the caller records why the state is
+ * absent. `RECORD_SHAPES` refuses the token as a state as well, so a record
+ * cannot carry it in through a different door -- two checks on one rule, at the
+ * two places the rule can be broken.
+ */
+const NOT_A_STATE = /^(unknown|n\/a|none)$/i;
+function vendorStateOrNull(value) {
+  if (value === null || value === undefined) return null;
+  const s = String(value).trim();
+  if (!s || NOT_A_STATE.test(s)) return null;
+  return s;
+}
 
 /* ------------------------------------------------ THE SHAPE GUARD, LIVE
 
@@ -137,12 +163,26 @@ async function fetchLiveJson(platformPath, { env = process.env, fetchImpl = glob
 export function realStatusCounts(records) {
   const counts = {};
   for (const r of records) {
-    const key = r.status || "unknown";
+    /**
+     * A RECORD THAT REPORTS NO STATE IS NOT COUNTED AS ONE (G-153 parcel 2).
+     * This line used to be `r.status || "unknown"`, which is the same invention
+     * the mappers carried: it turned every unreported state into a tile labelled
+     * `unknown`, so the strip showed a value where the read had none. The absent
+     * rows are counted separately and named, so the surface can say how many rows
+     * report no state without inventing a state for them to report.
+     */
+    if (!r.status) continue;
+    const key = r.status;
     counts[key] = (counts[key] || 0) + 1;
   }
   return Object.entries(counts)
     .map(([status, count]) => ({ status, count }))
     .sort((a, b) => b.count - a.count);
+}
+
+/** Live records that reported no vendor state, so the surface can say how many. */
+export function statusNotReportedCount(records) {
+  return (Array.isArray(records) ? records : []).filter((r) => !r.status).length;
 }
 
 function envelope(pack, domain) {
@@ -196,8 +236,12 @@ function unavailableResult(base, basis) {
  * addition is real and it is named for the design recapture (`source-state.json`
  * declares the live statuses) rather than made silently.
  */
+function refusalFaults(refusals) {
+  return [...new Set(refusals.flatMap((r) => r.faults))];
+}
+
 function refusedResult(base, refusals, denominatorLabel) {
-  const faults = [...new Set(refusals.flatMap((r) => r.faults))];
+  const faults = refusalFaults(refusals);
   return {
     ...base,
     granted: true,
@@ -234,7 +278,7 @@ function okResult(base, records, basis, denominatorLabel, extraExtras = {}) {
     recordCount: records.length,
     countingRule: `${records.length} real ${denominatorLabel} read live from smartcity-os for ${base.cityKey}`,
     records,
-    extras: { realStatusCounts: realStatusCounts(records), ...extraExtras },
+    extras: { realStatusCounts: realStatusCounts(records), statusNotReported: statusNotReportedCount(records), ...extraExtras },
   };
 }
 
@@ -247,8 +291,19 @@ function guardedRead(base, mapper, rows, basis, denominatorLabel) {
   if (records.length === 0 && refusals.length > 0) {
     return refusedResult(base, refusals, denominatorLabel);
   }
+  /**
+   * G-153. `refusalFaults` travels on the PARTIAL refusal too, not only on the
+   * total one. Both the region's metric strip and its basis read it, and on this
+   * pack the partial case is the live one: 72 of 75 fleet rows are served and the
+   * three that are not have no odometer reading, so the fault string is the only
+   * place the surface can say WHY three real vehicles are missing from a region
+   * that otherwise reads "72 records". Derived by the same helper the total
+   * refusal uses, so the two cannot drift into two different lists.
+   */
   return okResult(base, records, basis, denominatorLabel,
-    refusals.length ? { refusals, refusalCount: refusals.length } : {});
+    refusals.length
+      ? { refusals, refusalCount: refusals.length, refusalFaults: refusalFaults(refusals) }
+      : {});
 }
 
 /* --------------------------------------------------------------- samsara */
@@ -262,7 +317,23 @@ export function mapRealFleetVehicleRecord(row, cityKey) {
     origin: "feed",
     accessPolicy: "tenant-private",
     unitLabel: row.name || `${row.make || ""} ${row.model || ""}`.trim() || unnamedLabelFor("samsara", "unit"),
-    status: String(row.stats?.engineState || "unknown"),
+    /**
+     * THE VENDOR'S OWN STATE, OR NOTHING -- NEVER AN INVENTED ONE (G-153 parcel 2).
+     *
+     * This used to read `String(row.stats?.engineState || "unknown")`, and the
+     * `|| "unknown"` is a fallback wearing a state's clothes: measured on
+     * 2026-09-18 it fired on 75 of 75 live fleet rows, so the entire live fleet
+     * reported a state word that no vendor ever sent. The stats batch is not the
+     * problem -- the same batch populates `odometerMiles` on 72 of those 75 -- so
+     * the read genuinely carries no engine state and the honest record says that
+     * instead of naming one. `RECORD_SHAPES.samsara` refuses the upstream token
+     * (`notAState`), so the invention cannot come back through this door or any
+     * other.
+     */
+    status: vendorStateOrNull(row.stats?.engineState),
+    statusBasis: vendorStateOrNull(row.stats?.engineState)
+      ? null
+      : "the read reports no engine state for this vehicle: the value the deployed product served on all 75 fleet rows read on 2026-09-18 was this mapper's own fallback token, which says the vendor sent no state rather than naming one, and the route's contract carries engineStates in the same stats batch that populates odometerMiles on 72 of those rows",
     /**
      * OPERATOR REFERENCE: RULED, DECLARED, AND ABSENT WITH ITS REASON (defect 3).
      *
@@ -286,14 +357,26 @@ export function mapRealFleetVehicleRecord(row, cityKey) {
     operatorBasis:
       "the live read carries no operator identity to pseudonymise, so no FL-OPR-nn reference is minted; a reference derived from the vehicle would name a machine in the column that groups people, and a reference derived from anything else would be a pseudonym for nobody",
     /**
-     * ODOMETER BAND: REQUIRED BY THE SHAPE, AND ABSENT FOR THE SAME CLASS OF
-     * REASON. The live read carries a raw reading (`odometerMiles`, below) and no
-     * band; banding it here would put this product's banding rule into a record
-     * that is supposed to carry what the vendor said. The absence is stated.
+     * ODOMETER BAND: DERIVED, BECAUSE THE INPUT IS IN THE READ (G-153 parcel 2).
+     *
+     * This carried `null` with a basis saying that banding the reading "would
+     * present this product's bucketing as the vendor's value". The first half of
+     * that is right and the second half is why it is now banded: the BAND is this
+     * product's declared bucket (`ODOMETER_BANDS`) and the RAW READING stays on
+     * the record beside it (`odometerMiles`), so the vendor's own number is not
+     * replaced by the bucket -- both are present and each is labelled. Leaving it
+     * null cost 75 of 75 live fleet rows their record shape while the reading
+     * arrived on 72 of them, which is a mapping that was never done rather than a
+     * fact about the source.
+     *
+     * A ROW WHOSE READING DID NOT ARRIVE IS STILL REFUSED, not banded: the shape
+     * keeps `odometerBand` required with no declared-absence escape, so the 3 of
+     * 75 with no odometer are refused by name instead of being handed a band no
+     * measurement supports. `odometerBandFor` returns null for an unreadable
+     * reading and this passes that null through rather than bucketing it into the
+     * lowest band.
      */
-    odometerBand: null,
-    odometerBandBasis:
-      "the live read carries a raw odometer reading, not one of the declared bands; banding it here would present this product's bucketing as the vendor's value",
+    odometerBand: odometerBandFor(row.stats?.odometerMiles ?? row.stats?.obdOdometerMiles ?? null),
     department: (row.tags || [])[0] || null,
     make: row.make || null,
     model: row.model || null,
@@ -347,7 +430,20 @@ export function mapRealPatrolVehicleRecord(row, cityKey) {
     origin: "feed",
     accessPolicy: "tenant-private",
     unitLabel: row.name || unnamedLabelFor("spireon", "unit"),
-    status: String(row.nspireStatus || row.status || "unknown"),
+    /**
+     * THE VENDOR'S OWN STATE, OR NOTHING (G-153 parcel 2). Same defect as the
+     * Samsara mapper's `|| "unknown"` and the same fix, with one more layer of
+     * invention to remove: the route itself defaults the field
+     * (`smartcity-os server/routes/spireon.ts:177`, `asset.status || "Unknown"`),
+     * so `Unknown` is a not-a-state token the product's own read manufactures.
+     * The real values -- Stopped, Moving, Idle, 25 of 27 rows read on 2026-09-18
+     * -- are carried verbatim, and the two rows where the route fell back say
+     * that nothing was reported rather than reporting `Unknown` as a state.
+     */
+    status: vendorStateOrNull(row.nspireStatus),
+    statusBasis: vendorStateOrNull(row.nspireStatus)
+      ? null
+      : "the read reports no NSpire status for this vehicle: the value the deployed product served on the rows read on 2026-09-18 was the route's own fallback word Unknown, which says nothing was reported rather than naming a state",
     /**
      * OPERATOR REFERENCE (defect 3). Required by RECORD_SHAPES.spireon,
      * `required: true`, and this mapper carried no such key at all -- the field

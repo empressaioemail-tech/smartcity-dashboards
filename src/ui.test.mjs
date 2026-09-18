@@ -733,6 +733,137 @@ describe("G-77 fixture pack on Development services", () => {
     assert.match(app, /Array\.isArray\(pipeline\.realStatusCounts\)/);
   });
 
+  /**
+   * G-153 PARCEL 2'S SURFACE RULE, EXECUTED RATHER THAN GREPPED.
+   *
+   * The parcel removed the mappers' fallback words, which made two surface states
+   * reachable that no shipped renderer had ever been handed: a region whose
+   * `realStatusCounts` is an EMPTY array while being ok and full of records, and a
+   * record whose `status` is null. Both used to render as nothing at all -- an
+   * empty strip and a blank pill -- which is a silent gap, not an absence.
+   *
+   * The shipped functions are run here for real, with the same
+   * extract-the-source-and-vm-it shape ui.test.mjs's own Connections test uses: a
+   * reimplementation in the test would be the CTRL-1 defect inside the test that
+   * exists to catch one.
+   */
+  it("G-153 parcel 2: an ok region that reported no state renders a tile that NAMES the absence, not an empty strip", () => {
+    const tilesFn = app.match(/function renderRealStatusTiles\(strip, counts, noteText, extras\) \{[\s\S]*?\n\}/)?.[0];
+    assert.ok(tilesFn, "renderRealStatusTiles is no longer extractable; this test would otherwise prove nothing");
+    /**
+     * G-153 parcel 2's second pass. The strip also carries the records the shape
+     * guard REFUSED, because a read that returned 75 rows and served 72 cannot
+     * read "72 records" over it with no statement about the other three. That
+     * tile is built by its own function, so it is extracted and run here too --
+     * a strip whose refusal tile silently stopped rendering would otherwise pass
+     * this test on a payload that still has refusals.
+     */
+    const refusedFn = app.match(/function renderRefusedTile\(tiles, refused, faults, readTotal\) \{[\s\S]*?\n\}/)?.[0];
+    assert.ok(refusedFn, "renderRefusedTile is no longer extractable; this test would otherwise prove nothing");
+
+    const make = () => ({ children: [], className: "", title: "", append(...kids) { this.children.push(...kids); } });
+    function run(counts, extras) {
+      const strip = { children: null, replaceChildren(...kids) { this.children = kids; } };
+      const doc = { createElement: () => make() };
+      const context = vm.createContext({ document: doc, String, Number });
+      vm.runInContext(
+        `${tilesFn}\n${refusedFn}\nglobalThis.run = (strip, c, e) => renderRealStatusTiles(strip, c, "of 72 real fleet-vehicle records", e);`,
+        context,
+      );
+      context.run(strip, counts, extras);
+      return strip.children.map((t) => ({
+        className: t.className,
+        title: t.title,
+        k: t.children[0].textContent,
+        v: t.children[1].textContent,
+        n: t.children[2].textContent,
+      }));
+    }
+
+    // The shape the live fleet read produces today: no reported values at all.
+    assert.deepEqual(run([], { statusNotReported: 72 }), [{
+      className: "metric",
+      title: "",
+      k: "Not reported",
+      v: "72",
+      n: "of 72 real fleet-vehicle records",
+    }]);
+    // And it is NOT given has-value: the count is an absence, so it renders in the
+    // no-measured-value tone rather than as a band the city reported.
+    assert.equal(run([], { statusNotReported: 72 })[0].className.includes("has-value"), false);
+
+    // A region that reported SOME values keeps one tile per real value and adds the
+    // remainder, so the tiles still account for every record in the read.
+    assert.deepEqual(run([{ status: "Stopped", count: 20 }, { status: "Idle", count: 3 }], { statusNotReported: 2 }), [
+      { className: "metric has-value", title: "", k: "Stopped", v: "20", n: "of 72 real fleet-vehicle records" },
+      { className: "metric has-value", title: "", k: "Idle", v: "3", n: "of 72 real fleet-vehicle records" },
+      { className: "metric", title: "", k: "Not reported", v: "2", n: "of 72 real fleet-vehicle records" },
+    ]);
+
+    // The control: when nothing is unreported the extra tile is ABSENT rather than a
+    // zero, which is the rule every other tile on the surface already follows.
+    assert.equal(run([{ status: "Moving", count: 4 }], { statusNotReported: 0 }).length, 1);
+
+    // THE LIVE FLEET CASE: 72 of 75 rows served, the other three refused because
+    // their reads carried no odometer reading. The refused tile NAMES that fault
+    // -- it is the guard's own string, not a sentence written in the renderer --
+    // and it does not claim to be a band the city reported.
+    const live = run([], { statusNotReported: 72, refusalCount: 3, refusalFaults: ["fleet-vehicle requires odometerBand"] });
+    assert.deepEqual(live[1], {
+      className: "metric",
+      title: "fleet-vehicle requires odometerBand",
+      k: "Refused",
+      v: "3",
+      n: "fleet-vehicle requires odometerBand",
+    });
+    assert.equal(live[1].className.includes("has-value"), false, "a refused count is not a measurement of the fleet");
+
+    // Control: two distinct faults are both named, and a refusal with no fault
+    // string falls back to the denominator rather than printing nothing.
+    const two = run([], { statusNotReported: 0, refusalCount: 2, refusalFaults: ["a", "b"] });
+    assert.equal(two[0].n, "a; b");
+    const bare = run([], { statusNotReported: 0, refusalCount: 5 });
+    assert.equal(bare[0].n, "of 5 records the read returned");
+  });
+
+  it("G-153 parcel 2: a record with no status renders a pill that names the absence, and keeps its basis reachable", () => {
+    const cellFn = app.match(/function statusCell\(record, statusLabels\) \{[\s\S]*?\n\}/)?.[0];
+    assert.ok(cellFn, "statusCell is no longer extractable; this test would otherwise prove nothing");
+    const SEVERITY_PILL = { quiet: "p-quiet" };
+    function run(record) {
+      const context = vm.createContext({
+        document: {
+          createElement: () => ({
+            className: "",
+            textContent: "",
+            title: "",
+            children: [],
+            append(...kids) { this.children.push(...kids); },
+          }),
+        },
+        SEVERITY_PILL,
+      });
+      vm.runInContext(`${cellFn}\nglobalThis.out = (r) => statusCell(r, {});`, context);
+      const cell = context.out(record);
+      return { text: cell.children[0].textContent, className: cell.children[0].className, title: cell.children[0].title };
+    }
+
+    const absent = run({ status: null, statusBasis: "the read reports no engine state for this vehicle" });
+    assert.equal(absent.text, "Not reported");
+    assert.equal(absent.className, "pill p-quiet");
+    assert.match(absent.title, /no engine state/, "the record's own basis must stay reachable from the cell");
+
+    // A real vendor state is carried as itself, not relabelled, and carries no title.
+    const carried = run({ status: "Stopped" });
+    assert.equal(carried.text, "Stopped");
+    assert.equal(carried.title, "");
+
+    // The control for the defect this replaces: the fallback word must never be
+    // what an absent status renders as.
+    assert.notEqual(absent.text, "unknown");
+    assert.notEqual(absent.text, "");
+  });
+
   it("G-116/G-123 close: a real record's missing fixture-only fields render blank, never the literal word undefined", () => {
     assert.match(app, /text == null \? "" : text/);
     assert.match(app, /record\.dueLabel \|\| ""/);

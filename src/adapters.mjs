@@ -136,12 +136,89 @@ generate from.
 
 The declaration below is that contract, and it is deliberately data beside
 ADAPTER_KINDS rather than logic inside a generator. Generated fixtures and a
-granted adapter's real records are then the same shape, which is what makes
-swapping a real city in a pack switch instead of a surface change.
+granted adapter's real records are the same shape IN THE FIELDS THE READ CAN
+SUPPLY -- see THE LIVE ARM below, which is where that sentence used to stop and
+had to be corrected rather than left to read as a guarantee.
 
 A kind with no declared shape says so with a basis. An undeclared shape is a
 positive determination, never a blank.
 */
+
+/* ------------------------------------------------------------------ THE LIVE ARM
+
+G-153 PARCEL 2. THE PREAMBLE ABOVE USED TO SAY, WITHOUT QUALIFICATION, THAT A
+GENERATED FIXTURE AND A GRANTED ADAPTER'S REAL RECORD ARE THE SAME SHAPE, "which
+is what makes swapping a real city in a pack switch instead of a surface change".
+
+MEASURED 2026-09-18 on the 102 live records the deployed product serves (75
+Samsara fleet-vehicle, 27 Spireon patrol-vehicle), judged by
+`recordShapeFaults` itself: the sentence is FALSE for both vehicle kinds, and it
+was false in three DIFFERENT ways. Three fields differ between the two arms, and
+one mechanism does not cover three different reasons, so each is declared where
+it belongs rather than papered over with one flag.
+
+  - `status` IS THE VENDOR'S OWN STATE, NOT THIS PRODUCT'S BAND. The declared
+    enum is this product's invented readiness vocabulary, drawn from by the
+    fixture generator (`FLEET_FIXTURE_PLAN`, `PATROL_FIXTURE_PLAN`) and by
+    nothing on the live path. The reads carry a motion or engine state -- Samsara
+    `engineStates`, Spireon NSpire `Stopped`/`Idle`/`Moving` -- and no value of
+    either is a readiness band: a moving vehicle can be a vehicle in a road test
+    and a parked one is not thereby out of service. `LIVE_STATUS_TRANSLATIONS`
+    below is the declared, EMPTY table of vendor state -> product band, so the
+    guard now REFUSES a live record that asserts one of the four bands instead of
+    quietly accepting a fabrication. The lookup is a table rather than a rule so
+    that the day a justification exists it is added in one place, in the open.
+
+  - `operatorRef` IS NOT IN THE READ AT ALL. Required by the fixture arm, absent
+    on 102 of 102 live rows. `liveDeclaredAbsence` below makes the live arm accept
+    an EXPLICIT absence that states its reason and still refuse a bare one, which
+    is strictly more than `required: true` checked: the old clause could not tell
+    "the read does not carry it" from "the mapper forgot", and both read as the
+    same fault.
+
+  - `odometerBand` IS IN THE READ, ONE STEP EARLIER. The raw reading
+    (`odometerMiles`) arrives on 72 of the 75 fleet rows and the band is a bucket
+    of it, so this field is neither over-declared nor missing upstream: the
+    mapping was never done. It stays `required: true` with NO declared-absence
+    escape, which is the point -- a row whose reading did not arrive is still
+    refused and still says which field it was refused on. Only `operatorRef` gets
+    the escape, and only because no further reading of this route can produce it.
+
+WHAT THIS DOES NOT DO. It does not widen the enum, it does not add a band member
+for a vendor word, and it does not let a live record omit a field without saying
+why. Every direction this file could have taken to make the 102 rows pass by
+loosening the guard was refused; what changed is the DECLARATION, deliberately,
+with the payload evidence in the close.
+*/
+
+/**
+ * THE DECLARED TABLE OF VENDOR STATE -> THIS PRODUCT'S READINESS BAND.
+ *
+ * Empty for both vehicle kinds, and it is empty as a FINDING rather than as a
+ * placeholder. Read at source on 2026-09-18: Samsara's `engineStates` stat
+ * (`smartcity-os server/routes/samsara.ts:1213`) and Spireon's NSpire `status`
+ * (`server/routes/spireon.ts:176-177`) report engine and motion state; the v1
+ * page's own `mapStatus` turns those into `active`/`idle`/`off-duty`
+ * (`spireon.ts:159-165`), which is an ACTIVITY vocabulary, not a readiness one.
+ * Nothing in either read is a statement about whether a vehicle can be put to
+ * work today, so there is no row to write and inventing one would put this
+ * product's words on a vendor's row.
+ *
+ * The guard reads this table, so "no mapping is justified" is enforced rather
+ * than merely asserted in prose: a live record carrying a band that has no row
+ * here is refused BY NAME.
+ */
+export const LIVE_STATUS_TRANSLATIONS = {
+  samsara: {},
+  spireon: {},
+};
+
+/**
+ * THE REASON NO ROW EXISTS, quoted into every refusal so the fault explains
+ * itself on the surface rather than only in this file.
+ */
+export const LIVE_STATUS_TRANSLATION_BASIS =
+  "no value in this read is a readiness band: the vendor reports engine or motion state, which cannot answer whether the vehicle can be put to work today";
 
 export const RECORD_ORIGINS = ["feed", "fixture"];
 
@@ -364,9 +441,59 @@ export const RECORD_SHAPES = {
         type: "enum",
         required: true,
         values: VEHICLE_STATUS_VALUES.map((s) => s.id),
+        /**
+         * THE LIVE ARM (see THE LIVE ARM above). On a `feed` record the value is
+         * the VENDOR'S OWN state, verbatim, and the band enum above does not
+         * apply: no row of LIVE_STATUS_TRANSLATIONS.samsara maps a Samsara value
+         * onto a band, so a feed record asserting one is refused by name.
+         *
+         * `notAState` is the token the mapper used to INVENT when the read
+         * carried nothing (`String(row.stats?.engineState || "unknown")`); the
+         * deployed build served it on 75 of 75 live fleet rows on 2026-09-18.
+         * It is a fallback wearing a state's clothes, so carrying it is a fault:
+         * the read reported no state and the record says so instead of naming
+         * one.
+         */
+        live: {
+          kind: "vendor-state",
+          notAState: ["unknown", "Unknown"],
+          basisField: "statusBasis",
+          translations: LIVE_STATUS_TRANSLATIONS.samsara,
+        },
+        liveDeclaredAbsence: {
+          basisField: "statusBasis",
+          why: "the read reports no engine state for this vehicle: the route sets stats.engineState only when the vendor's stats batch carries a value (smartcity-os server/routes/samsara.ts:1213-1214, `if (rawStats.engineStates?.value)`), the deployed product served this mapper's own fallback token on 75 of 75 fleet rows read on 2026-09-18, and the same stats batch populated odometerMiles on 72 of those 75 -- so there is no state to carry and the absence is stated rather than named",
+        },
       },
-      { name: "operatorRef", type: "text", required: true },
-      { name: "odometerBand", type: "text", required: true },
+      {
+        name: "statusBasis",
+        type: "text",
+        required: false,
+        basis:
+          "the other half of status's liveDeclaredAbsence: present and non-empty exactly when status is absent, null when a state was carried. Declared so the shape reads complete rather than naming a basis field it never declares -- the guard reaches it through status's own clause.",
+      },
+      {
+        name: "operatorRef",
+        type: "text",
+        required: true,
+        liveDeclaredAbsence: {
+          basisField: "operatorBasis",
+          why: "the platform route does not bulk-fetch driver assignment (smartcity-os server/routes/samsara.ts:1133-1137: it is per-vehicle on this vendor and not bulk-fetchable in one call, so it is not included), so the read carries no operator identity to pseudonymise and no FL-OPR-nn can be minted from it",
+        },
+      },
+      {
+        name: "operatorBasis",
+        type: "text",
+        required: false,
+        basis:
+          "the other half of operatorRef's liveDeclaredAbsence: present and non-empty exactly when operatorRef is absent, null when a reference was minted. Declared for the same reason as statusBasis above.",
+      },
+      {
+        name: "odometerBand",
+        type: "text",
+        required: true,
+        /** No declared-absence escape, deliberately: the reading IS in the read. */
+      },
       {
         name: "operatorName",
         type: "text",
@@ -388,8 +515,47 @@ export const RECORD_SHAPES = {
         type: "enum",
         required: true,
         values: VEHICLE_STATUS_VALUES.map((s) => s.id),
+        /**
+         * The live arm for Spireon. Unlike Samsara this read DOES report states
+         * (Stopped 20 / Idle 3 / Moving 2 of 27 on 2026-09-18) and they are
+         * carried verbatim; `Unknown` is the route's own default
+         * (`spireon.ts:177`, `asset.status || "Unknown"`), so it is a
+         * not-a-state token here too and is refused as a state.
+         */
+        live: {
+          kind: "vendor-state",
+          notAState: ["unknown", "Unknown"],
+          basisField: "statusBasis",
+          translations: LIVE_STATUS_TRANSLATIONS.spireon,
+        },
+        liveDeclaredAbsence: {
+          basisField: "statusBasis",
+          why: "the route reports no NSpire status for this vehicle and its own fallback word is a not-a-state token, so nothing was reported and the record says so",
+        },
       },
-      { name: "operatorRef", type: "text", required: true },
+      {
+        name: "statusBasis",
+        type: "text",
+        required: false,
+        basis:
+          "the other half of status's liveDeclaredAbsence: present and non-empty exactly when status is absent, null when the vendor's own state was carried. Declared so the shape reads complete rather than naming a basis field it never declares.",
+      },
+      {
+        name: "operatorRef",
+        type: "text",
+        required: true,
+        liveDeclaredAbsence: {
+          basisField: "operatorBasis",
+          why: "the live read carries no operator identity to pseudonymise: the route that builds these rows hardcodes the field to an empty string (smartcity-os server/routes/spireon.ts:182, `officer: \"\"`), and PV-OPR-nn is a pseudonym for a person, so a reference derived from the patrol unit would name a vehicle in the column that groups people",
+        },
+      },
+      {
+        name: "operatorBasis",
+        type: "text",
+        required: false,
+        basis:
+          "the other half of operatorRef's liveDeclaredAbsence: present and non-empty exactly when operatorRef is absent, null when a reference was minted. Declared for the same reason as statusBasis above.",
+      },
     ],
   },
   /**
@@ -889,12 +1055,60 @@ export function recordShapeFaults(record) {
     }
   }
   for (const field of shape.fields) {
-    if (field.required && !fieldPresent(record, field)) {
-      faults.push(`${shape.recordType} requires ${field.name}`);
+    const present = fieldPresent(record, field);
+    if (field.required && !present) {
+      /**
+       * THE DECLARED ABSENCE, AND WHY IT IS NOT A LOOSENING (G-153 parcel 2).
+       *
+       * `required: true` alone cannot tell "the read does not carry this field"
+       * from "the mapper forgot it", so on the live path it produced one
+       * indistinguishable fault for both and no way to record the honest case.
+       * Where a shape declares `liveDeclaredAbsence`, a FEED record may omit the
+       * field ONLY by carrying `<basisField>` as a non-empty string; a fixture
+       * record may never omit it, and a feed record with a bare null is refused
+       * with a fault that says which of the two it is. That is one more refusal
+       * than the old clause produced, not one fewer.
+       */
+      const absence = field.liveDeclaredAbsence;
+      const basis = absence ? record[absence.basisField] : null;
+      const declaredAbsence =
+        record.origin === "feed" &&
+        absence &&
+        typeof basis === "string" &&
+        Boolean(basis.trim());
+      if (!declaredAbsence) {
+        faults.push(
+          absence
+            ? `${shape.recordType} requires ${field.name}, or ${absence.basisField} stating why this read does not carry it`
+            : `${shape.recordType} requires ${field.name}`,
+        );
+      }
     }
-    if (field.type === "enum" && fieldPresent(record, field)) {
-      if (!field.values.includes(record[field.name])) {
-        faults.push(`${field.name} must be one of ${field.values.join(", ")}`);
+    if (field.type === "enum" && present) {
+      const live = record.origin === "feed" ? field.live : null;
+      if (!live) {
+        if (!field.values.includes(record[field.name])) {
+          faults.push(`${field.name} must be one of ${field.values.join(", ")}`);
+        }
+      } else {
+        const value = record[field.name];
+        if (live.notAState.includes(value)) {
+          /**
+           * A NOT-A-STATE TOKEN IS THE ABSENCE OF A STATE, and carrying it as one
+           * is the fabricated-value defect: the reader sees a state word where
+           * the vendor reported nothing. It must be a declared absence instead.
+           */
+          faults.push(
+            `${field.name} carries ${JSON.stringify(value)}, which is the absence of a vendor state rather than one; omit ${field.name} and state ${live.basisField}, or carry the vendor's own reported value`,
+          );
+        } else if (
+          field.values.includes(value) &&
+          !Object.prototype.hasOwnProperty.call(live.translations, value)
+        ) {
+          faults.push(
+            `${field.name} asserts the product band ${JSON.stringify(value)} on a live ${shape.recordType} with no declared translation: ${LIVE_STATUS_TRANSLATION_BASIS}`,
+          );
+        }
       }
     }
     if (field.type === "integer" && fieldPresent(record, field)) {
