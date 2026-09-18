@@ -14,6 +14,9 @@ import {
 } from "./vendor-live.mjs";
 import { getDomain } from "./domains.mjs";
 import { BASTROP_TX } from "./city-pack.mjs";
+import { assertRecordShape, recordShapeFaults } from "./adapters.mjs";
+import { generateFleetRecords } from "./domains/fleet-vehicles.mjs";
+import { generatePatrolRecords } from "./domains/patrol-vehicles.mjs";
 
 /**
  * D-13.1. A live platform read now requires a configured base. These tests
@@ -234,13 +237,13 @@ describe("vendor-live (G-116 Phase 2 third batch)", () => {
   });
 
   const composeCases = [
-    { id: "fleet-vehicles", compose: composeRealFleetVehicles, listKey: "vehicles" },
-    { id: "patrol-vehicles", compose: composeRealPatrolVehicles, listKey: "vehicles" },
-    { id: "fire-apparatus", compose: composeRealFireApparatus, listKey: "apparatus" },
-    { id: "cip-projects", compose: composeRealCipProjects, listKey: "projects" },
+    { id: "fleet-vehicles", compose: composeRealFleetVehicles, listKey: "vehicles", guarded: true },
+    { id: "patrol-vehicles", compose: composeRealPatrolVehicles, listKey: "vehicles", guarded: true },
+    { id: "fire-apparatus", compose: composeRealFireApparatus, listKey: "apparatus", guarded: false },
+    { id: "cip-projects", compose: composeRealCipProjects, listKey: "projects", guarded: false },
   ];
 
-  for (const { id, compose, listKey } of composeCases) {
+  for (const { id, compose, listKey, guarded } of composeCases) {
     describe(id, () => {
       it("fails closed when PLATFORM_INTERNAL_API_KEY is unset", async () => {
         const domain = getDomain(id);
@@ -249,20 +252,49 @@ describe("vendor-live (G-116 Phase 2 third batch)", () => {
         assert.match(out.basis, /PLATFORM_INTERNAL_API_KEY unset/);
       });
 
-      it("returns real records with source live on success", async () => {
-        const fetchImpl = async () => ({ ok: true, json: async () => ({ [listKey]: [{ id: "x", name: "x" }], contract: "live" }) });
-        const domain = getDomain(id);
-        const out = await compose(BASTROP_TX, domain, { env: ENV, fetchImpl });
-        assert.equal(out.source, "live");
-        assert.equal(out.status, "ok");
-        assert.equal(out.recordCount, 1);
-        assert.equal(out.records[0].origin, "feed");
-        // G-116 close: the tile strip reads this, not extras.metrics -- see
-        // web/app.js's renderRealStatusTiles. Missing it is what shipped the
-        // "Not read" tiles on a page full of real records.
-        assert.ok(Array.isArray(out.extras.realStatusCounts), "extras.realStatusCounts must be an array");
-        assert.deepEqual(out.extras.realStatusCounts, [{ status: out.records[0].status || "unknown", count: 1 }]);
-      });
+      /**
+       * G-153 defect 1. The two GUARDED composers no longer serve an arbitrary
+       * vendor row: the stub below is nothing like a conforming record, and it is
+       * refused with its faults rather than validated-and-served or patched into
+       * shape. That is the behaviour the row asked for and it is asserted here so
+       * a later change that quietly drops the guard fails a test.
+       */
+      if (guarded) {
+        it("refuses a row that does not satisfy the declared shape, and counts it", async () => {
+          const fetchImpl = async () => ({ ok: true, json: async () => ({ [listKey]: [{ id: "x", name: "x" }], contract: "live" }) });
+          const domain = getDomain(id);
+          const out = await compose(BASTROP_TX, domain, { env: ENV, fetchImpl });
+          assert.equal(out.source, "live");
+          // G-153: a refusal is its OWN status, not `unavailable`. The read
+          // succeeded and the guard is what refused, so the region must not say
+          // the source could not be read -- those are different sentences to a
+          // city, and web/app.js gives each its own head.
+          assert.equal(out.status, "refused");
+          assert.equal(out.recordCount, 0);
+          assert.deepEqual(out.records, []);
+          assert.equal(out.extras.refusalCount, 1);
+          assert.ok(out.extras.refusalFaults.length >= 1);
+          assert.match(out.basis, /refused by the record-shape guard/);
+          // NOT granted-empty: the vendor answered, and a count of zero there
+          // would be a statement about the vendor rather than about the record.
+          assert.match(out.countingRule, /refused by assertRecordShape/);
+        });
+      } else {
+        it("returns real records with source live on success", async () => {
+          const fetchImpl = async () => ({ ok: true, json: async () => ({ [listKey]: [{ id: "x", name: "x" }], contract: "live" }) });
+          const domain = getDomain(id);
+          const out = await compose(BASTROP_TX, domain, { env: ENV, fetchImpl });
+          assert.equal(out.source, "live");
+          assert.equal(out.status, "ok");
+          assert.equal(out.recordCount, 1);
+          assert.equal(out.records[0].origin, "feed");
+          // G-116 close: the tile strip reads this, not extras.metrics -- see
+          // web/app.js's renderRealStatusTiles. Missing it is what shipped the
+          // "Not read" tiles on a page full of real records.
+          assert.ok(Array.isArray(out.extras.realStatusCounts), "extras.realStatusCounts must be an array");
+          assert.deepEqual(out.extras.realStatusCounts, [{ status: out.records[0].status || "unknown", count: 1 }]);
+        });
+      }
 
       it("honestly surfaces a real vendor-side unavailable state (e.g. permission/auth), not a crash", async () => {
         const fetchImpl = async () => ({
@@ -277,6 +309,147 @@ describe("vendor-live (G-116 Phase 2 third batch)", () => {
       });
     });
   }
+
+  /**
+   * G-153 DEFECT 1, AND THE INSTRUMENT IS THE REAL RECORD, NOT A FIXTURE.
+   *
+   * The row below is the shape the platform route returns for Bastrop
+   * (`/api/platform/samsara/vehicles`): the same fields the live-verification
+   * dump captured on 2026-09-17. Nothing about it is invented for the test.
+   */
+  describe("record-shape guard on the live path (G-153 defect 1)", () => {
+    const REAL_SAMSARA_ROW = {
+      id: "vehicle-1",
+      name: "Unit 12",
+      make: "Ford",
+      model: "F-150",
+      vin: "1FTFW1E50NF000000",
+      tags: ["Public Works"],
+      stats: { engineState: "Off", odometerMiles: 41022, fuelPercent: 62, highMileage: false, lowFuel: false },
+      dvir: { unresolvedDefectCount: 0, lastInspection: "2026-09-01" },
+      safetyEvents7d: 0,
+    };
+    const SAMSARA_FAULTS = [
+      "status must be one of out-of-service, inspection-due, in-shop, in-service",
+      "fleet-vehicle requires operatorRef",
+      "fleet-vehicle requires odometerBand",
+    ];
+
+    it("REFUSES the live Samsara record and names all three faults, not only the first", () => {
+      const record = mapRealFleetVehicleRecord(REAL_SAMSARA_ROW, "bastrop_tx");
+      assert.deepEqual(recordShapeFaults(record), SAMSARA_FAULTS);
+    });
+
+    it("the live record used to be served: the raw reading and the inventory field set are still on it", () => {
+      const record = mapRealFleetVehicleRecord(REAL_SAMSARA_ROW, "bastrop_tx");
+      // The undeclared field set that made this a defect rather than a nuisance:
+      // an inventory-shaped record arriving on the cutover that drops the one
+      // sentence saying a vehicle is not an inventory node.
+      const undeclared = ["vin", "make", "model", "odometerMiles", "fuelPercent", "department",
+        "dvirUnresolvedDefects", "dvirLastInspection", "safetyEvents7d", "highMileage", "lowFuel"];
+      const declared = new Set(["recordId", "kind", "recordType", "cityKey", "origin", "accessPolicy",
+        "provenance", "unitLabel", "status", "operatorRef", "operatorBasis", "odometerBand", "odometerBandBasis", "operatorName"]);
+      for (const key of undeclared) {
+        assert.ok(key in record, `${key} is no longer on the live record`);
+        assert.equal(declared.has(key), false, `${key} is now declared; move it out of this list`);
+      }
+      assert.equal(record.operatorRef, null, "no reference is minted without an operator identity");
+      assert.equal(record.odometerBand, null, "no band is invented from a raw reading");
+    });
+
+    it("the composer refuses rather than serving it, and it is not reported as an empty read", async () => {
+      const fetchImpl = async () => ({ ok: true, json: async () => ({ vehicles: [REAL_SAMSARA_ROW], contract: "live" }) });
+      const out = await composeRealFleetVehicles(BASTROP_TX, getDomain("fleet-vehicles"), { env: ENV, fetchImpl });
+      assert.equal(out.status, "refused");
+      assert.notEqual(out.status, "granted-empty");
+      assert.notEqual(out.status, "unavailable");
+      assert.equal(out.recordCount, 0);
+      assert.deepEqual(out.records, []);
+      assert.equal(out.extras.refusalCount, 1);
+      assert.deepEqual(out.extras.refusalFaults, SAMSARA_FAULTS);
+      assert.match(out.basis, /refused by the record-shape guard/);
+    });
+
+    it("REFUSES the live Spireon record on its own two faults", () => {
+      const record = mapRealPatrolVehicleRecord(
+        { spireonId: "sp-1", name: "Unit 90", nspireStatus: "Stopped", address: "132 Grady Tuck Ln, Bastrop, TX", speed: 0 },
+        "bastrop_tx",
+      );
+      assert.deepEqual(recordShapeFaults(record), [
+        "status must be one of out-of-service, inspection-due, in-shop, in-service",
+        "patrol-vehicle requires operatorRef",
+      ]);
+    });
+
+    /**
+     * THE POSITIVE CONTROL. A guard that refuses everything is not a guard, so
+     * the same predicate is asserted to PASS a conforming record, and the record
+     * chosen is one the FIXTURE path actually generates -- which is also where
+     * the namespaced operator reference is minted (the ruling of 2026-09-17).
+     */
+    it("is not a blanket refusal: a conforming record passes, and it carries a namespaced reference", () => {
+      const fleet = generateFleetRecords({ cityKey: "template-city", seed: 0 });
+      const patrol = generatePatrolRecords({ cityKey: "template-city", seed: 0 });
+      for (const record of fleet) {
+        assert.deepEqual(recordShapeFaults(record), []);
+        assert.equal(assertRecordShape(record), true);
+        assert.match(record.operatorRef, /^FL-OPR-\d{2}$/);
+      }
+      for (const record of patrol) {
+        assert.deepEqual(recordShapeFaults(record), []);
+        assert.match(record.operatorRef, /^PV-OPR-\d{2}$/);
+      }
+      // The bare form the ruling retired is no longer minted anywhere.
+      const refs = [...fleet, ...patrol].map((r) => r.operatorRef);
+      assert.equal(refs.some((r) => /^OPR-\d{2}$/.test(r)), false);
+    });
+  });
+
+  /**
+   * G-153 DEFECT 2. A sentinel two vendors share is not an identifier: both
+   * mappers fell back to the literal "Unnamed unit", so an unnamed Samsara row
+   * and an unnamed Spireon row were indistinguishable once joined or grouped. The
+   * control is the old literal, and it is asserted ABSENT rather than merely
+   * assumed gone.
+   */
+  describe("unit labels and record ids are namespaced by vendor (G-153 defect 2)", () => {
+    const emptyRows = {
+      samsara: mapRealFleetVehicleRecord({}, "bastrop_tx"),
+      spireon: mapRealPatrolVehicleRecord({}, "bastrop_tx"),
+      firstdue: mapRealFireApparatusRecord({}, "bastrop_tx"),
+    };
+
+    it("an empty row produces a label that names its own vendor", () => {
+      assert.equal(emptyRows.samsara.unitLabel, "Unnamed samsara unit");
+      assert.equal(emptyRows.spireon.unitLabel, "Unnamed spireon unit");
+      assert.equal(emptyRows.firstdue.unitLabel, "Unnamed firstdue unit");
+    });
+
+    it("no two vendors can emit the same label, because the vendor kind is in it", () => {
+      const labels = Object.values(emptyRows).map((r) => r.unitLabel);
+      assert.equal(new Set(labels).size, labels.length, `labels collide: ${labels.join(", ")}`);
+      for (const [kind, record] of Object.entries(emptyRows)) {
+        assert.match(record.unitLabel, new RegExp(`\\b${kind}\\b`), `${kind} does not name itself`);
+        for (const other of Object.keys(emptyRows)) {
+          if (other !== kind) assert.equal(record.unitLabel.includes(other), false);
+        }
+      }
+    });
+
+    it("the sentinel the two lenses shared is gone, and the ids are namespaced the same way", () => {
+      // Before: mapRealFleetVehicleRecord({}).unitLabel === mapRealPatrolVehicleRecord({}).unitLabel === "Unnamed unit".
+      assert.notEqual(emptyRows.samsara.unitLabel, emptyRows.spireon.unitLabel);
+      assert.equal(Object.values(emptyRows).some((r) => r.unitLabel === "Unnamed unit"), false);
+      const ids = [
+        emptyRows.samsara.recordId,
+        emptyRows.spireon.recordId,
+        emptyRows.firstdue.recordId,
+        mapRealCipProjectRecord({}, "bastrop_tx").recordId,
+      ];
+      assert.equal(new Set(ids).size, ids.length, `ids collide: ${ids.join(", ")}`);
+      for (const [kind, record] of Object.entries(emptyRows)) assert.match(record.recordId, new RegExp(`unknown-${kind}-`));
+    });
+  });
 
   describe("call-analytics compose", () => {
     it("returns exactly one aggregate record on success, not a fabricated per-queue breakdown", async () => {

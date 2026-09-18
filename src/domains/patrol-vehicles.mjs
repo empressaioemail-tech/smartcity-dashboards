@@ -1,5 +1,6 @@
 import { VEHICLE_STATUS_VALUES } from "../adapters.mjs";
 import { defineDomain, fixtureBasisFor, mulberry32, pick } from "../fixture-seam.mjs";
+import { mintOperatorRef, operatorRefFormat } from "../operator-ref.mjs";
 
 /* -------------------------------------------------- domain: patrol vehicles
 
@@ -46,7 +47,12 @@ export const PATROL_FIXTURE_PLAN = [
 
 export const PATROL_ID_FORMAT = /^FIX-PV-\d{4}$/;
 export const UNIT_LABEL_FORMAT = /^[A-Z][A-Za-z ]+ unit \d{2}$/;
-export const OPERATOR_REF_FORMAT = /^OPR-\d{2}$/;
+/**
+ * NAMESPACED BY DOMAIN (operator ruling 2026-09-17), declared in
+ * `operator-ref.mjs` and read from there. Before this, Fleet and Police each
+ * declared `/^OPR-\d{2}$/` independently and minted the same values.
+ */
+export const OPERATOR_REF_FORMAT = operatorRefFormat("patrol-vehicles");
 export const OPERATOR_COUNT = 3;
 
 export const PATROL_BASIS = fixtureBasisFor("spireon");
@@ -78,7 +84,7 @@ export function generatePatrolRecords({ cityKey, accessPolicy = "public-free", s
         accessPolicy,
         unitLabel: `${pick(rand, PATROL_VOCABULARY)} unit ${String(20 + seq).padStart(2, "0")}`,
         status: row.status,
-        operatorRef: `OPR-${String(1 + ((seq - 1) % OPERATOR_COUNT)).padStart(2, "0")}`,
+        operatorRef: mintOperatorRef("patrol-vehicles", 1 + ((seq - 1) % OPERATOR_COUNT)),
         operatorBasis: OPERATOR_BASIS,
         provenance: {
           source: "Spireon output contract",

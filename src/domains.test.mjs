@@ -459,7 +459,7 @@ describe("G-91 ungranted is not empty, and neither is not-built", () => {
     assert.match(granted.countingRule, /10 generated spireon patrol-vehicle records on probe-city/);
     // And it names nobody: a driver is a person and a fixture must not have one.
     for (const record of granted.records) {
-      assert.match(record.operatorRef, /^OPR-\d{2}$/);
+      assert.match(record.operatorRef, /^PV-OPR-\d{2}$/);
       assert.match(record.operatorBasis, /names no person/);
       assert.equal("operatorName" in record, false);
     }

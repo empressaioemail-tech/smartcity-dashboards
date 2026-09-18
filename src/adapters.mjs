@@ -841,77 +841,95 @@ function fieldPresent(record, field) {
 }
 
 /**
- * Validates a record against the declared shape for its kind. The generator runs
- * this over everything it emits, so a fixture that drifts from the contract
- * fails at the source rather than on a surface.
+ * EVERY way a record fails its declared shape, in declaration order; an empty
+ * array means it conforms.
+ *
+ * This exists because the live path needs to report WHICH fields a real vendor
+ * record missed rather than only the first one. `assertRecordShape` names the
+ * first fault and stops, which is right for a generator that must not emit a
+ * record and wrong for a read of somebody else's data where the caller has to be
+ * able to say what arrived. The rule itself is written ONCE, here, and
+ * `assertRecordShape` is a thin thrower over it -- a second copy of the checks
+ * written for the live path would be a second implementation of one contract,
+ * which is how the contract and the guard drift apart.
  */
-export function assertRecordShape(record) {
-  if (!record || typeof record !== "object") {
-    throw new Error("record requires an object");
-  }
+export function recordShapeFaults(record) {
+  const faults = [];
+  if (!record || typeof record !== "object") return ["record requires an object"];
   const kindEntry = RECORD_SHAPES[record.kind];
-  if (!kindEntry) throw new Error(`no record shape declared for kind ${record.kind}`);
+  if (!kindEntry) return [`no record shape declared for kind ${record.kind}`];
   if (!kindEntry.declared) {
-    throw new Error(`record shape for ${record.kind} is undeclared: ${kindEntry.basis}`);
+    return [`record shape for ${record.kind} is undeclared: ${kindEntry.basis}`];
   }
   const shape = recordShapeFor(record.kind, record.recordType);
   if (!shape) {
     const known = [kindEntry.recordType, ...Object.keys(kindEntry.variants || {})].join(", ");
-    throw new Error(
-      `${record.kind} declares no ${record.recordType} record type; it declares ${known}`,
-    );
+    return [`${record.kind} declares no ${record.recordType} record type; it declares ${known}`];
   }
   if (!shape.declared) {
-    throw new Error(
-      `record shape for ${record.kind} ${record.recordType} is undeclared: ${shape.basis}`,
-    );
+    return [`record shape for ${record.kind} ${record.recordType} is undeclared: ${shape.basis}`];
   }
   for (const field of RECORD_ENVELOPE_FIELDS) {
     if (field.required && !fieldPresent(record, field)) {
-      throw new Error(`record requires ${field.name}`);
+      faults.push(`record requires ${field.name}`);
     }
   }
   if (!RECORD_ORIGINS.includes(record.origin)) {
-    throw new Error("record origin must be feed or fixture");
+    faults.push("record origin must be feed or fixture");
   }
   if (!ACCESS_POLICIES.has(record.accessPolicy)) {
-    throw new Error("record requires a contract accessPolicy");
+    faults.push("record requires a contract accessPolicy");
   }
   if (record.origin === "fixture") {
     if (record.fixture !== true) {
-      throw new Error("a generated record must carry fixture true in the payload");
+      faults.push("a generated record must carry fixture true in the payload");
     }
     if (typeof record.fixtureBasis !== "string" || !record.fixtureBasis.trim()) {
-      throw new Error("a generated record must carry fixtureBasis");
+      faults.push("a generated record must carry fixtureBasis");
     }
   }
   for (const field of shape.fields) {
     if (field.required && !fieldPresent(record, field)) {
-      throw new Error(`${shape.recordType} requires ${field.name}`);
+      faults.push(`${shape.recordType} requires ${field.name}`);
     }
     if (field.type === "enum" && fieldPresent(record, field)) {
       if (!field.values.includes(record[field.name])) {
-        throw new Error(`${field.name} must be one of ${field.values.join(", ")}`);
+        faults.push(`${field.name} must be one of ${field.values.join(", ")}`);
       }
     }
     if (field.type === "integer" && fieldPresent(record, field)) {
       if (!Number.isInteger(record[field.name])) {
-        throw new Error(`${field.name} must be an integer`);
+        faults.push(`${field.name} must be an integer`);
       }
     }
     if (field.type === "place" && fieldPresent(record, field)) {
       const place = record[field.name];
       if (typeof place.label !== "string" || !place.label.trim()) {
-        throw new Error("place requires a label");
+        faults.push("place requires a label");
       }
       if (!("parcelNodeId" in place)) {
-        throw new Error("place must state its parcelNodeId, null included");
+        faults.push("place must state its parcelNodeId, null included");
       }
       if (place.parcelNodeId === null && (typeof place.parcelBasis !== "string" || !place.parcelBasis.trim())) {
-        throw new Error("a place with no parcel states the basis for the absence");
+        faults.push("a place with no parcel states the basis for the absence");
       }
     }
   }
+  return faults;
+}
+
+/**
+ * Validates a record against the declared shape for its kind. The generator runs
+ * this over everything it emits, so a fixture that drifts from the contract
+ * fails at the source rather than on a surface.
+ *
+ * The FIRST fault is thrown, which keeps every existing caller's message and
+ * order unchanged; a caller that needs the whole list asks `recordShapeFaults`
+ * instead. Same rule, two readings.
+ */
+export function assertRecordShape(record) {
+  const faults = recordShapeFaults(record);
+  if (faults.length) throw new Error(faults[0]);
   return true;
 }
 

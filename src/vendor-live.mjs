@@ -24,7 +24,74 @@ real-world action outside engineering. This module reports whichever
 state is genuinely true each time it's called, not a cached assumption.
 */
 
+import { assertRecordShape, recordShapeFaults } from "./adapters.mjs";
 import { PLATFORM_BASE_UNSET_BASIS, PLATFORM_ROUTES, platformRoute } from "./platform-base.mjs";
+
+/* --------------------------------------------------- sentinels, namespaced
+
+SENTINELS ARE NAMESPACED BY THE VENDOR THAT EMITTED THEM, AND THIS IS A
+COLLISION FIX RATHER THAN A COSMETIC ONE.
+
+`mapRealFleetVehicleRecord` and `mapRealPatrolVehicleRecord` both fell back to
+the LITERAL `"Unnamed unit"` on a row with no name (defect 2 of G-153), and the
+same argument applies to every other sentinel in this file. A sentinel that two
+vendors share is not an identifier: once Samsara and Spireon both return an
+unnamed row, a joined or grouped surface cannot tell one vendor's row from the
+other's, and a label that was supposed to say "this row has no name" instead says
+"this row is one of the unnamed ones", which is a different and false claim about
+which system reported it.
+
+So both sentinels are derived from the adapter KIND, which is the one string in
+the record that already distinguishes the vendor and which the catalogue owns.
+Two vendors cannot collide by construction rather than by review, and
+src/vendor-live.test.mjs feeds an empty row to both mappers and requires the
+labels to differ.
+*/
+const unknownIdFor = (kindId, noun) => `unknown-${kindId}-${noun}`;
+const unnamedLabelFor = (kindId, noun) => `Unnamed ${kindId} ${noun}`;
+
+/* ------------------------------------------------ THE SHAPE GUARD, LIVE
+
+DEFECT 1 OF G-153, AND THE REASON IT IS HERE RATHER THAN IN A CALLER.
+
+`assertRecordShape` was called from src/fixture-seam.mjs and from tests and from
+NOTHING in this file, so the fixture path this product controls was
+shape-validated and the live vendor path it does not control was not. By
+ENFORCEMENT.md that is a dormant mechanism: built, correct, never reached on the
+path that needs it. Run by hand against the real Samsara record it refuses with
+three faults, and that record carries twelve undeclared fields including `vin`,
+`make`, `model` and `odometerMiles` -- an inventory field set arriving on exactly
+the cutover that drops the one sentence saying this is not an inventory.
+
+A REFUSED RECORD IS DROPPED AND COUNTED, NEVER DEFAULTED. The alternative
+failures are both worse than an empty region: serving the record anyway is what
+this guard exists to stop, and "repairing" it (defaulting a status into the
+declared enum, inventing an odometer band) would put this product's own words on
+a real vendor's row. So a record that fails is left out of `records`, its faults
+are pooled in `extras.refusals`, and the region says so in its basis.
+
+WHAT THIS DOES NOT DO, STATED BECAUSE IT IS A REAL GAP. The guard is wired on the
+two composers this row's defects land on, Samsara and Spireon. The other three
+live composers in this file (FirstDue, PowerBI, GoTo) are NOT guarded yet, and
+they would not pass either -- each is missing required fields of its declared
+shape. Wiring them is a change to three lenses that are not this row's (Fire and
+EMS is G-152) and each needs its own before/after evidence, so it is named in the
+close as an open thread rather than done quietly here.
+*/
+function guardLiveRecords(mapper, rows, cityKey) {
+  const records = [];
+  const refusals = [];
+  for (const row of rows) {
+    const record = mapper(row, cityKey);
+    const faults = recordShapeFaults(record);
+    if (faults.length) {
+      refusals.push({ recordId: record.recordId, faults });
+    } else {
+      records.push(record);
+    }
+  }
+  return { records, refusals };
+}
 
 function platformKey(env = process.env) {
   return String(env.PLATFORM_INTERNAL_API_KEY || "").trim();
@@ -107,7 +174,44 @@ function unavailableResult(base, basis) {
   };
 }
 
-function okResult(base, records, basis, denominatorLabel) {
+/**
+ * A REFUSAL IS ITS OWN RESULT, AND IT IS NOT `granted-empty`.
+ *
+ * `granted-empty` claims the vendor answered and returned zero records, which is
+ * a statement about the VENDOR. When the vendor answers and the records it
+ * returned do not satisfy the declared contract, the number of records it
+ * returned is not zero and the region must not say that it is -- a refusal
+ * wearing a count of zero is the same class of lie as a fabricated value, one
+ * layer up. Nor is this `unavailableResult`: that basis reads as a fetch that did
+ * not succeed, and here the fetch succeeded and the shape guard is what refused.
+ *
+ * The status is its OWN value, `refused`, and it is added here rather than borrowed
+ * from `unavailable` because a borrowed value renders a false sentence. The
+ * renderer (web/app.js) gives each status its own kicker and head; a refusal
+ * arriving as `unavailable` would have printed the fall-through head -- "the
+ * region is generating records" -- over a state block whose basis says the
+ * records were refused, and on this pack that is not an edge case: every live
+ * Samsara and Spireon record fails its declared shape today, so a refusal IS the
+ * steady state of both regions until the mapping catches up. The vocabulary
+ * addition is real and it is named for the design recapture (`source-state.json`
+ * declares the live statuses) rather than made silently.
+ */
+function refusedResult(base, refusals, denominatorLabel) {
+  const faults = [...new Set(refusals.flatMap((r) => r.faults))];
+  return {
+    ...base,
+    granted: true,
+    generated: false,
+    status: "refused",
+    basis: `${base.gatedBy} answered and every one of the ${refusals.length} ${denominatorLabel} it returned was refused by the record-shape guard: ${faults.join("; ")}`,
+    recordCount: 0,
+    countingRule: `no records served: ${refusals.length} ${denominatorLabel} were read live and refused by assertRecordShape`,
+    records: [],
+    extras: { refusals: refusals.slice(0, 50), refusalCount: refusals.length, refusalFaults: faults },
+  };
+}
+
+function okResult(base, records, basis, denominatorLabel, extraExtras = {}) {
   if (records.length === 0) {
     return {
       ...base,
@@ -130,23 +234,66 @@ function okResult(base, records, basis, denominatorLabel) {
     recordCount: records.length,
     countingRule: `${records.length} real ${denominatorLabel} read live from smartcity-os for ${base.cityKey}`,
     records,
-    extras: { realStatusCounts: realStatusCounts(records) },
+    extras: { realStatusCounts: realStatusCounts(records), ...extraExtras },
   };
+}
+
+/**
+ * One reading of a guarded live read, so the two composers cannot answer the
+ * three cases (all refused, some refused, none refused) differently.
+ */
+function guardedRead(base, mapper, rows, basis, denominatorLabel) {
+  const { records, refusals } = guardLiveRecords(mapper, rows, base.cityKey);
+  if (records.length === 0 && refusals.length > 0) {
+    return refusedResult(base, refusals, denominatorLabel);
+  }
+  return okResult(base, records, basis, denominatorLabel,
+    refusals.length ? { refusals, refusalCount: refusals.length } : {});
 }
 
 /* --------------------------------------------------------------- samsara */
 
 export function mapRealFleetVehicleRecord(row, cityKey) {
   return {
-    recordId: String(row.id || "").trim() || `unknown-vehicle`,
+    recordId: String(row.id || "").trim() || unknownIdFor("samsara", "vehicle"),
     kind: "samsara",
     recordType: "fleet-vehicle",
     cityKey,
     origin: "feed",
     accessPolicy: "tenant-private",
-    unitLabel: row.name || `${row.make || ""} ${row.model || ""}`.trim() || "Unnamed unit",
+    unitLabel: row.name || `${row.make || ""} ${row.model || ""}`.trim() || unnamedLabelFor("samsara", "unit"),
     status: String(row.stats?.engineState || "unknown"),
-    operator: null,
+    /**
+     * OPERATOR REFERENCE: RULED, DECLARED, AND ABSENT WITH ITS REASON (defect 3).
+     *
+     * Operator references are namespaced by domain since the ruling of
+     * 2026-09-17 and Fleet mints `FL-OPR-nn`
+     * (src/operator-ref.mjs, the one declaration of the scheme). The field is
+     * required by RECORD_SHAPES.samsara and this mapper used to carry no
+     * `operatorRef` key at all -- not null, not empty, ABSENT -- so a required
+     * field was missing from every live record and nothing said so. The shape
+     * guard wired below is what refuses that now.
+     *
+     * WHY IT IS NOT MINTED HERE RATHER THAN A REFERENCE BEING INVENTED. Minting
+     * needs an operator IDENTITY to pseudonymise, and this read carries none: the
+     * platform route's own `operator` is null on every row read (empty and
+     * populated alike, 2026-09-17). A reference derived from what is left -- the
+     * vehicle id -- would be a stable pseudonym for a MACHINE, printed in the
+     * column the roster groups PEOPLE by, which is worse than an absent field. So
+     * the absence is stated positively, in the record, with its reason.
+     */
+    operatorRef: null,
+    operatorBasis:
+      "the live read carries no operator identity to pseudonymise, so no FL-OPR-nn reference is minted; a reference derived from the vehicle would name a machine in the column that groups people, and a reference derived from anything else would be a pseudonym for nobody",
+    /**
+     * ODOMETER BAND: REQUIRED BY THE SHAPE, AND ABSENT FOR THE SAME CLASS OF
+     * REASON. The live read carries a raw reading (`odometerMiles`, below) and no
+     * band; banding it here would put this product's banding rule into a record
+     * that is supposed to carry what the vendor said. The absence is stated.
+     */
+    odometerBand: null,
+    odometerBandBasis:
+      "the live read carries a raw odometer reading, not one of the declared bands; banding it here would present this product's bucketing as the vendor's value",
     department: (row.tags || [])[0] || null,
     make: row.make || null,
     model: row.model || null,
@@ -185,22 +332,38 @@ export async function composeRealFleetVehicles(pack, domain, opts = {}) {
   const fetched = await fetchLiveJson(PLATFORM_ROUTES.samsaraVehicles, opts);
   if (fetched.status !== "ok") return unavailableResult(base, fetched.basis);
   const rows = Array.isArray(fetched.body?.vehicles) ? fetched.body.vehicles : [];
-  const records = rows.map((row) => mapRealFleetVehicleRecord(row, pack.cityKey));
-  return okResult(base, records, fetched.body?.contract || "live", "fleet-vehicle records");
+  return guardedRead(base, mapRealFleetVehicleRecord, rows,
+    fetched.body?.contract || "live", "fleet-vehicle records");
 }
 
 /* -------------------------------------------------------------- spireon */
 
 export function mapRealPatrolVehicleRecord(row, cityKey) {
   return {
-    recordId: String(row.spireonId || row.id || "").trim() || `unknown-patrol`,
+    recordId: String(row.spireonId || row.id || "").trim() || unknownIdFor("spireon", "patrol"),
     kind: "spireon",
     recordType: "patrol-vehicle",
     cityKey,
     origin: "feed",
     accessPolicy: "tenant-private",
-    unitLabel: row.name || "Unnamed unit",
+    unitLabel: row.name || unnamedLabelFor("spireon", "unit"),
     status: String(row.nspireStatus || row.status || "unknown"),
+    /**
+     * OPERATOR REFERENCE (defect 3). Required by RECORD_SHAPES.spireon,
+     * `required: true`, and this mapper carried no such key at all -- the field
+     * named in the contract was silently absent from every live record. Police
+     * mints `PV-OPR-nn` under the ruling of 2026-09-17 (src/operator-ref.mjs).
+     *
+     * Not minted here for the same reason as the fleet mapper, and the reason is
+     * not a shortage of effort: this read carries no operator identity to
+     * pseudonymise, and `PV-OPR-nn` is a pseudonym for a PERSON. A reference
+     * derived from the patrol unit's own id would name a vehicle in the column
+     * the roster groups people by. So the absence is carried with its basis, and
+     * the shape guard refuses the record rather than the field going missing.
+     */
+    operatorRef: null,
+    operatorBasis:
+      "the live read carries no operator identity to pseudonymise, so no PV-OPR-nn reference is minted; a reference derived from the unit would name a vehicle in the column that groups people, and a reference derived from anything else would be a pseudonym for nobody",
     department: row.department || null,
     place: {
       label: row.address || "Address not on record",
@@ -248,8 +411,8 @@ export async function composeRealPatrolVehicles(pack, domain, opts = {}) {
   const fetched = await fetchLiveJson(PLATFORM_ROUTES.spireonVehiclesIncludingInactive, opts);
   if (fetched.status !== "ok") return unavailableResult(base, fetched.basis);
   const rows = Array.isArray(fetched.body?.vehicles) ? fetched.body.vehicles : [];
-  const records = rows.map((row) => mapRealPatrolVehicleRecord(row, pack.cityKey));
-  return okResult(base, records, fetched.body?.contract || "live", "patrol-vehicle records");
+  return guardedRead(base, mapRealPatrolVehicleRecord, rows,
+    fetched.body?.contract || "live", "patrol-vehicle records");
 }
 
 /* ------------------------------------------------------------- firstdue */
@@ -285,13 +448,13 @@ export async function composeRealPatrolVehicles(pack, domain, opts = {}) {
  */
 export function mapRealFireApparatusRecord(row, cityKey) {
   return {
-    recordId: String(row.id || row.unitId || "").trim() || `unknown-apparatus`,
+    recordId: String(row.id || row.unitId || "").trim() || unknownIdFor("firstdue", "apparatus"),
     kind: "firstdue",
     recordType: "fire-apparatus",
     cityKey,
     origin: "feed",
     accessPolicy: "tenant-private",
-    unitLabel: row.name || row.unitName || row.unit_name || row.apparatus_name || "Unnamed apparatus",
+    unitLabel: row.name || row.unitName || row.unit_name || row.apparatus_name || unnamedLabelFor("firstdue", "unit"),
     status: String(row.status || "unknown"),
     station: row.station || row.stationName || null,
     apparatusType: row.type || row.apparatusType || row.apparatus_type || null,
@@ -318,13 +481,13 @@ export async function composeRealFireApparatus(pack, domain, opts = {}) {
 
 export function mapRealCipProjectRecord(row, cityKey) {
   return {
-    recordId: String(row.name || "").trim() || `unknown-project`,
+    recordId: String(row.name || "").trim() || unknownIdFor("powerbi", "project"),
     kind: "powerbi",
     recordType: "capital-project",
     cityKey,
     origin: "feed",
     accessPolicy: "tenant-private",
-    projectName: row.name || "Untitled project",
+    projectName: row.name || unnamedLabelFor("powerbi", "project"),
     completion: row.overallCompletion ?? null,
     startDate: row.startDate || null,
     endDate: row.endDate || null,

@@ -2603,6 +2603,21 @@ const REGION_KICKER = {
   "granted-empty": "Source returned nothing",
   "no-fixture-source": "Not generating",
   "did-not-read": "Region did not read",
+  /**
+   * G-153. The two live-read determinations that are NOT the seam's four states,
+   * added because a real composer can answer in two ways the seam never does.
+   *
+   * `unavailable` is a read that did not succeed (no key, no base, a vendor
+   * error) and `refused` is a read that DID succeed and whose records did not
+   * satisfy the declared shape -- src/vendor-live.mjs's refusedResult. They used
+   * to share `unavailable`, and both then fell through to the ok head sentence:
+   * a region printing "is generating records" over a basis listing refusals. On
+   * the proving pack that is not hypothetical, it is what both live regions do,
+   * so the two get their own words and the fall-through is no longer reachable by
+   * a payload this product produces.
+   */
+  unavailable: "Source unread",
+  refused: "Records refused",
 };
 
 /** The tile note per state. A tile with no source says which absence it is. */
@@ -2628,6 +2643,11 @@ function regionHead(status, region, cityKey) {
     return `${pack} generates no records, so the ${name} region has nothing to show.`;
   }
   if (status === "did-not-read") return `The ${name} region did not read on ${pack}.`;
+  if (status === "unavailable") return `The source for the ${name} region could not be read on ${pack}.`;
+  if (status === "refused") {
+    return `The ${name} region's source answered on ${pack} and none of the records it returned satisfied the declared record shape.`;
+  }
+  if (status !== "ok") return `The ${name} region did not read on ${pack}.`;
   return `The ${name} region is generating records on ${pack}.`;
 }
 
