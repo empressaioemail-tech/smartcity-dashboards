@@ -284,14 +284,19 @@ describe("G-97 the four source states are four sentences", () => {
     }
     /**
      * did-not-read is a fetch that did not answer. It is NOT a source state and
-     * must not borrow a pack's sentence, which is why it has its own entry.
+     * must not borrow a pack's sentence, which is why it has its own entry. The
+     * same is true of the two G-153 added: `unavailable` is a live read that did
+     * not succeed and `refused` is one that succeeded and whose records broke the
+     * declared shape. None of the three is a state a PACK can be in.
      */
     assert.ok(map.includes('"did-not-read"'), "did-not-read");
+    assert.ok(map.includes("unavailable:"), "unavailable");
+    assert.ok(map.includes("refused:"), "refused");
   });
 
   it("gives every state a different kicker and a different headline", () => {
     const kickers = [...map.matchAll(/: "([^"]+)"/g)].map((m) => m[1]);
-    assert.equal(kickers.length, 5, "four source states plus the failed read");
+    assert.equal(kickers.length, 7, "four source states plus three determinations the seam cannot report");
     assert.equal(new Set(kickers).size, kickers.length, `two states share a kicker: ${kickers}`);
     /**
      * The headlines are a function rather than a table, so distinctness is
@@ -299,7 +304,7 @@ describe("G-97 the four source states are four sentences", () => {
      * A table comparison would have read the source and proven nothing about
      * what a person sees.
      */
-    const sentences = DOMAIN_STATUSES.concat(["did-not-read"]).map((status) =>
+    const sentences = DOMAIN_STATUSES.concat(["did-not-read", "unavailable", "refused"]).map((status) =>
       renderedHeadFor(head, status),
     );
     assert.equal(new Set(sentences).size, sentences.length, `two states share a headline: ${sentences}`);

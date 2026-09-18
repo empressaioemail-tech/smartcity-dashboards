@@ -6,7 +6,7 @@ platform route serves into a record this product's own shape table declares
 
 WHY THIS FILE REFUSES INSTEAD OF DEFAULTING, WHICH IS A DIFFERENT STANCE FROM
 src/vendor-live.mjs. The mappers beside this one do carry fallbacks -- a missing
-vehicle name becomes the visible string "Unnamed unit", a missing telemetry
+vehicle name becomes a visible "Unnamed <vendor> unit" sentinel, a missing telemetry
 status becomes "unknown". Those are labels, and a label that says it does not
 know is honest on a screen. AN AMOUNT IS NOT A LABEL. `expenses.proposed ?? 0`
 does not read as "unknown" anywhere downstream; it reads as a figure, it enters

@@ -1,5 +1,6 @@
 import { VEHICLE_STATUS_VALUES } from "../adapters.mjs";
 import { defineDomain, fixtureBasisFor, mulberry32, pick } from "../fixture-seam.mjs";
+import { mintOperatorRef, operatorRefFormat } from "../operator-ref.mjs";
 
 /* --------------------------------------------------- domain: fleet vehicles
 
@@ -56,7 +57,12 @@ export const FLEET_FIXTURE_PLAN = [
 
 /** How many opaque operators the roster groups across. */
 export const OPERATOR_COUNT = 4;
-export const OPERATOR_REF_FORMAT = /^OPR-\d{2}$/;
+/**
+ * NAMESPACED BY DOMAIN (operator ruling 2026-09-17). The format is declared in
+ * `operator-ref.mjs` and read from there, so Fleet cannot spell a reference the
+ * way Police spells one. A bare `OPR-01` is no longer a valid reference here.
+ */
+export const OPERATOR_REF_FORMAT = operatorRefFormat("fleet-vehicles");
 export const VEHICLE_ID_FORMAT = /^FIX-FL-\d{4}$/;
 export const UNIT_LABEL_FORMAT = /^[A-Z][A-Za-z ]+ unit \d{2}$/;
 
@@ -98,7 +104,7 @@ export function generateFleetRecords({ cityKey, accessPolicy = "public-free", se
         accessPolicy,
         unitLabel: `${family} unit ${String(10 + seq).padStart(2, "0")}`,
         status: row.status,
-        operatorRef: `OPR-${String(1 + ((seq - 1) % OPERATOR_COUNT)).padStart(2, "0")}`,
+        operatorRef: mintOperatorRef("fleet-vehicles", 1 + ((seq - 1) % OPERATOR_COUNT)),
         operatorBasis: OPERATOR_BASIS,
         odometerBand: pick(rand, ODOMETER_BANDS),
         inventoryBasis: NOT_AN_ASSET_BASIS,

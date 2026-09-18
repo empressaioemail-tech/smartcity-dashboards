@@ -115,9 +115,18 @@ describe("G-97 the four source states are four sentences", () => {
       assert.match(block, new RegExp(`["']?${status}["']?:`), `${status} has no kicker`);
     }
     assert.match(block, /"did-not-read":/);
+    /**
+     * G-153 added two more, and they are not the seam's vocabulary: `unavailable`
+     * is a live read that did not succeed and `refused` is one that succeeded and
+     * whose records broke the declared shape. The count moved from five to seven
+     * with them, so this line is the tripwire that says so rather than a number
+     * quietly edited.
+     */
+    assert.match(block, /unavailable:/);
+    assert.match(block, /refused:/);
     const kickers = [...block.matchAll(/:\s*"([^"]+)"/g)].map((m) => m[1]);
-    assert.equal(kickers.length, 5, `expected five kickers, found ${kickers.length}`);
-    assert.equal(new Set(kickers).size, 5, `two states share a kicker: ${kickers.join(" | ")}`);
+    assert.equal(kickers.length, 7, `expected seven kickers, found ${kickers.length}`);
+    assert.equal(new Set(kickers).size, 7, `two states share a kicker: ${kickers.join(" | ")}`);
   });
 
   it("keeps ungranted and granted-empty apart in the head sentence", () => {
