@@ -12,6 +12,13 @@ import { getDomain } from "./domains.mjs";
 import { PLATFORM_MYGOV_PERMITS_GRANT } from "./adapters.mjs";
 import { BASTROP_TX, TEMPLATE_CITY } from "./city-pack.mjs";
 
+/**
+ * D-13.1. A live platform read now requires a configured base -- there is no
+ * compiled-in host to fall back to. Stated once so these tests name the
+ * platform they read instead of inheriting one.
+ */
+const ENV = { PLATFORM_INTERNAL_API_KEY: "test-key", SMARTCITY_V1_PLATFORM_BASE: "https://platform.test" };
+
 const SAMPLE_ROW = {
   id: "PRM-1324",
   permitNumber: "21-000023",
@@ -128,7 +135,7 @@ describe("mygov-permits (G-116 Phase 2 live feed)", () => {
         json: async () => ({ permits: [SAMPLE_ROW], total: 1, contract: "in_mygov_active_list=true AND tenant_id=2" }),
       };
     };
-    const result = await fetchRealPermits({ env: { PLATFORM_INTERNAL_API_KEY: "test-key" }, fetchImpl });
+    const result = await fetchRealPermits({ env: ENV, fetchImpl });
     assert.equal(result.status, "ok");
     assert.equal(capturedHeaders.authorization, "Bearer test-key");
     assert.equal(result.records.length, 1);
@@ -136,7 +143,7 @@ describe("mygov-permits (G-116 Phase 2 live feed)", () => {
 
   it("fetchRealPermits stays honest-unavailable on a non-ok HTTP response, not a thrown crash", async () => {
     const fetchImpl = async () => ({ ok: false, status: 500 });
-    const result = await fetchRealPermits({ env: { PLATFORM_INTERNAL_API_KEY: "test-key" }, fetchImpl });
+    const result = await fetchRealPermits({ env: ENV, fetchImpl });
     assert.equal(result.status, "unavailable");
     assert.match(result.basis, /HTTP 500/);
   });
@@ -151,7 +158,7 @@ describe("mygov-permits (G-116 Phase 2 live feed)", () => {
       BASTROP_TX,
       domain,
       PLATFORM_MYGOV_PERMITS_GRANT,
-      { env: { PLATFORM_INTERNAL_API_KEY: "test-key" }, fetchImpl },
+      { env: ENV, fetchImpl },
     );
     assert.equal(out.domainId, "permits-pipeline");
     assert.equal(out.lensId, "development-services");
@@ -176,7 +183,7 @@ describe("mygov-permits (G-116 Phase 2 live feed)", () => {
       BASTROP_TX,
       domain,
       PLATFORM_MYGOV_PERMITS_GRANT,
-      { env: { PLATFORM_INTERNAL_API_KEY: "test-key" }, fetchImpl },
+      { env: ENV, fetchImpl },
     );
     assert.equal(out.status, "granted-empty");
     assert.equal(out.granted, true);
@@ -221,10 +228,7 @@ describe("mygov-permits (G-116 Phase 2 live feed)", () => {
       // a DB-backed pack's granted_adapters column) must still be caught here.
       await assert.rejects(
         () =>
-          composeRealPermits(TEMPLATE_CITY, domain, PLATFORM_MYGOV_PERMITS_GRANT, {
-            env: { PLATFORM_INTERNAL_API_KEY: "test-key" },
-            fetchImpl,
-          }),
+          composeRealPermits(TEMPLATE_CITY, domain, PLATFORM_MYGOV_PERMITS_GRANT, { env: ENV, fetchImpl }),
         /mygov real feed is verified live for bastrop_tx only/,
       );
       assert.equal(fetchCalled, false, "must refuse before spending the platform key on a call it cannot correctly serve");

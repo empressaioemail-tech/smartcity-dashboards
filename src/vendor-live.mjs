@@ -24,14 +24,30 @@ real-world action outside engineering. This module reports whichever
 state is genuinely true each time it's called, not a cached assumption.
 */
 
+import { PLATFORM_BASE_UNSET_BASIS, PLATFORM_ROUTES, platformRoute } from "./platform-base.mjs";
+
 function platformKey(env = process.env) {
   return String(env.PLATFORM_INTERNAL_API_KEY || "").trim();
 }
 
-async function fetchLiveJson(url, { env = process.env, fetchImpl = globalThis.fetch } = {}) {
+/**
+ * D-13. Takes the platform ROUTE, not a URL. The host is resolved from the one
+ * configured base at call time, so this file no longer knows any host at all --
+ * which is the whole point: D-13 exists because the host five files silently
+ * agreed on turned out to be the copy OPS-25 believed was idle.
+ *
+ * With no base configured this refuses and names the variable that is missing.
+ * It does not fall back to a host, and it does not throw: the caller has an
+ * "unavailable" arm and the region is where the reason belongs.
+ */
+async function fetchLiveJson(platformPath, { env = process.env, fetchImpl = globalThis.fetch } = {}) {
   const key = platformKey(env);
   if (!key) {
     return { status: "unavailable", basis: "PLATFORM_INTERNAL_API_KEY unset", body: null };
+  }
+  const url = platformRoute(platformPath, env);
+  if (!url) {
+    return { status: "unavailable", basis: PLATFORM_BASE_UNSET_BASIS, body: null };
   }
   let res;
   try {
@@ -166,7 +182,7 @@ export function mapRealFleetVehicleRecord(row, cityKey) {
 
 export async function composeRealFleetVehicles(pack, domain, opts = {}) {
   const base = envelope(pack, domain);
-  const fetched = await fetchLiveJson("https://smartcity-api-7dyaiy7wha-uc.a.run.app/api/platform/samsara/vehicles", opts);
+  const fetched = await fetchLiveJson(PLATFORM_ROUTES.samsaraVehicles, opts);
   if (fetched.status !== "ok") return unavailableResult(base, fetched.basis);
   const rows = Array.isArray(fetched.body?.vehicles) ? fetched.body.vehicles : [];
   const records = rows.map((row) => mapRealFleetVehicleRecord(row, pack.cityKey));
@@ -229,7 +245,7 @@ export function mapRealPatrolVehicleRecord(row, cityKey) {
 
 export async function composeRealPatrolVehicles(pack, domain, opts = {}) {
   const base = envelope(pack, domain);
-  const fetched = await fetchLiveJson("https://smartcity-api-7dyaiy7wha-uc.a.run.app/api/platform/spireon/vehicles?include_inactive=true", opts);
+  const fetched = await fetchLiveJson(PLATFORM_ROUTES.spireonVehiclesIncludingInactive, opts);
   if (fetched.status !== "ok") return unavailableResult(base, fetched.basis);
   const rows = Array.isArray(fetched.body?.vehicles) ? fetched.body.vehicles : [];
   const records = rows.map((row) => mapRealPatrolVehicleRecord(row, pack.cityKey));
@@ -291,7 +307,7 @@ export function mapRealFireApparatusRecord(row, cityKey) {
 
 export async function composeRealFireApparatus(pack, domain, opts = {}) {
   const base = envelope(pack, domain);
-  const fetched = await fetchLiveJson("https://smartcity-api-7dyaiy7wha-uc.a.run.app/api/platform/firstdue/apparatus", opts);
+  const fetched = await fetchLiveJson(PLATFORM_ROUTES.firstdueApparatus, opts);
   if (fetched.status !== "ok") return unavailableResult(base, fetched.basis);
   const rows = Array.isArray(fetched.body?.apparatus) ? fetched.body.apparatus : [];
   const records = rows.map((row) => mapRealFireApparatusRecord(row, pack.cityKey));
@@ -339,7 +355,7 @@ export function mapRealCipProjectRecord(row, cityKey) {
 
 export async function composeRealCipProjects(pack, domain, opts = {}) {
   const base = envelope(pack, domain);
-  const fetched = await fetchLiveJson("https://smartcity-api-7dyaiy7wha-uc.a.run.app/api/platform/powerbi/cip-projects", opts);
+  const fetched = await fetchLiveJson(PLATFORM_ROUTES.powerbiCipProjects, opts);
   if (fetched.status !== "ok") return unavailableResult(base, fetched.basis);
   const rows = Array.isArray(fetched.body?.projects) ? fetched.body.projects : [];
   const records = rows.map((row) => mapRealCipProjectRecord(row, pack.cityKey));
@@ -380,7 +396,7 @@ export function mapRealCallSummaryRecord(summary, cityKey) {
 
 export async function composeRealCallAnalytics(pack, domain, opts = {}) {
   const base = envelope(pack, domain);
-  const fetched = await fetchLiveJson("https://smartcity-api-7dyaiy7wha-uc.a.run.app/api/platform/goto/call-summary", opts);
+  const fetched = await fetchLiveJson(PLATFORM_ROUTES.gotoCallSummary, opts);
   if (fetched.status !== "ok") return unavailableResult(base, fetched.basis);
   const summary = fetched.body?.summary;
   const records = summary ? [mapRealCallSummaryRecord(summary, pack.cityKey)] : [];

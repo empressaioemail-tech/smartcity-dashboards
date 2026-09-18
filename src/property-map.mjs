@@ -51,20 +51,31 @@ directory for the reasoning and reversal criteria).
 */
 
 import { getAllLayerKeys } from "./property-map-catalog.mjs";
-
-const DEFAULT_PROPERTY_INTEL_PLATFORM_URL =
-  "https://smartcity-api-7dyaiy7wha-uc.a.run.app/api/platform/property-intel/summary";
+import { PLATFORM_BASE_UNSET_BASIS, PLATFORM_ROUTES, platformRoute } from "./platform-base.mjs";
 
 /**
- * G-117 follow-up. smartcity-os's sibling platform route for the property
- * map's 52 toggleable GIS overlay layers (public safety, water supply,
- * infrastructure, planning, parks/community, and administrative/boundary
- * layers -- see src/property-map-catalog.mjs) -- same host as the summary
- * route above, a different path (server/routes/property-intelligence.ts's
- * registerPlatformInternalPropertyIntelRoutes registers both).
+ * D-13. Two hardcoded hosts with two independent overrides
+ * (`PROPERTY_INTEL_PLATFORM_URL`, `PROPERTY_INTEL_LAYERS_PLATFORM_URL`) became
+ * two routes on the ONE configured base. Neither override was set on any
+ * deployed app (checked on d12-main-uat and dolphin-app), so removing them
+ * drops no live configuration -- and keeping them would have meant the base
+ * was not one base after all.
  */
-const DEFAULT_PROPERTY_INTEL_LAYERS_PLATFORM_URL =
-  "https://smartcity-api-7dyaiy7wha-uc.a.run.app/api/platform/property-intel/layers";
+function platformUrl(env = process.env) {
+  return platformRoute(PLATFORM_ROUTES.propertyIntelSummary, env);
+}
+
+/**
+ * G-117 follow-up. smartcity-os's sibling platform route for the property map's
+ * 52 toggleable GIS overlay layers (public safety, water supply,
+ * infrastructure, planning, parks/community, and administrative/boundary
+ * layers -- see src/property-map-catalog.mjs). Same base as the summary route
+ * above, a different path: server/routes/property-intelligence.ts's
+ * registerPlatformInternalPropertyIntelRoutes registers both.
+ */
+function platformLayersUrl(env = process.env) {
+  return platformRoute(PLATFORM_ROUTES.propertyIntelLayers, env);
+}
 
 /**
  * The full 52-key list smartcity-os's own route allowlists (server/routes/
@@ -78,14 +89,6 @@ const DEFAULT_PROPERTY_INTEL_LAYERS_PLATFORM_URL =
 export const PROPERTY_INTEL_LAYER_KEYS = getAllLayerKeys();
 
 export const NATIVE_PROPERTY_MAP_CITY_KEY = "bastrop_tx";
-
-function platformUrl(env = process.env) {
-  return String(env.PROPERTY_INTEL_PLATFORM_URL || DEFAULT_PROPERTY_INTEL_PLATFORM_URL).trim();
-}
-
-function platformLayersUrl(env = process.env) {
-  return String(env.PROPERTY_INTEL_LAYERS_PLATFORM_URL || DEFAULT_PROPERTY_INTEL_LAYERS_PLATFORM_URL).trim();
-}
 
 function platformKey(env = process.env) {
   return String(env.PLATFORM_INTERNAL_API_KEY || "").trim();
@@ -105,7 +108,11 @@ export async function fetchPropertyIntelSummary(
   if (!key) {
     return { status: "unavailable", basis: "PLATFORM_INTERNAL_API_KEY unset", body: null };
   }
-  const url = `${platformUrl(env)}?address=${encodeURIComponent(address)}`;
+  const base = platformUrl(env);
+  if (!base) {
+    return { status: "unavailable", basis: PLATFORM_BASE_UNSET_BASIS, body: null };
+  }
+  const url = `${base}?address=${encodeURIComponent(address)}`;
   let res;
   try {
     res = await fetchImpl(url, {
@@ -140,6 +147,10 @@ export async function fetchPropertyIntelLayer(
   if (!platformApiKey) {
     return { status: "unavailable", basis: "PLATFORM_INTERNAL_API_KEY unset", body: null };
   }
+  const layersBase = platformLayersUrl(env);
+  if (!layersBase) {
+    return { status: "unavailable", basis: PLATFORM_BASE_UNSET_BASIS, body: null };
+  }
   const params = new URLSearchParams({
     key: String(key || ""),
     xmin: String(bbox?.xmin ?? ""),
@@ -147,7 +158,7 @@ export async function fetchPropertyIntelLayer(
     xmax: String(bbox?.xmax ?? ""),
     ymax: String(bbox?.ymax ?? ""),
   });
-  const url = `${platformLayersUrl(env)}?${params}`;
+  const url = `${layersBase}?${params}`;
   let res;
   try {
     res = await fetchImpl(url, {

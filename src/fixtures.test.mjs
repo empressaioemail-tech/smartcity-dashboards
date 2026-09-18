@@ -446,6 +446,12 @@ describe("the generator", () => {
 
 describe("composePipeline real branch (G-116 close, the fixed route-dispatch gap)", () => {
   const domain = getDomain("permits-pipeline");
+  /**
+   * D-13.1. A live platform read requires a configured base; there is no
+   * compiled-in host to fall back to. Named here so the read these two tests
+   * assert goes to the platform this test says it does.
+   */
+  const ENV = { PLATFORM_INTERNAL_API_KEY: "test-key", SMARTCITY_V1_PLATFORM_BASE: "https://platform.test" };
 
   it("adapts a real composeRealPermits result onto the pipeline shape, generated true, real counts not fixture metrics", async () => {
     const fetchImpl = async () => ({
@@ -453,7 +459,7 @@ describe("composePipeline real branch (G-116 close, the fixed route-dispatch gap
       json: async () => ({ permits: [{ id: "1", permitNumber: "21-1", status: "active" }], contract: "live" }),
     });
     const real = await composeRealPermits(BASTROP_TX, domain, PLATFORM_MYGOV_PERMITS_GRANT, {
-      env: { PLATFORM_INTERNAL_API_KEY: "test-key" },
+      env: ENV,
       fetchImpl,
     });
     const pipeline = composePipeline(BASTROP_TX, real);
@@ -471,7 +477,7 @@ describe("composePipeline real branch (G-116 close, the fixed route-dispatch gap
   it("does not claim a real, empty pipeline 'generates none' -- that phrase is only true of a fixture pack", async () => {
     const fetchImpl = async () => ({ ok: true, json: async () => ({ permits: [], contract: "live" }) });
     const real = await composeRealPermits(BASTROP_TX, domain, PLATFORM_MYGOV_PERMITS_GRANT, {
-      env: { PLATFORM_INTERNAL_API_KEY: "test-key" },
+      env: ENV,
       fetchImpl,
     });
     const pipeline = composePipeline(BASTROP_TX, real);

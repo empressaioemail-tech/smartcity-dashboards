@@ -31,6 +31,7 @@ This is a named, deliberate residual, not an oversight -- see G-116's
 close artifact for the honest coverage picture.
 */
 import { opaqueRefs, refusalBasis } from "./record-identity.mjs";
+import { PLATFORM_BASE_UNSET_BASIS, PLATFORM_ROUTES, platformRoute } from "./platform-base.mjs";
 
 /**
  * G-126 defect 2. smartcity-os's platform route (server/routes/mygov.ts,
@@ -73,10 +74,17 @@ export function assertVerifiedMygovTenant(cityKey) {
   }
 }
 
-const DEFAULT_MYGOV_PLATFORM_URL = "https://smartcity-api-7dyaiy7wha-uc.a.run.app/api/platform/mygov/permits";
-
+/**
+ * D-13. Was a hardcoded host plus a `MYGOV_PLATFORM_URL` override; both are
+ * gone. `platformRoute` resolves the ONE configured base at call time and
+ * returns null when there is none -- and null is the answer this caller has to
+ * handle anyway. The old shape always returned a fetchable-looking URL, which
+ * is how a host being retired stayed in the read path without anyone deciding
+ * it should. Nothing deployed set the old override (checked on d12-main-uat
+ * and dolphin-app), so its removal drops no live configuration.
+ */
 function platformUrl(env = process.env) {
-  return String(env.MYGOV_PLATFORM_URL || DEFAULT_MYGOV_PLATFORM_URL).trim();
+  return platformRoute(PLATFORM_ROUTES.mygovPermits, env);
 }
 
 function platformKey(env = process.env) {
@@ -182,6 +190,9 @@ export async function fetchRealPermits({ env = process.env, fetchImpl = globalTh
   const key = platformKey(env);
   if (!key) {
     return { status: "unavailable", basis: "PLATFORM_INTERNAL_API_KEY unset", records: [] };
+  }
+  if (!url) {
+    return { status: "unavailable", basis: PLATFORM_BASE_UNSET_BASIS, records: [] };
   }
   let res;
   try {
