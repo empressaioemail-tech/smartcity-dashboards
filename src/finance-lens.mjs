@@ -256,6 +256,18 @@ function resolveSource(source, { grantedIds, shapes, readings, packLabel, grants
       acquisition: source.acquisition,
     };
   }
+  /**
+   * GRANTED, MAPPABLE, AND NOTHING READ YET: the state a city is in the week the
+   * feed is connected and before the first record lands. The cell is a WORD, not
+   * a 0, because nothing has been measured - and this is the branch where a
+   * fabricated zero would sit unnoticed if anyone ever wrote one, which is why
+   * src/finance-lens.test.mjs declares the shape for the test and renders it.
+   *
+   * On today's catalog no pack reaches this line: every finance source names
+   * opengov, whose shape is undeclared on G-91, and the one declared finance
+   * kind (mygov) belongs to the source with a partial split. It is live the day
+   * that shape is declared.
+   */
   if (grantedForSource.length > 0) {
     return {
       state: "UNACCOUNTED",

@@ -41,6 +41,7 @@ import {
   renderFinanceLens,
 } from "./finance-lens.mjs";
 import { grantedKindIds, packSources } from "./city-identity.mjs";
+import { RECORD_SHAPES } from "./adapters.mjs";
 
 const PACKS = [TEMPLATE_CITY, EMPTY_CITY, FIXTURE_CITY, BASTROP_TX];
 const SOURCE_IDS = FINANCE_REQUIRED_SOURCES.map((s) => s.id);
@@ -129,6 +130,26 @@ describe("G-156 finance lens: states", () => {
     assert.match(ledger.basis, /disagree/);
   });
 
+  it("does not source the fund ledger even when the kind it names is granted", () => {
+    /**
+     * THE VIOLATION DIRECTION for "the fund ledger stays UNACCOUNTED". The
+     * tempting way to fill it is to grant the kind the ledger names and let the
+     * grant become a source. Granting it must NOT do that: opengov's own record
+     * shape is undeclared (G-91), and a grant is not a mapping, so the ledger
+     * stays unaccounted and the basis has to say why. Written as a falsifier
+     * rather than as a promise.
+     */
+    const granted = financeLensState({
+      cityKey: "granted-pack",
+      grantedAdapters: [{ kind: "opengov" }],
+    });
+    const ledger = granted.sources.find((s) => s.id === "fund-ledger");
+    assert.equal(ledger.state, "UNACCOUNTED");
+    assert.equal(ledger.value, undefined);
+    assert.match(ledger.basis, /not declared on G-91/);
+    assert.equal(granted.read, 0, "a grant is not a reading");
+  });
+
   it("holds the Finance derivation to the grant-counting rule's own numerator", () => {
     /**
      * CTRL-1. grantedKindIds() is the one implementation of "the distinct
@@ -176,6 +197,44 @@ describe("G-156 finance lens: absent, zero and unaccounted on one surface", () =
     assert.match(basis, /because the fund list is the adopted budget feed's own output/);
     /** A stated absence is not a balance, and it says which. */
     assert.equal(/balance of zero|no spending|\$0/.test(surface), false);
+  });
+
+  it("states a granted-but-unread connector as a word, not as a zero", () => {
+    /**
+     * THE VIOLATION DIRECTION FOR THE SECOND STATE, AND A DEAD BRANCH THAT WAS
+     * HOLDING A LIVE ZERO.
+     *
+     * Writing `value: 0` into the granted-but-unread branch of resolveSource
+     * failed NO test. The branch is not reachable off today's catalog: every
+     * finance source names opengov, whose record shape is undeclared on G-91, so
+     * a granted opengov resolves down the UNMAPPABLE branch above it, and the
+     * one declared finance kind (mygov) belongs to the source that carries a
+     * partial split, which returns PARTIAL before this line is reached. The
+     * module's own docstring claims every branch is reachable and exercised.
+     * That claim was false, and the thing it was not exercising is the one place
+     * a figure could appear on a row that measured nothing.
+     *
+     * The branch is load-bearing the day opengov's shape is declared: connect
+     * the feed, nothing has landed, and the lens has to say connected-but-unread
+     * rather than 0. So it gets its own surface here by declaring the shape for
+     * the test - the reader takes `shapes` as an argument for exactly this -
+     * instead of leaving it dead and trusting it.
+     */
+    const declared = { ...RECORD_SHAPES, opengov: { ...RECORD_SHAPES.opengov, declared: true } };
+    const connectUnread = { cityKey: "connected-not-read", grantedAdapters: [{ kind: "opengov" }] };
+    const state = financeLensState(connectUnread, { shapes: declared });
+    const surface = renderFinanceLens(connectUnread, { shapes: declared });
+    for (const id of ["adopted-budget", "fund-ledger", "department-spend"]) {
+      const cell = surface.match(new RegExp(`data-finance-state="${id}"[^>]*>([^<]*)<`))?.[1];
+      assert.equal(cell, "UNACCOUNTED", id);
+      assert.match(
+        state.sources.find((s) => s.id === id).basis,
+        /granted and mappable, and no record from it has been read/,
+        id,
+      );
+    }
+    assert.equal(/>0</.test(surface), false, "an unread connector never renders as a figure");
+    assert.deepEqual(money(surface), [], "and its surface carries no money token");
   });
 
   it("keeps the three renderings distinguishable from each other", () => {
