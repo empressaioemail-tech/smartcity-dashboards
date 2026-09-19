@@ -29,6 +29,7 @@ import { cityIdentity } from "./city-identity.mjs";
 import { financeLensPayload } from "./finance-lens.mjs";
 import { publicWorksLensPayload, renderPublicWorksSurface } from "./public-works-lens.mjs";
 import { fireEmsLensPayload, renderFireEmsSurface } from "./fire-ems-lens.mjs";
+import { renderParksSurface } from "./parks-lens.mjs";
 import { runMunicodeCalendar } from "./municode-calendar.mjs";
 import { loadDotenv } from "./load-env.mjs";
 import { pingDb } from "./db.mjs";
@@ -1025,11 +1026,18 @@ async function handle(req, res) {
   }
 
   /**
-   * The rendered page of the same two lenses. `assetBase: ""` makes the two kit
-   * stylesheets absolute, because this path is nested (/lens/public-works) and a
-   * relative link would resolve to /lens/sc-kit.css. It is the ONLY difference
-   * between this document and what scripts/export-*-lens.mjs writes for the
-   * design's check to read.
+   * The rendered page of the same two lenses, and of Parks. `assetBase: ""` makes
+   * the two kit stylesheets absolute, because this path is nested (/lens/parks)
+   * and a relative link would resolve to /lens/sc-kit.css. It is the ONLY
+   * difference between this document and what scripts/export-*-lens.mjs writes
+   * for the design's check to read.
+   *
+   * G-151 AND WHY PARKS IS A PAGE AND NOT A PAYLOAD. Parks has no dashboard, so
+   * there is deliberately no `/api/lenses/parks/dashboard` above: that route
+   * would exist only to answer with zero of everything, and a route named after
+   * a dashboard is itself a claim that one exists. The page is the whole product
+   * surface for this lens, and its `status` is `not-registered` — the surface is
+   * absent, which is a different sentence from a built region that is empty.
    */
   const LENS_PAGES = {
     "/lens/public-works": {
@@ -1041,6 +1049,11 @@ async function handle(req, res) {
       stake: "serving the demo pack's fire and EMS page to a caller who named no city would render demo readiness under their own header",
       page: renderFireEmsSurface,
       lens: "fire-ems",
+    },
+    "/lens/parks": {
+      stake: "serving the Parks page to a caller who named no city would answer a question about their city with a page that says nothing about any city",
+      page: renderParksSurface,
+      lens: "parks",
     },
   };
   const lensPage = LENS_PAGES[url.pathname];
