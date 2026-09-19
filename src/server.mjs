@@ -36,6 +36,7 @@ import { MCP_TOOL_NAMES } from "./catalog.mjs";
 import { canReadPack, packContentReadStatus, packReadStatus, resolveCaller, isServiceBearer, accessRefusalBody, headerValue, STAFF_SESSION_COOKIE } from "./tenancy.mjs";
 import { listStaffAccounts } from "./staff-directory.mjs";
 import { generateState, buildAuthorizeUrl, exchangeCodeForToken, serializeCookie, clearCookie, STATE_COOKIE } from "./staff-signin.mjs";
+import { recordStaffRead, AccessLogWriteRefused } from "./access-log.mjs";
 
 /**
  * G-116 Phase 2. Every domain with a real (non-fixture) source, and how to
@@ -171,6 +172,95 @@ function requiredCityKey(res, url, stake) {
     message: `this route takes a cityKey and refuses without one; ${stake}`,
   });
   return null;
+}
+
+/* ---------------------------------------------------------------------------
+ * G-158. THE CONTENT-READ GATE: MAY THIS CALLER READ IT, AND IS IT RECORDED.
+ *
+ * ONE PLACE, because the property this row is judged on is EXHAUSTIVENESS. "A
+ * read by a signed-in person is written down" is a claim about every read path
+ * at once, and eleven routes each remembering to call the log is eleven chances
+ * for the twelfth to forget. So the log write hangs off the same gate that
+ * already decides readability: every route that gates on packContentReadStatus
+ * records, and no route reaches pack content without passing here.
+ *
+ * packContentReadStatus is the single content-read policy this product has --
+ * src/tenancy.mjs says so in its own header -- so "every call site of it is
+ * instrumented" and "every content read is recorded" are the same claim. The
+ * count of call sites is therefore part of this gate's contract, and a new one
+ * that does not call this helper is a hole in the audit trail: the tests in
+ * src/access-log-route.test.mjs assert the count rather than trusting a habit.
+ *
+ * TWO STEPS, NOT ONE, because one route needs them apart. /api/domains/:id
+ * checks readability BEFORE it composes -- so a caller who may not read a
+ * tenant-private pack never triggers a live vendor fetch -- but can only record
+ * the read once the composed record is known to be SERVED, since an
+ * unregistered domain answers 404 with no records to have read. Splitting them
+ * lets that route keep the existing fail-closed order and still record only
+ * reads that really happened.
+ *
+ * BOTH RETURN TRUE WHEN THEY HAVE ALREADY ANSWERED, and the caller MUST return
+ * on true. The 404/401/403 is unchanged and comes first, so a caller who may not
+ * read gets exactly what they always got and nothing is recorded about a read
+ * that never happened. The log write comes after, and BEFORE the response body
+ * exists: nothing composes, fetches or sends records before the row is written.
+ *
+ * A REFUSED LOG WRITE IS A REFUSAL, NOT A 500. A 500 says "this broke"; what
+ * happened is that the product declined to serve a reading it could not record,
+ * which is a decision and is reported as one, with its own error name so a probe
+ * can tell it apart from a permission refusal. `refused: true` makes it
+ * unmistakable on the wire.
+ */
+function contentReadRefused(res, caller, pack) {
+  const status = packContentReadStatus(pack, caller);
+  if (status === 404) {
+    json(res, 404, { error: "unknown city pack" });
+    return true;
+  }
+  if (status !== 200) {
+    json(res, status, accessRefusalBody(caller, status));
+    return true;
+  }
+  return false;
+}
+
+/**
+ * The same two steps for the routes that answer a DOCUMENT rather than JSON
+ * (/lens/public-works, /lens/fire-ems), whose refusals are HTML because that is
+ * what the caller asked for. Only the readability step differs; the log write
+ * is the shared one above, so a page and its JSON payload cannot disagree about
+ * whether a failed record refuses the read.
+ */
+function contentReadRefusedHtml(res, caller, pack) {
+  const status = packContentReadStatus(pack, caller);
+  if (status === 404) {
+    html(res, 404, "<!doctype html>\n<title>Unknown city pack</title>\n<p>unknown city pack\n");
+    return true;
+  }
+  if (status !== 200) {
+    html(res, status, "<!doctype html>\n<title>Not authorized</title>\n<p>not authorized for this pack\n");
+    return true;
+  }
+  return false;
+}
+
+async function recordReadOrRefuse(res, url, caller, pack, lensId, recordId = null) {
+  try {
+    await recordStaffRead({
+      caller,
+      cityKey: pack.cityKey,
+      lensId,
+      recordId,
+      route: url.pathname,
+    });
+  } catch (err) {
+    const refusal = err instanceof AccessLogWriteRefused
+      ? err
+      : new AccessLogWriteRefused("store_error", `the access log write failed, so this read is refused rather than served unrecorded: ${err?.message || err}`);
+    json(res, refusal.status, { error: refusal.error, message: refusal.message, reason: refusal.reason, refused: true });
+    return true;
+  }
+  return false;
 }
 
 // A strong validator derived from the bytes themselves. Content-derived on every
@@ -379,15 +469,8 @@ async function handle(req, res) {
     if (!cityKey) return;
     const caller = await resolveCaller(req);
     const pack = await getCityPack(cityKey);
-    const status = packContentReadStatus(pack, caller);
-    if (status === 404) {
-      json(res, 404, { error: "unknown city pack" });
-      return;
-    }
-    if (status !== 200) {
-      json(res, status, accessRefusalBody(caller, status));
-      return;
-    }
+    if (contentReadRefused(res, caller, pack)) return;
+    if (await recordReadOrRefuse(res, url, caller, pack, "city-manager")) return;
     const composed = await composeCityManager({
       parcelNodeId: url.searchParams.get("parcelNodeId") || "",
       cityKey: pack.cityKey,
@@ -423,15 +506,8 @@ async function handle(req, res) {
     const caller = await resolveCaller(req);
     const cityKey = url.searchParams.get("cityKey") || "";
     const pack = await getCityPack(cityKey);
-    const status = packContentReadStatus(pack, caller);
-    if (status === 404) {
-      json(res, 404, { error: "unknown city pack" });
-      return;
-    }
-    if (status !== 200) {
-      json(res, status, accessRefusalBody(caller, status));
-      return;
-    }
+    if (contentReadRefused(res, caller, pack)) return;
+    if (await recordReadOrRefuse(res, url, caller, pack, "city-manager")) return;
     const composed = await composePropertyIntelSummary({
       address: url.searchParams.get("address") || "",
       cityKey: pack.cityKey,
@@ -454,15 +530,8 @@ async function handle(req, res) {
     const caller = await resolveCaller(req);
     const cityKey = url.searchParams.get("cityKey") || "";
     const pack = await getCityPack(cityKey);
-    const status = packContentReadStatus(pack, caller);
-    if (status === 404) {
-      json(res, 404, { error: "unknown city pack" });
-      return;
-    }
-    if (status !== 200) {
-      json(res, status, accessRefusalBody(caller, status));
-      return;
-    }
+    if (contentReadRefused(res, caller, pack)) return;
+    if (await recordReadOrRefuse(res, url, caller, pack, "city-manager")) return;
     const composed = await composePropertyIntelLayer({
       key: url.searchParams.get("key") || "",
       cityKey: pack.cityKey,
@@ -491,15 +560,8 @@ async function handle(req, res) {
     const pack = await getCityPack(cityKey);
     // Content read, not enumeration: a public-free pack is readable anonymously
     // whether or not this deployment has a service key configured.
-    const status = packContentReadStatus(pack, caller);
-    if (status === 404) {
-      json(res, 404, { error: "unknown city pack" });
-      return;
-    }
-    if (status !== 200) {
-      json(res, status, accessRefusalBody(caller, status));
-      return;
-    }
+    if (contentReadRefused(res, caller, pack)) return;
+    if (await recordReadOrRefuse(res, url, caller, pack, "development-services")) return;
     /**
      * G-116 Phase 2 gap closed. Same real-source branch as /api/domains/:id
      * and /api/city-domains, previously missing here: this lens route called
@@ -543,15 +605,10 @@ async function handle(req, res) {
     if (!cityKey) return;
     const caller = await resolveCaller(req);
     const pack = await getCityPack(cityKey);
-    const status = packContentReadStatus(pack, caller);
-    if (status === 404) {
-      json(res, 404, { error: "unknown city pack" });
-      return;
-    }
-    if (status !== 200) {
-      json(res, status, accessRefusalBody(caller, status));
-      return;
-    }
+    // Cross-lens: this route reports every lens's source state for the pack, so
+    // it is nobody's lens and the row says so rather than naming one of them.
+    if (contentReadRefused(res, caller, pack)) return;
+    if (await recordReadOrRefuse(res, url, caller, pack, null)) return;
     const map = composeDomainMap(pack);
     /**
      * G-116 Phase 2. Same real-source branch as /api/domains/:id below --
@@ -611,15 +668,15 @@ async function handle(req, res) {
     const caller = await resolveCaller(req);
     const domainId = decodeURIComponent(url.pathname.slice("/api/domains/".length));
     const pack = await getCityPack(cityKey);
-    const status = packContentReadStatus(pack, caller);
-    if (status === 404) {
-      json(res, 404, { error: "unknown city pack" });
-      return;
-    }
-    if (status !== 200) {
-      json(res, status, accessRefusalBody(caller, status));
-      return;
-    }
+    /**
+     * G-158. Readability is settled HERE, before anything is composed, so a
+     * caller who may not read a tenant-private pack never triggers a live
+     * vendor fetch -- the order this route already had. The LOG WRITE is
+     * deliberately NOT here: a read is recorded when records are SERVED, and
+     * this route answers 404 with no records at all for an unregistered
+     * domain, which is not a read of anything.
+     */
+    if (contentReadRefused(res, caller, pack)) return;
     /**
      * G-116 Phase 2. The ten domains with a real, live source instead of a
      * fixture (REAL_LIVE_DOMAINS above). composeDomain/composeDomainById
@@ -638,13 +695,21 @@ async function handle(req, res) {
       if (grant) {
         const composed = await composeRealMygovDomain(domainId, pack, grant);
         if (composed) {
+          // The domain's OWN lens, taken from the record being served rather
+          // than mapped here, so a row can never name a lens the read was not.
+          if (await recordReadOrRefuse(res, url, caller, pack, composed.lensId, domainId)) return;
           json(res, 200, composed);
           return;
         }
       }
     }
     const composed = composeDomainById(pack, domainId);
-    json(res, composed.status === "not-registered" ? 404 : 200, composed);
+    if (composed.status === "not-registered") {
+      json(res, 404, composed);
+      return;
+    }
+    if (await recordReadOrRefuse(res, url, caller, pack, composed.lensId, domainId)) return;
+    json(res, 200, composed);
     return;
   }
 
@@ -673,15 +738,10 @@ async function handle(req, res) {
     if (!cityKey) return;
     const caller = await resolveCaller(req);
     const pack = await getCityPack(cityKey);
-    const status = packContentReadStatus(pack, caller);
-    if (status === 404) {
-      json(res, 404, { error: "unknown city pack" });
-      return;
-    }
-    if (status !== 200) {
-      json(res, status, accessRefusalBody(caller, status));
-      return;
-    }
+    // Not a lens read: this is the pack's name and seal, which belongs to the
+    // city rather than to any one lens, so the row carries no lens.
+    if (contentReadRefused(res, caller, pack)) return;
+    if (await recordReadOrRefuse(res, url, caller, pack, null)) return;
     json(res, 200, { identity: cityIdentity(pack) });
     return;
   }
@@ -711,15 +771,10 @@ async function handle(req, res) {
     if (!cityKey) return;
     const caller = await resolveCaller(req);
     const pack = await getCityPack(cityKey);
-    const status = packContentReadStatus(pack, caller);
-    if (status === 404) {
-      json(res, 404, { error: "unknown city pack" });
-      return;
-    }
-    if (status !== 200) {
-      json(res, status, accessRefusalBody(caller, status));
-      return;
-    }
+    // Not a lens read: the shell's counts and basis lines are the chrome's, not
+    // one lens's records, so the row carries no lens.
+    if (contentReadRefused(res, caller, pack)) return;
+    if (await recordReadOrRefuse(res, url, caller, pack, null)) return;
     json(res, 200, shellState({ caller, pack, env: process.env }));
     return;
   }
@@ -909,15 +964,8 @@ async function handle(req, res) {
     if (!cityKey) return;
     const caller = await resolveCaller(req);
     const pack = await getCityPack(cityKey);
-    const status = packContentReadStatus(pack, caller);
-    if (status === 404) {
-      json(res, 404, { error: "unknown city pack" });
-      return;
-    }
-    if (status !== 200) {
-      json(res, status, accessRefusalBody(caller, status));
-      return;
-    }
+    if (contentReadRefused(res, caller, pack)) return;
+    if (await recordReadOrRefuse(res, url, caller, pack, "finance")) return;
     json(res, 200, financeLensPayload(pack));
     return;
   }
@@ -956,10 +1004,12 @@ async function handle(req, res) {
     "/api/lenses/public-works/dashboard": {
       stake: "answering with the demo pack's capital projects and call buckets would serve demo records under whatever city the caller meant",
       payload: publicWorksLensPayload,
+      lens: "public-works",
     },
     "/api/lenses/fire-ems/dashboard": {
       stake: "answering with the demo pack's apparatus and stations would serve demo readiness under whatever city the caller meant",
       payload: fireEmsLensPayload,
+      lens: "fire-ems",
     },
   };
   const lensSurface = LENS_SURFACES[url.pathname];
@@ -968,15 +1018,8 @@ async function handle(req, res) {
     if (!cityKey) return;
     const caller = await resolveCaller(req);
     const pack = await getCityPack(cityKey);
-    const status = packContentReadStatus(pack, caller);
-    if (status === 404) {
-      json(res, 404, { error: "unknown city pack" });
-      return;
-    }
-    if (status !== 200) {
-      json(res, status, accessRefusalBody(caller, status));
-      return;
-    }
+    if (contentReadRefused(res, caller, pack)) return;
+    if (await recordReadOrRefuse(res, url, caller, pack, lensSurface.lens)) return;
     json(res, 200, lensSurface.payload(pack));
     return;
   }
@@ -992,10 +1035,12 @@ async function handle(req, res) {
     "/lens/public-works": {
       stake: "serving the demo pack's public works page to a caller who named no city would render demo records under their own header",
       page: renderPublicWorksSurface,
+      lens: "public-works",
     },
     "/lens/fire-ems": {
       stake: "serving the demo pack's fire and EMS page to a caller who named no city would render demo readiness under their own header",
       page: renderFireEmsSurface,
+      lens: "fire-ems",
     },
   };
   const lensPage = LENS_PAGES[url.pathname];
@@ -1004,15 +1049,16 @@ async function handle(req, res) {
     if (!cityKey) return;
     const caller = await resolveCaller(req);
     const pack = await getCityPack(cityKey);
-    const status = packContentReadStatus(pack, caller);
-    if (status === 404) {
-      html(res, 404, "<!doctype html>\n<title>Unknown city pack</title>\n<p>unknown city pack\n");
-      return;
-    }
-    if (status !== 200) {
-      html(res, status, "<!doctype html>\n<title>Not authorized</title>\n<p>not authorized for this pack\n");
-      return;
-    }
+    /**
+     * The page and the JSON dashboard beside it are the same reading of the
+     * same records, so both are recorded and both carry the same lens. The
+     * refusals here are HTML rather than JSON (this route serves a document),
+     * which is why this seam does not use the shared contentReadRefused --
+     * but the LOG WRITE is shared, so a failure to record refuses the page
+     * exactly as it refuses the payload.
+     */
+    if (contentReadRefusedHtml(res, caller, pack)) return;
+    if (await recordReadOrRefuse(res, url, caller, pack, lensPage.lens)) return;
     html(res, 200, lensPage.page(pack, { assetBase: "" }));
     return;
   }
