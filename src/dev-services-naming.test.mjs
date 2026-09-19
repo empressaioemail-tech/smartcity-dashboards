@@ -57,11 +57,15 @@ const CAPTURE_PERSON = "DEBORAH MOORE, PH#737-762-6252";
 const INITIALISED_PERSON = "D. Moore";
 const BUSINESS = "Redwood Development LLC";
 
-/** A real-shaped read for one resource, with the given rows. */
-const read = (compose, domainId, listKey, rows) =>
+/** A real-shaped read for one resource, with the given rows.
+ *  `extra` is what the compose needs beyond the transport. G-166 uses it to
+ *  hand the business-licence compose the clock the fixture was built from, so
+ *  the fixture and the code under test read ONE clock rather than two. */
+const read = (compose, domainId, listKey, rows, extra = {}) =>
   compose(BASTROP_TX, getDomain(domainId), {
     env: ENV,
     fetchImpl: async () => ({ ok: true, json: async () => ({ [listKey]: rows, contract: "live" }) }),
+    ...extra,
   });
 
 /**
@@ -187,20 +191,48 @@ describe("G-154 correction 3: the licence rows are in the design's sort order", 
    * and the arrival order are different. `expirationDate` is the only date
    * field the real row carries.
    */
+  /**
+   * ONE CLOCK, NAMED ONCE, HANDED TO BOTH SIDES.
+   *
+   * This arm failed on `main` from 2026-09-19 (three consecutive runs, last
+   * green ea27024 at 2026-09-18T21:58:44Z; cbdfaeb6 read [-41, 11, 199]). No
+   * code change caused it. The fixture below was anchored to a FIXED calendar
+   * date while the code under test derived its offsets from the LIVE clock:
+   * `mapRealBusinessLicenseRecord` called `expiryOffsetFrom(row.expirationDate)`
+   * with no clock, which defaults to `new Date()`. The two clocks agreed on
+   * exactly one day, so the assertion was true for one run and drifted by one
+   * day per day thereafter. A time bomb, not a flake.
+   *
+   * THE REPAIR IS NOT A NEW ANCHOR. Moving the anchor to "today" would re-arm
+   * the identical bomb one day later. It is: the fixture and the code under
+   * test read the SAME clock, and this file hands that clock to the compose
+   * explicitly - `{ now: TODAY }` -> `composeRealBusinessLicenses` ->
+   * `mapRealBusinessLicenseRecord` -> `expiryOffsetFrom`. `day(offset)` is
+   * `TODAY + offset` days. Nothing on this path reads the wall clock, so the
+   * offsets assertion below holds on every calendar day, forever, and the arm
+   * at the end of this block re-runs the identical read years away from TODAY
+   * to prove it. Production is unchanged: no production call site passes a
+   * clock, so the default remains the live clock.
+   */
   const TODAY = new Date("2026-09-18T06:00:00Z");
-  const day = (offset) => {
-    const t = new Date(Date.UTC(2026, 8, 18) + offset * 86400000);
-    return t.toISOString().slice(0, 10);
-  };
-  const LICENCE_ROWS = [
-    { licenseNumber: "23-000005", status: "active", businessName: BUSINESS, type: "Vehicle for hire", expirationDate: day(200) },
-    { licenseNumber: "23-000006", status: "active", businessName: "Golf cart license", type: "Vehicle for hire", expirationDate: day(-40) },
-    { licenseNumber: "23-000007", status: "active", businessName: "Sample Bend Salon", type: "Salon and barber", expirationDate: day(12) },
+  /** A day offset as the date-only string the vendor carries, taken from an
+   *  EXPLICIT clock. Pure: it reads no wall clock, so the same `clock` always
+   *  yields the same rows. */
+  const dayFrom = (clock, offset) => new Date(clock.getTime() + offset * 86400000).toISOString().slice(0, 10);
+  const day = (offset) => dayFrom(TODAY, offset);
+  /** The shuffled read, dated from ANY clock. Used twice: once at the fixture's
+   *  anchor, once years away, so the assertion is shown to be a function of the
+   *  clock handed in and not of the day the suite happens to run. */
+  const licenceRowsFrom = (clock) => [
+    { licenseNumber: "23-000005", status: "active", businessName: BUSINESS, type: "Vehicle for hire", expirationDate: dayFrom(clock, 200) },
+    { licenseNumber: "23-000006", status: "active", businessName: "Golf cart license", type: "Vehicle for hire", expirationDate: dayFrom(clock, -40) },
+    { licenseNumber: "23-000007", status: "active", businessName: "Sample Bend Salon", type: "Salon and barber", expirationDate: dayFrom(clock, 12) },
     { licenseNumber: "23-000008", status: "active", businessName: "Specimen Yard Cafe", type: "Food establishment", expirationDate: null },
   ];
+  const LICENCE_ROWS = licenceRowsFrom(TODAY);
 
   it("sorts a shuffled read into the roll's order and states the expiry the order was taken on", async () => {
-    const payload = await read(composeRealBusinessLicenses, "business-licenses", "licenses", LICENCE_ROWS);
+    const payload = await read(composeRealBusinessLicenses, "business-licenses", "licenses", LICENCE_ROWS, { now: TODAY });
     assert.equal(payload.status, "ok");
     const ids = payload.records.map((r) => r.recordId);
     assert.deepEqual(ids, ["23-000006", "23-000007", "23-000005", "23-000008"]);
@@ -222,6 +254,73 @@ describe("G-154 correction 3: the licence rows are in the design's sort order", 
       .map((record) => record.recordId);
     assert.deepEqual(arrival, ["23-000005", "23-000006", "23-000007", "23-000008"]);
     assert.notDeepEqual(arrival, sortedByTheShippedRule, "the read must be shuffled, or the arm proves nothing");
+  });
+
+  /**
+   * THE DATE-INDEPENDENCE PROOF, and it is also the proof that the injected
+   * clock is HONOURED rather than silently ignored - which is the exact defect
+   * that turned `main` red. `licenceRowsFrom` dates the same shuffled read from
+   * whatever clock it is handed, and the compose is handed that same clock, so
+   * the offsets must be identical to the arm above. If the compose fell back to
+   * `new Date()` anywhere on the path, this read would instead return
+   * [-40, 12, 200] shifted by (TODAY - FAR) days - ~1,730 days - and fail.
+   */
+  it("cannot expire: the identical read on a clock years from the fixture's anchor holds the identical offsets", async () => {
+    const FAR = new Date(Date.UTC(2031, 5, 15, 6, 0, 0));
+    const payload = await read(
+      composeRealBusinessLicenses,
+      "business-licenses",
+      "licenses",
+      licenceRowsFrom(FAR),
+      { now: FAR },
+    );
+    assert.equal(payload.status, "ok", payload.basis);
+    assert.deepEqual(payload.records.map((r) => r.recordId), ["23-000006", "23-000007", "23-000005", "23-000008"]);
+    assert.deepEqual(payload.records.slice(0, 3).map((r) => r.expiryOffsetDays), [-40, 12, 200]);
+    assert.equal(payload.records[3].expiryOffsetDays, null);
+    /** The two vantages are genuinely different clock values, or this arm would
+     *  be the arm above wearing a second name. */
+    assert.notEqual(FAR.getTime(), TODAY.getTime());
+  });
+
+  /**
+   * THE WALL-CLOCK PROOF ITEM 2 ASKS FOR, and it is the one a green run today
+   * cannot give. The bomb that reddened `main` only had to wait for the
+   * calendar, so the repair is demonstrated by MOVING the calendar: `Date` is
+   * mocked years forward and the read above is re-run - same fixture, same
+   * pinned clock handed to the compose. If any step on the path fell back to
+   * `new Date()`, the offsets here would be TODAY-relative and shifted by the
+   * whole gap (~1,730 days) and this fails. The guard line proves the mock
+   * took effect, so a passing arm cannot be a vacuous one.
+   */
+  it("cannot expire: with the process clock moved years forward, the same read holds the same offsets", async (t) => {
+    const WALL_CLOCK = new Date(Date.UTC(2031, 5, 15, 6, 0, 0));
+    t.mock.timers.enable({ apis: ["Date"], now: WALL_CLOCK.getTime() });
+    assert.equal(new Date().toISOString().slice(0, 10), "2031-06-15", "the wall clock must actually have moved");
+    const payload = await read(composeRealBusinessLicenses, "business-licenses", "licenses", LICENCE_ROWS, { now: TODAY });
+    assert.equal(payload.status, "ok", payload.basis);
+    assert.deepEqual(payload.records.map((r) => r.recordId), ["23-000006", "23-000007", "23-000005", "23-000008"]);
+    assert.deepEqual(payload.records.slice(0, 3).map((r) => r.expiryOffsetDays), [-40, 12, 200]);
+    t.mock.timers.reset();
+  });
+
+  it("no clock given means the LIVE clock, so production is unchanged by G-166", () => {
+    /**
+     * Production reaches this mapper only through server.mjs ->
+     * composeRealBusinessLicenses(pack, domain), which passes no clock, so this
+     * is the production path and its expectation is stated against the live
+     * clock rather than against the fixture's. It fires if the default is
+     * dropped or replaced with a fixed clock; the two arms above fire if the
+     * clock is given and ignored.
+     */
+    const liveNow = new Date();
+    const liveDay = new Date(Date.UTC(liveNow.getUTCFullYear(), liveNow.getUTCMonth(), liveNow.getUTCDate()))
+      .toISOString()
+      .slice(0, 10);
+    assert.equal(
+      mapRealBusinessLicenseRecord({ licenseNumber: "23-000012", expirationDate: liveDay }, "bastrop_tx").expiryOffsetDays,
+      0,
+    );
   });
 
   it("derives the offset, and refuses to derive one from a date it cannot read", () => {
