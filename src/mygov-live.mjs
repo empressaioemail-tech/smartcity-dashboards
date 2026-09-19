@@ -373,7 +373,7 @@ export function expiryOffsetFrom(expirationDate, now = new Date()) {
   return Math.floor((then.getTime() - midnight) / MS_PER_DAY);
 }
 
-export function mapRealBusinessLicenseRecord(row, cityKey) {
+export function mapRealBusinessLicenseRecord(row, cityKey, now) {
   /**
    * G-154, the sort key. The design folder's Licenses artboard orders the roll
    * by expiry offset within a status band, and the fixture generator has always
@@ -382,8 +382,18 @@ export function mapRealBusinessLicenseRecord(row, cityKey) {
    * the compose below rendered the vendor's own row order. The offset is
    * DERIVED from the record's real expirationDate against the read's own clock,
    * and it is null - never a guess - when the date is missing or unparsable.
+   *
+   * G-166. `now` is the clock the offset is derived against, and it is
+   * INJECTABLE so a caller can pin it. Omitted, `expiryOffsetFrom` falls back
+   * to `new Date()`, which is what every production caller does: server.mjs
+   * reaches this through composeRealBusinessLicenses with no clock, and the
+   * default is the live clock, so production is unchanged. It exists because
+   * the instrument that reads these offsets had its fixture anchored to one
+   * fixed calendar date while this call read the live clock - the assertion was
+   * true for exactly one day, and `main` was red from 2026-09-19 (run
+   * cbdfaeb6). One clock per read, and the caller chooses it.
    */
-  const expiryOffsetDays = expiryOffsetFrom(row.expirationDate);
+  const expiryOffsetDays = expiryOffsetFrom(row.expirationDate, now);
   return {
     recordId: String(row.licenseNumber || row.id || "").trim() || `unknown-license`,
     kind: "mygov",
@@ -435,7 +445,14 @@ export async function composeRealBusinessLicenses(pack, domain, opts = {}) {
   return composeLiveResource(pack, domain, {
     path: "business-licenses",
     listKey: "licenses",
-    mapRow: mapRealBusinessLicenseRecord,
+    /**
+     * G-166. The read's clock reaches the row mapper HERE, so a caller that
+     * pins `opts.now` gets one clock across every row of the read. Absent
+     * `opts.now` - every production call site - `now` is `undefined` and
+     * `expiryOffsetFrom` defaults to the live clock, so production behaviour is
+     * unchanged by this wiring.
+     */
+    mapRow: (row, cityKey) => mapRealBusinessLicenseRecord(row, cityKey, opts.now),
     opts,
     refuse: { dimension: "holder", rowField: "businessName", field: "holderRef", clear: "subject" },
     /**
