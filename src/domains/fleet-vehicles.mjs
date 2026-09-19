@@ -48,6 +48,39 @@ export const ODOMETER_BANDS = [
   "over 120k miles",
 ];
 
+/**
+ * G-153 parcel 2. THE BAND ABOVE, DERIVED FROM A REAL READING.
+ *
+ * The band was declared for fixtures and the live mapper never produced one, so
+ * `RECORD_SHAPES.samsara` required a field that arrived on none of the 75 live
+ * rows while the READING it is a bucket of arrived on 72 of them. That is not a
+ * shape over-declaring and it is not a missing upstream capability: the input is
+ * in the read and the mapping was simply never done. So the band is derived here,
+ * at the one place the band edges are declared, and the mapper calls this rather
+ * than re-spelling `20000` and `60000` in a second file.
+ *
+ * THE EDGES ARE THE DECLARED BANDS' OWN EDGES and nothing else is added: 20k,
+ * 60k, 120k, each band's lower bound included and its upper bound excluded, which
+ * is what makes the four bands a partition rather than four overlapping labels.
+ * `over 120k miles` is therefore 120000 and above, and a reading of exactly
+ * 120000 lands there rather than in `60k to 120k miles`.
+ *
+ * A READING THAT IS NOT A NUMBER RETURNS NULL AND THE CALLER MUST DECIDE. It is
+ * not coerced to 0 and it is not bucketed into the lowest band: an unreadable
+ * odometer is not a young odometer. `null` is the honest answer and the shape
+ * refuses a live fleet record without a band, so the caller cannot quietly pass
+ * the null through as if it were a band.
+ */
+export function odometerBandFor(miles) {
+  if (miles === null || miles === undefined || miles === "") return null;
+  const n = typeof miles === "number" ? miles : Number(miles);
+  if (!Number.isFinite(n) || n < 0) return null;
+  if (n < 20000) return ODOMETER_BANDS[0];
+  if (n < 60000) return ODOMETER_BANDS[1];
+  if (n < 120000) return ODOMETER_BANDS[2];
+  return ODOMETER_BANDS[3];
+}
+
 export const FLEET_FIXTURE_PLAN = [
   { status: "out-of-service", count: 1 },
   { status: "inspection-due", count: 3 },
